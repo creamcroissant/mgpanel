@@ -86,3 +86,6 @@ docs/
 !readme*
 !**/README*
 !**/readme*
+
+# 测试配置文件
+**/playwright.config.*
