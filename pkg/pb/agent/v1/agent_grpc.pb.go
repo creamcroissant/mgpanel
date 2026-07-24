@@ -31,11 +31,14 @@ const (
 	AgentService_GetCoreOperations_FullMethodName      = "/agent.v1.AgentService/GetCoreOperations"
 	AgentService_ReportCoreOperation_FullMethodName    = "/agent.v1.AgentService/ReportCoreOperation"
 	AgentService_ReportAccessLogs_FullMethodName       = "/agent.v1.AgentService/ReportAccessLogs"
+	AgentService_ReportAgentLogs_FullMethodName        = "/agent.v1.AgentService/ReportAgentLogs"
 	AgentService_GetApplyBatch_FullMethodName          = "/agent.v1.AgentService/GetApplyBatch"
 	AgentService_ReportApplyRun_FullMethodName         = "/agent.v1.AgentService/ReportApplyRun"
 	AgentService_GetAgentCommands_FullMethodName       = "/agent.v1.AgentService/GetAgentCommands"
 	AgentService_ReportAgentCommand_FullMethodName     = "/agent.v1.AgentService/ReportAgentCommand"
 	AgentService_ReportOperationEvent_FullMethodName   = "/agent.v1.AgentService/ReportOperationEvent"
+	AgentService_JoinMesh_FullMethodName               = "/agent.v1.AgentService/JoinMesh"
+	AgentService_GetMeshPeers_FullMethodName           = "/agent.v1.AgentService/GetMeshPeers"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -57,11 +60,14 @@ type AgentServiceClient interface {
 	GetCoreOperations(ctx context.Context, in *GetCoreOperationsRequest, opts ...grpc.CallOption) (*GetCoreOperationsResponse, error)
 	ReportCoreOperation(ctx context.Context, in *ReportCoreOperationRequest, opts ...grpc.CallOption) (*ReportCoreOperationResponse, error)
 	ReportAccessLogs(ctx context.Context, in *AccessLogReport, opts ...grpc.CallOption) (*AccessLogResponse, error)
+	ReportAgentLogs(ctx context.Context, in *ReportAgentLogsRequest, opts ...grpc.CallOption) (*ReportAgentLogsResponse, error)
 	GetApplyBatch(ctx context.Context, in *ApplyBatchRequest, opts ...grpc.CallOption) (*ApplyBatchResponse, error)
 	ReportApplyRun(ctx context.Context, in *ApplyRunReport, opts ...grpc.CallOption) (*ApplyRunResponse, error)
 	GetAgentCommands(ctx context.Context, in *GetAgentCommandsRequest, opts ...grpc.CallOption) (*GetAgentCommandsResponse, error)
 	ReportAgentCommand(ctx context.Context, in *ReportAgentCommandRequest, opts ...grpc.CallOption) (*ReportAgentCommandResponse, error)
 	ReportOperationEvent(ctx context.Context, in *ReportOperationEventRequest, opts ...grpc.CallOption) (*ReportOperationEventResponse, error)
+	JoinMesh(ctx context.Context, in *JoinMeshRequest, opts ...grpc.CallOption) (*JoinMeshResponse, error)
+	GetMeshPeers(ctx context.Context, in *GetMeshPeersRequest, opts ...grpc.CallOption) (*GetMeshPeersResponse, error)
 }
 
 type agentServiceClient struct {
@@ -195,6 +201,16 @@ func (c *agentServiceClient) ReportAccessLogs(ctx context.Context, in *AccessLog
 	return out, nil
 }
 
+func (c *agentServiceClient) ReportAgentLogs(ctx context.Context, in *ReportAgentLogsRequest, opts ...grpc.CallOption) (*ReportAgentLogsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportAgentLogsResponse)
+	err := c.cc.Invoke(ctx, AgentService_ReportAgentLogs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) GetApplyBatch(ctx context.Context, in *ApplyBatchRequest, opts ...grpc.CallOption) (*ApplyBatchResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ApplyBatchResponse)
@@ -245,6 +261,26 @@ func (c *agentServiceClient) ReportOperationEvent(ctx context.Context, in *Repor
 	return out, nil
 }
 
+func (c *agentServiceClient) JoinMesh(ctx context.Context, in *JoinMeshRequest, opts ...grpc.CallOption) (*JoinMeshResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(JoinMeshResponse)
+	err := c.cc.Invoke(ctx, AgentService_JoinMesh_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetMeshPeers(ctx context.Context, in *GetMeshPeersRequest, opts ...grpc.CallOption) (*GetMeshPeersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMeshPeersResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetMeshPeers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -264,11 +300,14 @@ type AgentServiceServer interface {
 	GetCoreOperations(context.Context, *GetCoreOperationsRequest) (*GetCoreOperationsResponse, error)
 	ReportCoreOperation(context.Context, *ReportCoreOperationRequest) (*ReportCoreOperationResponse, error)
 	ReportAccessLogs(context.Context, *AccessLogReport) (*AccessLogResponse, error)
+	ReportAgentLogs(context.Context, *ReportAgentLogsRequest) (*ReportAgentLogsResponse, error)
 	GetApplyBatch(context.Context, *ApplyBatchRequest) (*ApplyBatchResponse, error)
 	ReportApplyRun(context.Context, *ApplyRunReport) (*ApplyRunResponse, error)
 	GetAgentCommands(context.Context, *GetAgentCommandsRequest) (*GetAgentCommandsResponse, error)
 	ReportAgentCommand(context.Context, *ReportAgentCommandRequest) (*ReportAgentCommandResponse, error)
 	ReportOperationEvent(context.Context, *ReportOperationEventRequest) (*ReportOperationEventResponse, error)
+	JoinMesh(context.Context, *JoinMeshRequest) (*JoinMeshResponse, error)
+	GetMeshPeers(context.Context, *GetMeshPeersRequest) (*GetMeshPeersResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -315,6 +354,9 @@ func (UnimplementedAgentServiceServer) ReportCoreOperation(context.Context, *Rep
 func (UnimplementedAgentServiceServer) ReportAccessLogs(context.Context, *AccessLogReport) (*AccessLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportAccessLogs not implemented")
 }
+func (UnimplementedAgentServiceServer) ReportAgentLogs(context.Context, *ReportAgentLogsRequest) (*ReportAgentLogsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportAgentLogs not implemented")
+}
 func (UnimplementedAgentServiceServer) GetApplyBatch(context.Context, *ApplyBatchRequest) (*ApplyBatchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetApplyBatch not implemented")
 }
@@ -329,6 +371,12 @@ func (UnimplementedAgentServiceServer) ReportAgentCommand(context.Context, *Repo
 }
 func (UnimplementedAgentServiceServer) ReportOperationEvent(context.Context, *ReportOperationEventRequest) (*ReportOperationEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportOperationEvent not implemented")
+}
+func (UnimplementedAgentServiceServer) JoinMesh(context.Context, *JoinMeshRequest) (*JoinMeshResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method JoinMesh not implemented")
+}
+func (UnimplementedAgentServiceServer) GetMeshPeers(context.Context, *GetMeshPeersRequest) (*GetMeshPeersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMeshPeers not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -556,6 +604,24 @@ func _AgentService_ReportAccessLogs_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ReportAgentLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportAgentLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ReportAgentLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ReportAgentLogs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ReportAgentLogs(ctx, req.(*ReportAgentLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_GetApplyBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ApplyBatchRequest)
 	if err := dec(in); err != nil {
@@ -646,6 +712,42 @@ func _AgentService_ReportOperationEvent_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_JoinMesh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinMeshRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).JoinMesh(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_JoinMesh_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).JoinMesh(ctx, req.(*JoinMeshRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetMeshPeers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMeshPeersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetMeshPeers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetMeshPeers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetMeshPeers(ctx, req.(*GetMeshPeersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -698,6 +800,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_ReportAccessLogs_Handler,
 		},
 		{
+			MethodName: "ReportAgentLogs",
+			Handler:    _AgentService_ReportAgentLogs_Handler,
+		},
+		{
 			MethodName: "GetApplyBatch",
 			Handler:    _AgentService_GetApplyBatch_Handler,
 		},
@@ -716,6 +822,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportOperationEvent",
 			Handler:    _AgentService_ReportOperationEvent_Handler,
+		},
+		{
+			MethodName: "JoinMesh",
+			Handler:    _AgentService_JoinMesh_Handler,
+		},
+		{
+			MethodName: "GetMeshPeers",
+			Handler:    _AgentService_GetMeshPeers_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

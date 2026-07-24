@@ -25,16 +25,97 @@ import type {
   ListConfigCenterSpecsParams,
   UpsertConfigCenterSpecRequest,
   UpsertConfigCenterSpecResult,
+  BindSpecRequest,
+  CoreConfigItem,
+  ListCoreConfigItemsParams,
+  UpsertCoreConfigItemRequest,
+  UpsertCoreConfigItemResult,
 } from "@/types/configCenter";
 
 type DataEnvelope<T> = {
-  data: T;
+  data: T | null;
 };
 
 type DataWithTotalEnvelope<T> = {
-  data: T;
+  data: T | null;
   total: number;
 };
+
+const emptySemanticDiff = (): ConfigCenterSemanticDiff => ({
+  desired_revision: 0,
+  items: [],
+});
+
+function normalizeSemanticDiff(data: ConfigCenterSemanticDiff | null | undefined): ConfigCenterSemanticDiff {
+  if (!data) {
+    return emptySemanticDiff();
+  }
+  return {
+    ...data,
+    desired_revision: data.desired_revision ?? 0,
+    items: Array.isArray(data.items) ? data.items : [],
+  };
+}
+
+function normalizeAppliedSnapshot(data: ConfigCenterAppliedSnapshot | null | undefined): ConfigCenterAppliedSnapshot {
+  return {
+    ...(data ?? {}),
+    inventories: Array.isArray(data?.inventories) ? data.inventories : [],
+    inbound_indexes: Array.isArray(data?.inbound_indexes) ? data.inbound_indexes : [],
+  };
+}
+
+function normalizeApplyRunDetail(data: ConfigCenterApplyRunDetail | null | undefined): ConfigCenterApplyRunDetail {
+  if (!data) {
+    return {} as ConfigCenterApplyRunDetail;
+  }
+  return {
+    ...data,
+    semantic_diff: normalizeSemanticDiff(data.semantic_diff),
+    issues: Array.isArray(data.issues) ? data.issues : [],
+  };
+}
+
+function normalizeUpsertSpecResult(data: UpsertConfigCenterSpecResult | null | undefined): UpsertConfigCenterSpecResult {
+  return {
+    spec_id: data?.spec_id ?? 0,
+    desired_revision: data?.desired_revision ?? 0,
+  };
+}
+
+function normalizeImportSpecResult(data: ImportConfigCenterSpecResult | null | undefined): ImportConfigCenterSpecResult {
+  return {
+    created_count: data?.created_count ?? 0,
+  };
+}
+
+function normalizeTextDiff(data: ConfigCenterTextDiff | null | undefined): ConfigCenterTextDiff {
+  return {
+    desired_revision: data?.desired_revision ?? 0,
+    filename: data?.filename ?? "",
+    tag: data?.tag ?? "",
+    desired_text: data?.desired_text ?? "",
+    applied_text: data?.applied_text ?? "",
+    unified_diff: data?.unified_diff ?? "",
+    different: data?.different ?? false,
+  };
+}
+
+function normalizeApplyRun(data: ConfigCenterApplyRun | null | undefined): ConfigCenterApplyRun {
+  return {
+    run_id: data?.run_id ?? "",
+    agent_host_id: data?.agent_host_id ?? 0,
+    core_type: data?.core_type ?? "sing-box",
+    target_revision: data?.target_revision ?? 0,
+    status: data?.status ?? "pending",
+    error_message: data?.error_message ?? "",
+    previous_revision: data?.previous_revision ?? 0,
+    rollback_revision: data?.rollback_revision ?? 0,
+    operator_id: data?.operator_id ?? 0,
+    started_at: data?.started_at ?? 0,
+    finished_at: data?.finished_at ?? 0,
+  };
+}
 
 export async function listConfigCenterSpecs(
   params?: ListConfigCenterSpecsParams
@@ -55,7 +136,7 @@ export async function createConfigCenterSpec(
     "/config-center/specs",
     payload
   );
-  return response.data.data ?? ({} as UpsertConfigCenterSpecResult);
+  return normalizeUpsertSpecResult(response.data.data);
 }
 
 export async function updateConfigCenterSpec(
@@ -66,7 +147,11 @@ export async function updateConfigCenterSpec(
     `/config-center/specs/${specId}`,
     payload
   );
-  return response.data.data ?? ({} as UpsertConfigCenterSpecResult);
+  return normalizeUpsertSpecResult(response.data.data);
+}
+
+export async function deleteConfigCenterSpec(specId: number): Promise<void> {
+  await adminApi.delete(`/config-center/specs/${specId}`);
 }
 
 export async function getConfigCenterSpecHistory(
@@ -90,7 +175,7 @@ export async function importConfigCenterSpecsFromApplied(
     "/config-center/specs/import-from-applied",
     payload
   );
-  return response.data.data ?? ({} as ImportConfigCenterSpecResult);
+  return normalizeImportSpecResult(response.data.data);
 }
 
 export async function listConfigCenterArtifacts(
@@ -112,7 +197,7 @@ export async function getConfigCenterTextDiff(
   const response = await adminApi.get<DataEnvelope<ConfigCenterTextDiff>>("/config-center/diff/text", {
     params,
   });
-  return response.data.data ?? ({} as ConfigCenterTextDiff);
+  return normalizeTextDiff(response.data.data);
 }
 
 export async function getConfigCenterSemanticDiff(
@@ -124,7 +209,7 @@ export async function getConfigCenterSemanticDiff(
       params,
     }
   );
-  return response.data.data ?? { items: [], desired_revision: 0 } as ConfigCenterSemanticDiff;
+  return normalizeSemanticDiff(response.data.data);
 }
 
 export async function createConfigCenterApplyRun(
@@ -134,7 +219,7 @@ export async function createConfigCenterApplyRun(
     "/config-center/apply-runs",
     payload
   );
-  return response.data.data ?? ({} as ConfigCenterApplyRun);
+  return normalizeApplyRun(response.data.data);
 }
 
 export async function listConfigCenterApplyRuns(
@@ -162,7 +247,7 @@ export async function getConfigCenterApplyRunDetail(
       params,
     }
   );
-  return response.data.data ?? ({} as ConfigCenterApplyRunDetail);
+  return normalizeApplyRunDetail(response.data.data);
 }
 
 export async function listConfigCenterAppliedSnapshot(
@@ -174,7 +259,7 @@ export async function listConfigCenterAppliedSnapshot(
       params,
     }
   );
-  return response.data.data ?? ({} as ConfigCenterAppliedSnapshot);
+  return normalizeAppliedSnapshot(response.data.data);
 }
 
 export async function listConfigCenterDriftStates(
@@ -205,4 +290,64 @@ export async function listConfigCenterRecoveryStates(
     data: response.data.data ?? [],
     total: response.data.total ?? 0,
   };
+}
+
+export async function bindConfigCenterSpec(specId: number, payload: BindSpecRequest): Promise<void> {
+  await adminApi.post(`/config-center/specs/${specId}/bind`, payload);
+}
+
+export async function unbindConfigCenterSpec(specId: number, agentHostId: number): Promise<void> {
+  await adminApi.delete(`/config-center/specs/${specId}/bind`, {
+    params: { agent_host_id: agentHostId },
+  });
+}
+
+export async function listConfigCenterSpecBoundHosts(specId: number): Promise<number[]> {
+  const response = await adminApi.get<{ data: number[] }>(
+    `/config-center/specs/${specId}/bind`
+  );
+  return response.data.data ?? [];
+}
+
+export async function listCoreConfigItems(
+  params?: ListCoreConfigItemsParams
+): Promise<{ data: CoreConfigItem[]; total: number }> {
+  const response = await adminApi.get<DataWithTotalEnvelope<CoreConfigItem[]>>("/config-center/core-configs", {
+    params,
+  });
+  return {
+    data: response.data.data ?? [],
+    total: response.data.total ?? 0,
+  };
+}
+
+export async function createCoreConfigItem(
+  payload: UpsertCoreConfigItemRequest
+): Promise<UpsertCoreConfigItemResult> {
+  const response = await adminApi.post<DataEnvelope<UpsertCoreConfigItemResult>>(
+    "/config-center/core-configs",
+    payload
+  );
+  return {
+    id: response.data.data?.id ?? 0,
+    revision: response.data.data?.revision ?? 0,
+  };
+}
+
+export async function updateCoreConfigItem(
+  id: number,
+  payload: UpsertCoreConfigItemRequest
+): Promise<UpsertCoreConfigItemResult> {
+  const response = await adminApi.put<DataEnvelope<UpsertCoreConfigItemResult>>(
+    `/config-center/core-configs/${id}`,
+    payload
+  );
+  return {
+    id: response.data.data?.id ?? 0,
+    revision: response.data.data?.revision ?? 0,
+  };
+}
+
+export async function deleteCoreConfigItem(id: number): Promise<void> {
+  await adminApi.delete(`/config-center/core-configs/${id}`);
 }

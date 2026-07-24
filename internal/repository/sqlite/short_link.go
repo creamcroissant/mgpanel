@@ -185,25 +185,31 @@ func (r *shortLinkRepo) Update(ctx context.Context, link *repository.ShortLink) 
 		SET target_path = ?, custom_params = ?, expires_at = ?, updated_at = ?
 		WHERE id = ?
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		link.TargetPath,
 		nullString(link.CustomParams),
 		nullInt64(link.ExpiresAt),
 		link.UpdatedAt,
 		link.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *shortLinkRepo) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM short_links WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *shortLinkRepo) DeleteByUserID(ctx context.Context, userID int64) error {
 	query := `DELETE FROM short_links WHERE user_id = ?`
-	_, err := r.db.ExecContext(ctx, query, userID)
+	_, err := r.db.ExecContext(ctx, query, userID) // idempotent: no error if not found
 	return err
 }
 

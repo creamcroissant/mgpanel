@@ -28,10 +28,21 @@ type Detector struct {
 
 // DetectedCapabilities holds the detected core capabilities.
 type DetectedCapabilities struct {
-	CoreType     string   // sing-box, xray
+	CoreType     string   // Primary core type (sing-box, xray)
 	CoreVersion  string   // e.g., "1.10.0"
 	Capabilities []string // e.g., ["reality", "multiplex", "brutal"]
 	BuildTags    []string // e.g., ["with_v2ray_api", "with_quic"]
+
+	// AllCores holds ALL detected core types, not just the primary.
+	AllCores []DetectedCoreInfo
+}
+
+// DetectedCoreInfo holds info about one detected core binary.
+type DetectedCoreInfo struct {
+	Type         string
+	Version      string
+	Capabilities []string
+	BuildTags    []string
 }
 
 // NewDetector creates a new capability detector.
@@ -132,24 +143,44 @@ func (d *Detector) DetectXray(ctx context.Context) (*DetectedCapabilities, error
 	return caps, nil
 }
 
-// Detect attempts to detect which core is installed.
-func (d *Detector) Detect(ctx context.Context) (*DetectedCapabilities, error) {
-	// Try sing-box first
+// Detect attempts to detect which cores are installed.
+// It tries sing-box first (preferred primary), then xray.
+// Every detected core is recorded in AllCores.
+func (d *Detector) Detect(ctx context.Context) *DetectedCapabilities {
+	var allCores []DetectedCoreInfo
+
+	// Try sing-box first (preferred primary)
 	if caps, err := d.DetectSingBox(ctx); err == nil {
-		return caps, nil
+		allCores = append(allCores, DetectedCoreInfo{
+			Type: caps.CoreType, Version: caps.CoreVersion,
+			Capabilities: caps.Capabilities, BuildTags: caps.BuildTags,
+		})
 	}
 
 	// Try xray
 	if caps, err := d.DetectXray(ctx); err == nil {
-		return caps, nil
+		allCores = append(allCores, DetectedCoreInfo{
+			Type: caps.CoreType, Version: caps.CoreVersion,
+			Capabilities: caps.Capabilities, BuildTags: caps.BuildTags,
+		})
 	}
 
-	// Return empty capabilities if neither is available
+	if len(allCores) == 0 {
+		return &DetectedCapabilities{
+			CoreType: "unknown", Capabilities: []string{}, BuildTags: []string{},
+			AllCores: []DetectedCoreInfo{},
+		}
+	}
+
+	// Return first core as primary, all as AllCores
+	primary := allCores[0]
 	return &DetectedCapabilities{
-		CoreType:     "unknown",
-		Capabilities: []string{},
-		BuildTags:    []string{},
-	}, nil
+		CoreType:     primary.Type,
+		CoreVersion:  primary.Version,
+		Capabilities: primary.Capabilities,
+		BuildTags:    primary.BuildTags,
+		AllCores:     allCores,
+	}
 }
 
 // deriveSingBoxCapabilities derives capabilities from sing-box version and build tags.
@@ -243,6 +274,14 @@ func (d *Detector) parseVersion(v string) [3]int {
 }
 
 // uniqueStrings removes duplicate strings from a slice.
+func (d *Detector) SingBoxPath() string {
+	return d.singBoxPath
+}
+
+func (d *Detector) XrayPath() string {
+	return d.xrayPath
+}
+
 func (d *Detector) uniqueStrings(s []string) []string {
 	seen := make(map[string]struct{})
 	result := []string{}

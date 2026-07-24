@@ -20,6 +20,7 @@ var (
 	ErrDriftAndDiffInvalidRequest = errors.New("service: invalid drift/diff request / 漂移与对比请求无效")
 	ErrDriftAndDiffNotConfigured  = errors.New("service: drift/diff service not configured / 漂移与对比服务未配置")
 	ErrDriftAndDiffDesiredMissing = errors.New("service: desired artifacts not found / 未找到目标期望配置")
+	ErrDriftAndDiffTagMissing     = errors.New("service: desired artifact tag not found / 未找到指定目标 tag")
 )
 
 const (
@@ -626,7 +627,7 @@ func (s *driftAndDiffService) GetSemanticDiff(ctx context.Context, req GetSemant
 	}
 	if targetTag != "" {
 		if _, exists := desiredByTag[targetTag]; !exists {
-			return nil, fmt.Errorf("%w (tag=%s)", ErrDriftAndDiffDesiredMissing, targetTag)
+			return nil, fmt.Errorf("%w (tag=%s)", ErrDriftAndDiffTagMissing, targetTag)
 		}
 	}
 

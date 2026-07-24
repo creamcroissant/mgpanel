@@ -63,7 +63,6 @@ type AdminUserUpdateInput struct {
 	Password       *string `json:"password,omitempty"`
 	Remarks        *string `json:"remarks,omitempty"`
 	Tags           []string `json:"tags,omitempty"`
-	InviteLimit    *int64   `json:"invite_limit,omitempty"`
 }
 
 // AdminUserGenerateInput 用于创建新用户。
@@ -86,8 +85,6 @@ type AdminUserView struct {
 	GroupID           int64                   `json:"group_id"`
 	Plan              *AdminUserPlanSummary   `json:"plan"`
 	Group             *AdminUserGroupSummary  `json:"group"`
-	InviteUser        *AdminUserInviteSummary `json:"invite_user"`
-	InviteUserID      *int64                  `json:"invite_user_id"`
 	Status            int                     `json:"status"`
 	Banned            bool                    `json:"banned"`
 	IsAdmin           bool                    `json:"is_admin"`
@@ -98,13 +95,9 @@ type AdminUserView struct {
 	Upload            int64                   `json:"u"`
 	Download          int64                   `json:"d"`
 	Balance           float64                 `json:"balance"`
-	CommissionBalance float64                 `json:"commission_balance"`
-	CommissionType    int                     `json:"commission_type"`
-	CommissionRate    float64                 `json:"commission_rate"`
 	Discount          float64                 `json:"discount"`
 	SpeedLimit        *int64                  `json:"speed_limit"`
 	DeviceLimit       *int64                  `json:"device_limit"`
-	InviteLimit       int64                   `json:"invite_limit"`
 	ExpiredAt         int64                   `json:"expired_at"`
 	CreatedAt         int64                   `json:"created_at"`
 	UpdatedAt         int64                   `json:"updated_at"`
@@ -126,12 +119,6 @@ type AdminUserPlanSummary struct {
 type AdminUserGroupSummary struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
-}
-
-// AdminUserInviteSummary 提供邀请人信息用于详情展示。
-type AdminUserInviteSummary struct {
-	ID    int64  `json:"id"`
-	Email string `json:"email"`
 }
 
 type adminUserService struct {
@@ -388,7 +375,6 @@ func (s *adminUserService) Generate(ctx context.Context, input AdminUserGenerate
 		GroupID:           groupID,
 		ExpiredAt:         valueOrZero(input.ExpiredAt),
 		TransferEnable:    transferEnable,
-		CommissionBalance: 0,
 		Status:            1,
 		Banned:            false,
 		CreatedAt:         now,
@@ -427,16 +413,14 @@ func (s *adminUserService) Export(ctx context.Context, input AdminUserFetchInput
 
 	var sb strings.Builder
 	// CSV Header
-	sb.WriteString("Email,Balance,CommissionBalance,TransferEnable,Status,CreatedAt,ExpiredAt\n")
 
 	for _, u := range users {
 		if u == nil {
 			continue
 		}
-		line := fmt.Sprintf("%s,%.2f,%.2f,%d,%d,%d,%d\n",
+		line := fmt.Sprintf("%s,%.2f,%d,%d,%d,%d\n",
 			csvEscape(u.Email),
 			currencyFromCents(u.BalanceCents),
-			currencyFromCents(int64(u.CommissionBalance)),
 			u.TransferEnable,
 			u.Status,
 			u.CreatedAt,
@@ -566,7 +550,6 @@ func (s *adminUserService) Import(ctx context.Context, data []byte) (*AdminUserI
 type adminUserViewMeta struct {
 	plan          *repository.Plan
 	group         *repository.ServerGroup
-	invite        *repository.User
 	onlineCount   int
 	subscribeBase string
 }
@@ -592,13 +575,9 @@ func (s *adminUserService) buildView(user *repository.User, meta adminUserViewMe
 		Upload:            user.U,
 		Download:          user.D,
 		Balance:           currencyFromCents(user.BalanceCents),
-		CommissionBalance: currencyFromCents(int64(user.CommissionBalance)),
-		CommissionType:    0,
-		CommissionRate:    0,
 		Discount:          0,
 		SpeedLimit:        user.SpeedLimit,
 		DeviceLimit:       user.DeviceLimit,
-		InviteLimit:       user.InviteLimit,
 		ExpiredAt:         user.ExpiredAt,
 		CreatedAt:         user.CreatedAt,
 		UpdatedAt:         user.UpdatedAt,
@@ -614,11 +593,6 @@ func (s *adminUserService) buildView(user *repository.User, meta adminUserViewMe
 	}
 	if meta.group != nil {
 		view.Group = &AdminUserGroupSummary{ID: meta.group.ID, Name: meta.group.Name}
-	}
-	if meta.invite != nil {
-		view.InviteUser = &AdminUserInviteSummary{ID: meta.invite.ID, Email: meta.invite.Email}
-		id := meta.invite.ID
-		view.InviteUserID = &id
 	}
 	return view
 }

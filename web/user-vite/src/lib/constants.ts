@@ -11,8 +11,10 @@ import {
   ListChecks,
   MonitorDot,
   Package,
+  Rss,
   Server,
   Settings,
+  Shield,
   Shuffle,
   Users,
 } from "lucide-react";
@@ -85,6 +87,7 @@ export const QUERY_KEYS = {
   ADMIN_CONFIG_CENTER_SNAPSHOT: ["admin", "config-center", "snapshot"],
   ADMIN_CONFIG_CENTER_DRIFT: ["admin", "config-center", "drift"],
   ADMIN_CONFIG_CENTER_RECOVER: ["admin", "config-center", "recover"],
+  ADMIN_CONFIG_CENTER_CORE_CONFIGS: ["admin", "config-center", "core-configs"],
   ADMIN_CDN_SITES: ["admin", "cdn", "sites"],
 } as const;
 
@@ -94,6 +97,7 @@ export const ROUTES = {
   REGISTER: normalizeRoute("/register"),
   FORGOT_PASSWORD: normalizeRoute("/forgot-password"),
   DASHBOARD: normalizeRoute("/dashboard"),
+  SUBSCRIPTION: normalizeRoute("/subscription"),
   SERVERS: normalizeRoute("/servers"),
   PLANS: normalizeRoute("/plans"),
   TRAFFIC: normalizeRoute("/traffic"),
@@ -114,7 +118,11 @@ export const ADMIN_ROUTES = {
   ACCESS_LOGS: adminRoute("/access-logs"),
   CONFIG_CENTER: adminRoute("/config-center"),
   CDN: adminRoute("/cdn"),
+  MCP_KEYS: adminRoute("/mcp-keys"),
 } as const;
+
+export const USER_HOME_ROUTE = ROUTES.DASHBOARD;
+export const ADMIN_HOME_ROUTE = ADMIN_ROUTES.USERS;
 
 export const ADMIN_AUTH_ROUTES = {
   LOGIN: adminRoute("/login"),
@@ -129,8 +137,14 @@ export interface NavigationItemMeta {
   sidebar: boolean;
 }
 
+export interface NavigationGroupMeta {
+  labelKey: string;
+  items: NavigationItemMeta[];
+}
+
 export const USER_NAV_ITEMS: NavigationItemMeta[] = [
   { to: ROUTES.DASHBOARD, labelKey: "nav.dashboard", icon: LayoutDashboard, sidebar: true },
+  { to: ROUTES.SUBSCRIPTION, labelKey: "nav.subscription", icon: Rss, sidebar: true },
   { to: ROUTES.SERVERS, labelKey: "nav.servers", icon: Server, sidebar: true },
   { to: ROUTES.PLANS, labelKey: "nav.plans", icon: CreditCard, sidebar: true },
   { to: ROUTES.TRAFFIC, labelKey: "nav.traffic", icon: BarChart3, sidebar: true },
@@ -138,18 +152,46 @@ export const USER_NAV_ITEMS: NavigationItemMeta[] = [
   { to: ROUTES.SETTINGS, labelKey: "nav.settings", icon: Settings, sidebar: true },
 ];
 
-export const ADMIN_NAV_ITEMS: NavigationItemMeta[] = [
-  { to: ADMIN_ROUTES.AGENTS, labelKey: "admin.nav.agents", icon: MonitorDot, sidebar: true },
-  { to: ADMIN_ROUTES.USERS, labelKey: "admin.nav.users", icon: Users, sidebar: true },
-  { to: ADMIN_ROUTES.PLANS, labelKey: "admin.nav.plans", icon: Package, sidebar: true },
-  { to: ADMIN_ROUTES.NOTICES, labelKey: "admin.nav.notices", icon: Bell, sidebar: true },
-  { to: ADMIN_ROUTES.KNOWLEDGE, labelKey: "admin.nav.knowledge", icon: BookOpen, sidebar: true },
-  { to: ADMIN_ROUTES.ACCESS_LOGS, labelKey: "admin.nav.accessLogs", icon: ListChecks, sidebar: true },
-  { to: ADMIN_ROUTES.FORWARDING, labelKey: "admin.nav.forwarding", icon: Shuffle, sidebar: true },
-  { to: ADMIN_ROUTES.CDN, labelKey: "admin.nav.cdn", icon: Globe, sidebar: true },
-  { to: ADMIN_ROUTES.CONFIG_CENTER, labelKey: "admin.nav.configCenter", icon: GitCompare, sidebar: true },
-  { to: ADMIN_ROUTES.SYSTEM, labelKey: "admin.nav.system", icon: Cog, sidebar: true },
+export const ADMIN_NAV_GROUPS: NavigationGroupMeta[] = [
+  {
+    labelKey: "admin.nav.groups.operations",
+    items: [
+      { to: ADMIN_ROUTES.USERS, labelKey: "admin.nav.users", icon: Users, sidebar: true },
+      { to: ADMIN_ROUTES.PLANS, labelKey: "admin.nav.plans", icon: Package, sidebar: true },
+      { to: ADMIN_ROUTES.NOTICES, labelKey: "admin.nav.notices", icon: Bell, sidebar: true },
+      { to: ADMIN_ROUTES.KNOWLEDGE, labelKey: "admin.nav.knowledge", icon: BookOpen, sidebar: true },
+    ],
+  },
+  {
+    labelKey: "admin.nav.groups.nodesDeployment",
+    items: [
+      { to: ADMIN_ROUTES.AGENTS, labelKey: "admin.nav.agents", icon: MonitorDot, sidebar: true },
+      { to: ADMIN_ROUTES.FORWARDING, labelKey: "admin.nav.forwarding", icon: Shuffle, sidebar: true },
+      { to: ADMIN_ROUTES.CDN, labelKey: "admin.nav.cdn", icon: Globe, sidebar: true },
+    ],
+  },
+  {
+    labelKey: "admin.nav.groups.configuration",
+    items: [{ to: ADMIN_ROUTES.CONFIG_CENTER, labelKey: "admin.nav.configCenter", icon: GitCompare, sidebar: true }],
+  },
+  {
+    labelKey: "admin.nav.groups.securityLogs",
+    items: [{ to: ADMIN_ROUTES.ACCESS_LOGS, labelKey: "admin.nav.accessLogs", icon: ListChecks, sidebar: true }],
+  },
+  {
+    labelKey: "admin.nav.groups.system",
+    items: [
+      { to: ADMIN_ROUTES.MCP_KEYS, labelKey: "admin.nav.mcpKeys", icon: Shield, sidebar: true },
+      { to: ADMIN_ROUTES.SYSTEM, labelKey: "admin.nav.system", icon: Cog, sidebar: true },
+    ],
+  },
 ];
+
+export const ADMIN_NAV_ITEMS = ADMIN_NAV_GROUPS.flatMap((group) => group.items);
+
+export function isAdminPath(pathname: string): boolean {
+  return ADMIN_NAV_ITEMS.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+}
 
 export const APP_NAV_ITEMS = [...USER_NAV_ITEMS, ...ADMIN_NAV_ITEMS] as const;
 

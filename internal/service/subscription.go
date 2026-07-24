@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
+
 	"github.com/creamcroissant/xboard/internal/api/requestctx"
 	"github.com/creamcroissant/xboard/internal/async"
 	"github.com/creamcroissant/xboard/internal/protocol"
@@ -156,7 +158,10 @@ func (s *subscriptionService) filterForSubscription(ctx context.Context, user *r
 	if len(tagsFilter) > 0 {
 		servers = filterServersByTags(servers, tagsFilter)
 	}
-	filtered, _ := filterSubscriptionServers(servers, allowedTypes, keywords)
+	filtered, rejected := filterSubscriptionServers(servers, allowedTypes, keywords)
+	if rejected > 0 {
+		slog.Warn("subscription: filter rejected servers", "rejected", rejected)
+	}
 	if s.telemetry != nil {
 		online := make([]*repository.Server, 0, len(filtered))
 		for _, server := range filtered {

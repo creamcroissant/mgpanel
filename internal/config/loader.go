@@ -181,6 +181,11 @@ func bindEnv(v *viper.Viper) error {
 		"scheduler.traffic_fetch":    {"XBOARD_SCHEDULER_TRAFFIC_FETCH"},
 		"scheduler.email_notify":     {"XBOARD_SCHEDULER_EMAIL_NOTIFY"},
 		"scheduler.telegram_notify":  {"XBOARD_SCHEDULER_TELEGRAM_NOTIFY"},
+	"mcp.enabled":                      {"XBOARD_MCP_ENABLED"},
+	"mcp.api_key":                      {"XBOARD_MCP_API_KEY"},
+	"mcp.max_agent_log_lines":          {"XBOARD_MCP_MAX_AGENT_LOG_LINES"},
+	"mcp.agent_log_upload_interval_seconds": {"XBOARD_MCP_AGENT_LOG_UPLOAD_INTERVAL"},
+	"mcp.server_log_max_lines":         {"XBOARD_MCP_SERVER_LOG_MAX_LINES"},
 	}
 	for key, envs := range bindings {
 		args := append([]string{key}, envs...)
@@ -225,6 +230,16 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("scheduler.traffic_fetch", "@every 1m")
 	v.SetDefault("scheduler.email_notify", "@every 1m")
 	v.SetDefault("scheduler.telegram_notify", "@every 1m")
+	v.SetDefault("agent_task.core_operation_claim_timeout", "2m")
+	v.SetDefault("agent_task.lifecycle_operation_claim_timeout", "2m")
+	v.SetDefault("agent_task.apply_run_claim_timeout", "10m")
+
+	// MCP defaults
+	v.SetDefault("mcp.enabled", false)
+	v.SetDefault("mcp.api_key", "")
+	v.SetDefault("mcp.max_agent_log_lines", 50)
+	v.SetDefault("mcp.agent_log_upload_interval_seconds", 60)
+	v.SetDefault("mcp.server_log_max_lines", 500)
 }
 
 func configuredDir(configPath string) string {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strconv"
 	"strings"
@@ -18,7 +19,6 @@ import (
 type PlanService interface {
 	GuestPlans(ctx context.Context) ([]PlanView, error)
 	UserPlanDetail(ctx context.Context, userID int64, planID int64) (*PlanView, error)
-	ValidatePurchase(ctx context.Context, input PlanPurchaseInput) (*PlanPurchaseResult, error)
 	AdminPlans(ctx context.Context) ([]AdminPlanView, error)
 }
 
@@ -65,21 +65,6 @@ type AdminPlanView struct {
 	ActiveUsersCount int64          `json:"active_users_count"`
 }
 
-// PlanPurchaseInput 表示校验购买请求所需字段。
-type PlanPurchaseInput struct {
-	UserID int64
-	PlanID int64
-	Period string
-}
-
-// PlanPurchaseResult 返回标准化周期、价格与关联模型。
-type PlanPurchaseResult struct {
-	Plan       *repository.Plan
-	User       *repository.User
-	Period     string
-	PriceCents int64
-	IsReset    bool
-}
 
 const (
 	PeriodMonthly      = "monthly"
@@ -117,16 +102,18 @@ type planService struct {
 	settings repository.SettingRepository
 	groups   repository.ServerGroupRepository
 	now      func() time.Time
+	logger   *slog.Logger
 }
 
 // NewPlanService 组装套餐服务依赖。
-func NewPlanService(plans repository.PlanRepository, users repository.UserRepository, settings repository.SettingRepository, groups repository.ServerGroupRepository) PlanService {
+func NewPlanService(plans repository.PlanRepository, users repository.UserRepository, settings repository.SettingRepository, groups repository.ServerGroupRepository, logger *slog.Logger) PlanService {
 	return &planService{
 		plans:    plans,
 		users:    users,
 		settings: settings,
 		groups:   groups,
 		now:      time.Now,
+		logger:   logger,
 	}
 }
 
@@ -166,7 +153,8 @@ func (s *planService) AdminPlans(ctx context.Context) ([]AdminPlanView, error) {
 	}
 	result := make([]AdminPlanView, 0, len(plans))
 	for _, plan := range plans {
-		view := AdminPlanView{PlanView: s.buildPlanView(ctx, plan)}
+		pv, _ := s.buildPlanView(ctx, plan)
+		view := AdminPlanView{PlanView: pv}
 		if plan.GroupID != nil {
 			if group, ok := groupMap[*plan.GroupID]; ok {
 				copy := *group
@@ -199,7 +187,8 @@ func (s *planService) GuestPlans(ctx context.Context) ([]PlanView, error) {
 		if !ok {
 			continue
 		}
-		result = append(result, s.buildPlanView(ctx, plan))
+		pv, _ := s.buildPlanView(ctx, plan)
+		result = append(result, pv)
 	}
 	return result, nil
 }
@@ -229,65 +218,10 @@ func (s *planService) UserPlanDetail(ctx context.Context, userID int64, planID i
 	if !ok {
 		return nil, ErrNotFound
 	}
-	view := s.buildPlanView(ctx, plan)
+	view, _ := s.buildPlanView(ctx, plan)
 	return &view, nil
 }
 
-func (s *planService) ValidatePurchase(ctx context.Context, input PlanPurchaseInput) (*PlanPurchaseResult, error) {
-	// 校验购买周期、价格与套餐可用性。
-	if s == nil || s.plans == nil || s.users == nil {
-		return nil, fmt.Errorf("plan service not configured / 套餐服务未配置")
-	}
-	if input.UserID <= 0 || input.PlanID <= 0 {
-		return nil, ErrPlanUnavailable
-	}
-	user, err := s.users.FindByID(ctx, input.UserID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	plan, err := s.plans.FindByID(ctx, input.PlanID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	periodKey := NormalizePlanPeriod(input.Period)
-	if periodKey == "" {
-		return nil, ErrInvalidPeriod
-	}
-	pricePtr := centsFor(plan.Prices, periodKey)
-	if pricePtr == nil || *pricePtr <= 0 {
-		return nil, ErrInvalidPeriod
-	}
-	price := *pricePtr
-	now := s.now().Unix()
-	if periodKey == PeriodResetTraffic {
-		if err := s.ensureResetTrafficAllowed(user, plan, now); err != nil {
-			return nil, err
-		}
-		return &PlanPurchaseResult{
-			Plan:       plan,
-			User:       user,
-			Period:     periodKey,
-			PriceCents: price,
-			IsReset:    true,
-		}, nil
-	}
-	if err := s.ensurePlanAvailableForPurchase(ctx, plan, user, now); err != nil {
-		return nil, err
-	}
-	return &PlanPurchaseResult{
-		Plan:       plan,
-		User:       user,
-		Period:     periodKey,
-		PriceCents: price,
-		IsReset:    false,
-	}, nil
-}
 
 func (s *planService) hasCapacity(ctx context.Context, plan *repository.Plan, now int64) (bool, error) {
 	// 判断套餐是否仍有容量可售。
@@ -357,9 +291,14 @@ func (s *planService) ensureResetTrafficAllowed(user *repository.User, plan *rep
 	return nil
 }
 
-func (s *planService) buildPlanView(ctx context.Context, plan *repository.Plan) PlanView {
+func (s *planService) buildPlanView(ctx context.Context, plan *repository.Plan) (PlanView, error) {
 	// 组装返回给前端的套餐视图。
-	serverGroupIDs, _ := s.plans.GetGroups(ctx, plan.ID)
+	serverGroupIDs, err := s.plans.GetGroups(ctx, plan.ID)
+	if err != nil {
+		s.logger.Error("plan: get groups failed", "plan_id", plan.ID, "error", err)
+		// 保守处理：返回空切片而非 nil
+		serverGroupIDs = []int64{}
+	}
 	view := PlanView{
 		ID:                 plan.ID,
 		GroupID:            plan.GroupID,
@@ -389,7 +328,7 @@ func (s *planService) buildPlanView(ctx context.Context, plan *repository.Plan) 
 	view.OnetimePrice = centsFor(plan.Prices, "onetime")
 	view.ResetPrice = centsFor(plan.Prices, "reset_traffic")
 
-	return view
+	return view, nil
 }
 
 func (s *planService) renderContent(ctx context.Context, plan *repository.Plan) string {

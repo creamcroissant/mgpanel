@@ -31,6 +31,7 @@ type installCaddyPayload struct {
 
 // deployCDNSitePayload is the JSON payload for deploy_cdn_site operations.
 type deployCDNSitePayload struct {
+	SiteID     int64  `json:"site_id"`
 	Domain     string `json:"domain"`
 	OriginType string `json:"origin_type"`
 	OriginURL  string `json:"origin_url,omitempty"`
@@ -139,6 +140,7 @@ func (a *Agent) handleDeployCDN(ctx context.Context, task command.Task, reporter
 	})
 
 	site := &cdn.CDNSiteConfig{
+		ID:         int(payload.SiteID),
 		Domain:     payload.Domain,
 		OriginType: payload.OriginType,
 		OriginURL:  payload.OriginURL,

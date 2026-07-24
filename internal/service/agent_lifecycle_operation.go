@@ -28,8 +28,9 @@ const (
 	AgentLifecycleOperationTypeTrafficReset     = "traffic_reset"
 	AgentLifecycleOperationTypeThresholdAction  = "threshold_action"
 	AgentLifecycleOperationTypeResetLinks       = "reset_links"
-	AgentLifecycleOperationTypeCDNDeploySite    = "cdn_deploy_site"
-	AgentLifecycleOperationTypeCDNRemoveSite    = "cdn_remove_site"
+	AgentLifecycleOperationTypeCDNDeploySite    = "deploy_cdn_site"
+	AgentLifecycleOperationTypeCDNRemoveSite    = "remove_cdn_site"
+	AgentLifecycleOperationTypeSetRoutingTable  = "set_routing_table"
 
 	agentLifecycleOperationTypeAgentUpdate      = AgentLifecycleOperationTypeAgentUpdate
 	agentLifecycleOperationTypeAgentUpdateCheck = AgentLifecycleOperationTypeAgentUpdateCheck
@@ -37,8 +38,9 @@ const (
 	agentLifecycleOperationTypeThresholdAction  = AgentLifecycleOperationTypeThresholdAction
 	agentLifecycleOperationTypeResetLinks       = AgentLifecycleOperationTypeResetLinks
 
-	agentLifecycleOperationTypeCDNDeploySite = "cdn_deploy_site"
-	agentLifecycleOperationTypeCDNRemoveSite = "cdn_remove_site"
+	agentLifecycleOperationTypeCDNDeploySite = AgentLifecycleOperationTypeCDNDeploySite
+	agentLifecycleOperationTypeCDNRemoveSite = AgentLifecycleOperationTypeCDNRemoveSite
+	agentLifecycleOperationTypeSetRoutingTable = AgentLifecycleOperationTypeSetRoutingTable
 
 	agentLifecycleOperationStatusPending           = "pending"
 	agentLifecycleOperationStatusClaimed           = "claimed"
@@ -61,7 +63,6 @@ const (
 	agentLifecycleOperationMaxLimit     = 200
 	agentLifecycleOperationMaxClaim     = 20
 
-	agentLifecycleOperationClaimTimeout = 2 * time.Minute
 
 	agentLifecycleOperationCreatedAuditKind   = "admin.agent_lifecycle_operation.created"
 	agentLifecycleOperationForbiddenAuditKind = "agent.agent_lifecycle_operation.forbidden"
@@ -270,10 +271,14 @@ func (s *agentLifecycleOperationService) ClaimNext(ctx context.Context, req Clai
 	if err != nil {
 		return nil, err
 	}
+	supportedActions := normalizeAgentLifecycleSupportedActions(req.SupportedActions)
+	if len(supportedActions) == 0 {
+		return nil, ErrAgentLifecycleOperationNotFound
+	}
 	limit := normalizeAgentLifecycleOperationClaimLimit(req.Limit)
 	now := time.Now().Unix()
 	reclaimBefore := time.Now().Add(-agentLifecycleOperationClaimTimeout).Unix()
-	operations, err := s.operations.ClaimNext(ctx, req.AgentHostID, statuses, claimedBy, now, &reclaimBefore, limit)
+	operations, err := s.operations.ClaimNext(ctx, req.AgentHostID, statuses, supportedActions, claimedBy, now, &reclaimBefore, limit)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrAgentLifecycleOperationNotFound
@@ -312,12 +317,19 @@ func (s *agentLifecycleOperationService) Report(ctx context.Context, req ReportA
 	if err != nil {
 		return err
 	}
-	if !canTransitionAgentLifecycleOperationStatus(operation.Status, nextStatus) {
-		return ErrAgentLifecycleOperationInvalidRequest
-	}
 	resultPayload, err := sanitizeAgentLifecycleOperationPayload(req.Payload)
 	if err != nil {
 		return err
+	}
+	errorMessage := strings.TrimSpace(req.ErrorMessage)
+	if isAgentLifecycleOperationTerminalStatus(operation.Status) {
+		if isIdempotentTerminalAgentLifecycleOperationReport(operation, nextStatus, resultPayload, errorMessage) {
+			return nil
+		}
+		return ErrAgentLifecycleOperationInvalidRequest
+	}
+	if !canTransitionAgentLifecycleOperationStatus(operation.Status, nextStatus) {
+		return ErrAgentLifecycleOperationInvalidRequest
 	}
 	occurredAt := req.OccurredAt
 	if occurredAt == 0 {
@@ -331,7 +343,7 @@ func (s *agentLifecycleOperationService) Report(ctx context.Context, req ReportA
 	if terminal {
 		finishedAt = &occurredAt
 	}
-	if err := s.operations.UpdateClaimedStatus(ctx, operationID, claimedBy, nextStatus, resultPayload, strings.TrimSpace(req.ErrorMessage), startedAt, finishedAt); err != nil {
+	if err := s.operations.UpdateClaimedStatus(ctx, operationID, claimedBy, nextStatus, resultPayload, errorMessage, startedAt, finishedAt); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return ErrAgentLifecycleOperationNotFound
 		}
@@ -362,6 +374,8 @@ func normalizeAgentLifecycleOperationType(operationType string) (string, error) 
 		return agentLifecycleOperationTypeCDNDeploySite, nil
 	case agentLifecycleOperationTypeCDNRemoveSite:
 		return agentLifecycleOperationTypeCDNRemoveSite, nil
+	case agentLifecycleOperationTypeSetRoutingTable:
+		return agentLifecycleOperationTypeSetRoutingTable, nil
 	default:
 		return "", ErrAgentLifecycleOperationInvalidRequest
 	}
@@ -406,6 +420,26 @@ func normalizeAgentLifecycleClaimStatuses(statuses []string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+func normalizeAgentLifecycleSupportedActions(actions []string) []string {
+	if len(actions) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(actions))
+	out := make([]string, 0, len(actions))
+	for _, action := range actions {
+		normalized, err := normalizeAgentLifecycleOperationType(action)
+		if err != nil {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }
 
 func normalizeAgentLifecycleReportStatus(req ReportAgentLifecycleOperationRequest) (string, bool, error) {
@@ -471,6 +505,19 @@ func isAgentLifecycleOperationTerminalStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func isIdempotentTerminalAgentLifecycleOperationReport(operation *repository.AgentLifecycleOperation, nextStatus string, resultPayload json.RawMessage, errorMessage string) bool {
+	if operation == nil || !isAgentLifecycleOperationTerminalStatus(operation.Status) {
+		return false
+	}
+	if strings.TrimSpace(operation.Status) != strings.TrimSpace(nextStatus) {
+		return false
+	}
+	if strings.TrimSpace(operation.ErrorMessage) != strings.TrimSpace(errorMessage) {
+		return false
+	}
+	return string(operation.ResultPayload) == string(resultPayload)
 }
 
 func canTransitionAgentLifecycleOperationStatus(current, next string) bool {

@@ -11,6 +11,8 @@ import "agent/v1/forwarding.proto";
 import "agent/v1/core.proto";
 import "agent/v1/access_log.proto";
 import "agent/v1/config_center.proto";
+import "agent/v1/mesh.proto";
+import "agent/v1/log.proto";
 
 // AgentService defines the communication interface between Agent and Panel
 // Panel acts as the gRPC server, Agent connects as client
@@ -27,11 +29,14 @@ service AgentService {
   rpc GetCoreOperations(GetCoreOperationsRequest) returns (GetCoreOperationsResponse);
   rpc ReportCoreOperation(ReportCoreOperationRequest) returns (ReportCoreOperationResponse);
   rpc ReportAccessLogs(AccessLogReport) returns (AccessLogResponse);
+  rpc ReportAgentLogs(ReportAgentLogsRequest) returns (ReportAgentLogsResponse);
   rpc GetApplyBatch(ApplyBatchRequest) returns (ApplyBatchResponse);
   rpc ReportApplyRun(ApplyRunReport) returns (ApplyRunResponse);
   rpc GetAgentCommands(GetAgentCommandsRequest) returns (GetAgentCommandsResponse);
   rpc ReportAgentCommand(ReportAgentCommandRequest) returns (ReportAgentCommandResponse);
   rpc ReportOperationEvent(ReportOperationEventRequest) returns (ReportOperationEventResponse);
+  rpc JoinMesh(JoinMeshRequest) returns (JoinMeshResponse);
+  rpc GetMeshPeers(GetMeshPeersRequest) returns (GetMeshPeersResponse);
 }
 
 message AgentCommand {

@@ -123,6 +123,8 @@ func isInternalAgentCommandAction(operationType string) bool {
 	switch strings.TrimSpace(operationType) {
 	case agentCommandActionCoreOperation, agentCommandActionConfigApply:
 		return true
+	case agentCommandActionSetRoutingTable:
+		return false
 	default:
 		return false
 	}

@@ -34,6 +34,10 @@ const (
 	defaultInstallScriptPath      = "/opt/xboard/deploy/agent.sh"
 	defaultSingBoxBinaryPath      = "/opt/xboard/bin/sing-box"
 	defaultXrayBinaryPath         = "/opt/xboard/bin/xray"
+	defaultSingBoxReleaseRepo     = "creamcroissant/sing-box_with_api"
+	defaultXrayReleaseRepo        = "XTLS/Xray-core"
+	defaultCoreReleaseBaseURL     = "https://github.com"
+	defaultCoreInstallDir         = "/opt/xboard/agent/cores"
 	defaultUpdateHealthTimeout    = 2 * time.Minute
 	defaultUpdateMaxCrashCount    = 3
 	defaultUpdateJitterMax        = 30 * time.Second
@@ -54,6 +58,29 @@ type Config struct {
 	Update     UpdateConfig     `yaml:"update"`
 	CDN        CDNConfig        `yaml:"cdn"`
 	Log        LogConfig        `yaml:"log"`
+	Mesh       MeshConfig       `yaml:"mesh"`
+}
+
+// MeshConfig holds configuration for WireGuard mesh networking.
+type MeshConfig struct {
+	// Enabled controls whether WireGuard mesh networking is active.
+	Enabled bool `yaml:"enabled"`
+	// ConfigDir is the directory for mesh WireGuard configuration files.
+	ConfigDir string `yaml:"config_dir"`
+	// ListenPort is the WireGuard listen port (default 51820).
+	ListenPort int `yaml:"listen_port"`
+	// WgBinary is the path to the wg binary (default "wg").
+	WgBinary string `yaml:"wg_binary"`
+	// NetworkCIDR is the mesh network CIDR (default "10.144.0.0/24").
+	NetworkCIDR string          `yaml:"network_cidr"`
+	Probe       MeshProbeConfig `yaml:"probe"`
+}
+
+// MeshProbeConfig holds configuration for mesh peer latency probing.
+type MeshProbeConfig struct {
+	Interval   int `yaml:"interval"`
+	Timeout    int `yaml:"timeout"`
+	WindowSize int `yaml:"window_size"`
 }
 
 // LogConfig holds agent log settings.
@@ -63,6 +90,21 @@ type LogConfig struct {
 	Dir string `yaml:"dir"`
 	// MaxDays controls how many days of log files to retain (default 7).
 	MaxDays int `yaml:"max_days"`
+
+	// Upload controls agent log upload to Panel
+	Upload LogUploadConfig `yaml:"upload"`
+}
+
+// LogUploadConfig controls periodic log upload via gRPC.
+type LogUploadConfig struct {
+	// Enabled controls whether log upload is active (default true).
+	Enabled bool `yaml:"enabled"`
+	// MaxLines is the max log lines per upload batch (default 50).
+	MaxLines int `yaml:"max_lines"`
+	// IntervalSeconds is the upload interval in seconds (default 60).
+	IntervalSeconds int `yaml:"interval_seconds"`
+	// Source identifies the log source: "agent" | "core" | "all" (default "all").
+	Source string `yaml:"source"`
 }
 
 // GRPCConfig holds gRPC client configuration for connecting to Panel
@@ -275,8 +317,12 @@ type CoreConfig struct {
 	OutputPath        string `yaml:"output_path"`
 	ReloadCmd         string `yaml:"reload_cmd"`
 	InstallScriptPath string `yaml:"install_script_path"`
-	SingBoxBinaryPath string `yaml:"singbox_binary_path"`
-	XrayBinaryPath    string `yaml:"xray_binary_path"`
+	SingBoxBinaryPath  string `yaml:"singbox_binary_path"`
+	XrayBinaryPath     string `yaml:"xray_binary_path"`
+	SingBoxReleaseRepo string `yaml:"singbox_release_repo"`
+	XrayReleaseRepo    string `yaml:"xray_release_repo"`
+	ReleaseBaseURL     string `yaml:"release_base_url"`
+	CoreInstallDir     string `yaml:"core_install_dir"`
 }
 
 type TrafficConfig struct {
@@ -396,6 +442,19 @@ func applyDefaults(cfg *Config) error {
 	}
 	if strings.TrimSpace(cfg.Core.XrayBinaryPath) == "" {
 		cfg.Core.XrayBinaryPath = defaultXrayBinaryPath
+	}
+
+	if strings.TrimSpace(cfg.Core.SingBoxReleaseRepo) == "" {
+		cfg.Core.SingBoxReleaseRepo = defaultSingBoxReleaseRepo
+	}
+	if strings.TrimSpace(cfg.Core.XrayReleaseRepo) == "" {
+		cfg.Core.XrayReleaseRepo = defaultXrayReleaseRepo
+	}
+	if strings.TrimSpace(cfg.Core.ReleaseBaseURL) == "" {
+		cfg.Core.ReleaseBaseURL = defaultCoreReleaseBaseURL
+	}
+	if strings.TrimSpace(cfg.Core.CoreInstallDir) == "" {
+		cfg.Core.CoreInstallDir = defaultCoreInstallDir
 	}
 
 	if strings.TrimSpace(cfg.Update.ReleaseBaseURL) == "" {
@@ -522,6 +581,17 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Log.MaxDays <= 0 {
 		cfg.Log.MaxDays = 7
+	}
+
+	// Log upload defaults
+	if cfg.Log.Upload.IntervalSeconds <= 0 {
+		cfg.Log.Upload.IntervalSeconds = 60
+	}
+	if cfg.Log.Upload.MaxLines <= 0 {
+		cfg.Log.Upload.MaxLines = 50
+	}
+	if cfg.Log.Upload.Source == "" {
+		cfg.Log.Upload.Source = "all"
 	}
 
 	return nil

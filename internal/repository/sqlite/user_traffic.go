@@ -32,7 +32,7 @@ func (r *userTrafficRepo) AddServerSelection(ctx context.Context, userID, server
 func (r *userTrafficRepo) RemoveServerSelection(ctx context.Context, userID, serverID int64) error {
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM user_server_selections WHERE user_id = ? AND server_id = ?
-	`, userID, serverID)
+	`, userID, serverID) // idempotent: no error if not found
 	return err
 }
 
@@ -61,7 +61,7 @@ func (r *userTrafficRepo) GetUserServerIDs(ctx context.Context, userID int64) ([
 func (r *userTrafficRepo) ClearUserSelections(ctx context.Context, userID int64) error {
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM user_server_selections WHERE user_id = ?
-	`, userID)
+	`, userID) // idempotent: no error if not found
 	return err
 }
 

@@ -11,10 +11,44 @@ import (
 )
 
 var (
-	ErrInboundSpecInvalid        = errors.New("service: invalid inbound spec / 入站配置无效")
-	ErrInboundSpecTagConflict    = errors.New("service: inbound spec tag conflict / 入站标签冲突")
-	ErrInboundSpecListenConflict = errors.New("service: inbound spec listen conflict / 入站监听冲突")
+	ErrInboundSpecInvalid            = errors.New("service: invalid inbound spec / 入站配置无效")
+	ErrInboundSpecTagConflict        = errors.New("service: inbound spec tag conflict / 入站标签冲突")
+	ErrInboundSpecListenConflict     = errors.New("service: inbound spec listen conflict / 入站监听冲突")
+	ErrInboundSpecProtocolIncompat   = errors.New("service: protocol not supported by target core / 协议不被目标核心支持")
+
+	// sing-box 1.11+ 支持的入站协议
+	singBoxInboundProtocols = map[string]struct{}{
+		"direct": {}, "block": {}, "socks": {}, "http": {},
+		"shadowsocks": {}, "vmess": {}, "trojan": {}, "vless": {},
+		"hysteria": {}, "hysteria2": {}, "tuic": {}, "anytls": {}, "shadowtls": {},
+		"dns": {}, "loopback": {}, "mixed": {}, "naive": {},
+		"tun": {}, "redirect": {}, "tproxy": {}, "wireguard": {},
+		"mtproto": {},
+	}
+
+	// xray 1.8+ 支持的入站协议
+	xrayInboundProtocols = map[string]struct{}{
+		"socks": {}, "http": {},
+		"shadowsocks": {}, "vmess": {}, "trojan": {}, "vless": {},
+		"hysteria2": {}, "tuic": {},
+		"dokodemo-door": {}, "mixed": {},
+	}
 )
+
+// isProtocolSupportedByCore checks whether a protocol is supported by the given core type.
+func isProtocolSupportedByCore(protocol, coreType string) bool {
+	normalized := normalizeCoreType(coreType)
+	switch normalized {
+	case "sing-box":
+		_, ok := singBoxInboundProtocols[protocol]
+		return ok
+	case "xray":
+		_, ok := xrayInboundProtocols[protocol]
+		return ok
+	default:
+		return false
+	}
+}
 
 // InboundSpecFieldViolation describes a deterministic field-level validation issue.
 type InboundSpecFieldViolation struct {
@@ -97,6 +131,7 @@ type inboundSemanticSpec struct {
 	TLS       json.RawMessage `json:"tls,omitempty"`
 	Transport json.RawMessage `json:"transport,omitempty"`
 	Multiplex json.RawMessage `json:"multiplex,omitempty"`
+	Sniffing  json.RawMessage `json:"sniffing,omitempty"`
 }
 
 func normalizeCoreType(input string) string {
@@ -177,6 +212,11 @@ func validateSpecInput(coreType, tag string, semanticSpec json.RawMessage, coreS
 			semantic = parsed
 			if parsed.Protocol == "" {
 				validationErr.add("semantic_spec.protocol", "is required / 不能为空")
+			} else if !isProtocolSupportedByCore(parsed.Protocol, coreType) {
+				validationErr.add("semantic_spec.protocol", fmt.Sprintf(
+					"protocol %q is not supported by %s / 协议 %q 不被 %s 支持",
+					parsed.Protocol, coreType, parsed.Protocol, coreType,
+				))
 			}
 			if parsed.Listen == "" {
 				validationErr.add("semantic_spec.listen", "is required / 不能为空")

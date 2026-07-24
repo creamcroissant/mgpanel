@@ -765,7 +765,7 @@ var File_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x14agent/v1/agent.proto\x12\bagent.v1\x1a\x15agent/v1/status.proto\x1a\x15agent/v1/config.proto\x1a\x16agent/v1/traffic.proto\x1a\x19agent/v1/forwarding.proto\x1a\x13agent/v1/core.proto\x1a\x19agent/v1/access_log.proto\x1a\x1cagent/v1/config_center.proto\"\xb8\x02\n" +
+	"\x14agent/v1/agent.proto\x12\bagent.v1\x1a\x15agent/v1/status.proto\x1a\x15agent/v1/config.proto\x1a\x16agent/v1/traffic.proto\x1a\x19agent/v1/forwarding.proto\x1a\x13agent/v1/core.proto\x1a\x19agent/v1/access_log.proto\x1a\x1cagent/v1/config_center.proto\x1a\x13agent/v1/mesh.proto\x1a\x12agent/v1/log.proto\"\xb8\x02\n" +
 	"\fAgentCommand\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\"\n" +
 	"\ragent_host_id\x18\x02 \x01(\x03R\vagentHostId\x12%\n" +
@@ -837,8 +837,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\baccepted\x18\x01 \x01(\x05R\baccepted\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12\x1e\n" +
-	"\vlast_log_id\x18\x04 \x01(\x03R\tlastLogId2\xd2\n" +
-	"\n" +
+	"\vlast_log_id\x18\x04 \x01(\x03R\tlastLogId2\xbc\f\n" +
 	"\fAgentService\x12D\n" +
 	"\tHeartbeat\x12\x1a.agent.v1.HeartbeatRequest\x1a\x1b.agent.v1.HeartbeatResponse\x12@\n" +
 	"\fReportStatus\x12\x16.agent.v1.StatusReport\x1a\x18.agent.v1.StatusResponse\x12>\n" +
@@ -851,12 +850,15 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x16ReportForwardingStatus\x12 .agent.v1.ForwardingStatusReport\x1a\x18.agent.v1.StatusResponse\x12\\\n" +
 	"\x11GetCoreOperations\x12\".agent.v1.GetCoreOperationsRequest\x1a#.agent.v1.GetCoreOperationsResponse\x12b\n" +
 	"\x13ReportCoreOperation\x12$.agent.v1.ReportCoreOperationRequest\x1a%.agent.v1.ReportCoreOperationResponse\x12J\n" +
-	"\x10ReportAccessLogs\x12\x19.agent.v1.AccessLogReport\x1a\x1b.agent.v1.AccessLogResponse\x12J\n" +
+	"\x10ReportAccessLogs\x12\x19.agent.v1.AccessLogReport\x1a\x1b.agent.v1.AccessLogResponse\x12V\n" +
+	"\x0fReportAgentLogs\x12 .agent.v1.ReportAgentLogsRequest\x1a!.agent.v1.ReportAgentLogsResponse\x12J\n" +
 	"\rGetApplyBatch\x12\x1b.agent.v1.ApplyBatchRequest\x1a\x1c.agent.v1.ApplyBatchResponse\x12F\n" +
 	"\x0eReportApplyRun\x12\x18.agent.v1.ApplyRunReport\x1a\x1a.agent.v1.ApplyRunResponse\x12Y\n" +
 	"\x10GetAgentCommands\x12!.agent.v1.GetAgentCommandsRequest\x1a\".agent.v1.GetAgentCommandsResponse\x12_\n" +
 	"\x12ReportAgentCommand\x12#.agent.v1.ReportAgentCommandRequest\x1a$.agent.v1.ReportAgentCommandResponse\x12e\n" +
-	"\x14ReportOperationEvent\x12%.agent.v1.ReportOperationEventRequest\x1a&.agent.v1.ReportOperationEventResponseB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\x14ReportOperationEvent\x12%.agent.v1.ReportOperationEventRequest\x1a&.agent.v1.ReportOperationEventResponse\x12A\n" +
+	"\bJoinMesh\x12\x19.agent.v1.JoinMeshRequest\x1a\x1a.agent.v1.JoinMeshResponse\x12M\n" +
+	"\fGetMeshPeers\x12\x1d.agent.v1.GetMeshPeersRequest\x1a\x1e.agent.v1.GetMeshPeersResponseB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_agent_proto_rawDescOnce sync.Once
@@ -893,21 +895,27 @@ var file_agent_v1_agent_proto_goTypes = []any{
 	(*GetCoreOperationsRequest)(nil),     // 18: agent.v1.GetCoreOperationsRequest
 	(*ReportCoreOperationRequest)(nil),   // 19: agent.v1.ReportCoreOperationRequest
 	(*AccessLogReport)(nil),              // 20: agent.v1.AccessLogReport
-	(*ApplyBatchRequest)(nil),            // 21: agent.v1.ApplyBatchRequest
-	(*ApplyRunReport)(nil),               // 22: agent.v1.ApplyRunReport
-	(*HeartbeatResponse)(nil),            // 23: agent.v1.HeartbeatResponse
-	(*StatusResponse)(nil),               // 24: agent.v1.StatusResponse
-	(*ConfigResponse)(nil),               // 25: agent.v1.ConfigResponse
-	(*UsersResponse)(nil),                // 26: agent.v1.UsersResponse
-	(*TrafficResponse)(nil),              // 27: agent.v1.TrafficResponse
-	(*AliveResponse)(nil),                // 28: agent.v1.AliveResponse
-	(*StatusCommand)(nil),                // 29: agent.v1.StatusCommand
-	(*ForwardingRulesResponse)(nil),      // 30: agent.v1.ForwardingRulesResponse
-	(*GetCoreOperationsResponse)(nil),    // 31: agent.v1.GetCoreOperationsResponse
-	(*ReportCoreOperationResponse)(nil),  // 32: agent.v1.ReportCoreOperationResponse
-	(*AccessLogResponse)(nil),            // 33: agent.v1.AccessLogResponse
-	(*ApplyBatchResponse)(nil),           // 34: agent.v1.ApplyBatchResponse
-	(*ApplyRunResponse)(nil),             // 35: agent.v1.ApplyRunResponse
+	(*ReportAgentLogsRequest)(nil),       // 21: agent.v1.ReportAgentLogsRequest
+	(*ApplyBatchRequest)(nil),            // 22: agent.v1.ApplyBatchRequest
+	(*ApplyRunReport)(nil),               // 23: agent.v1.ApplyRunReport
+	(*JoinMeshRequest)(nil),              // 24: agent.v1.JoinMeshRequest
+	(*GetMeshPeersRequest)(nil),          // 25: agent.v1.GetMeshPeersRequest
+	(*HeartbeatResponse)(nil),            // 26: agent.v1.HeartbeatResponse
+	(*StatusResponse)(nil),               // 27: agent.v1.StatusResponse
+	(*ConfigResponse)(nil),               // 28: agent.v1.ConfigResponse
+	(*UsersResponse)(nil),                // 29: agent.v1.UsersResponse
+	(*TrafficResponse)(nil),              // 30: agent.v1.TrafficResponse
+	(*AliveResponse)(nil),                // 31: agent.v1.AliveResponse
+	(*StatusCommand)(nil),                // 32: agent.v1.StatusCommand
+	(*ForwardingRulesResponse)(nil),      // 33: agent.v1.ForwardingRulesResponse
+	(*GetCoreOperationsResponse)(nil),    // 34: agent.v1.GetCoreOperationsResponse
+	(*ReportCoreOperationResponse)(nil),  // 35: agent.v1.ReportCoreOperationResponse
+	(*AccessLogResponse)(nil),            // 36: agent.v1.AccessLogResponse
+	(*ReportAgentLogsResponse)(nil),      // 37: agent.v1.ReportAgentLogsResponse
+	(*ApplyBatchResponse)(nil),           // 38: agent.v1.ApplyBatchResponse
+	(*ApplyRunResponse)(nil),             // 39: agent.v1.ApplyRunResponse
+	(*JoinMeshResponse)(nil),             // 40: agent.v1.JoinMeshResponse
+	(*GetMeshPeersResponse)(nil),         // 41: agent.v1.GetMeshPeersResponse
 }
 var file_agent_v1_agent_proto_depIdxs = []int32{
 	9,  // 0: agent.v1.GetAgentCommandsRequest.queue_stats:type_name -> agent.v1.AgentCommandQueueStats
@@ -927,30 +935,36 @@ var file_agent_v1_agent_proto_depIdxs = []int32{
 	18, // 14: agent.v1.AgentService.GetCoreOperations:input_type -> agent.v1.GetCoreOperationsRequest
 	19, // 15: agent.v1.AgentService.ReportCoreOperation:input_type -> agent.v1.ReportCoreOperationRequest
 	20, // 16: agent.v1.AgentService.ReportAccessLogs:input_type -> agent.v1.AccessLogReport
-	21, // 17: agent.v1.AgentService.GetApplyBatch:input_type -> agent.v1.ApplyBatchRequest
-	22, // 18: agent.v1.AgentService.ReportApplyRun:input_type -> agent.v1.ApplyRunReport
-	1,  // 19: agent.v1.AgentService.GetAgentCommands:input_type -> agent.v1.GetAgentCommandsRequest
-	4,  // 20: agent.v1.AgentService.ReportAgentCommand:input_type -> agent.v1.ReportAgentCommandRequest
-	7,  // 21: agent.v1.AgentService.ReportOperationEvent:input_type -> agent.v1.ReportOperationEventRequest
-	23, // 22: agent.v1.AgentService.Heartbeat:output_type -> agent.v1.HeartbeatResponse
-	24, // 23: agent.v1.AgentService.ReportStatus:output_type -> agent.v1.StatusResponse
-	25, // 24: agent.v1.AgentService.GetConfig:output_type -> agent.v1.ConfigResponse
-	26, // 25: agent.v1.AgentService.GetUsers:output_type -> agent.v1.UsersResponse
-	27, // 26: agent.v1.AgentService.ReportTraffic:output_type -> agent.v1.TrafficResponse
-	28, // 27: agent.v1.AgentService.ReportAlive:output_type -> agent.v1.AliveResponse
-	29, // 28: agent.v1.AgentService.StatusStream:output_type -> agent.v1.StatusCommand
-	30, // 29: agent.v1.AgentService.GetForwardingRules:output_type -> agent.v1.ForwardingRulesResponse
-	24, // 30: agent.v1.AgentService.ReportForwardingStatus:output_type -> agent.v1.StatusResponse
-	31, // 31: agent.v1.AgentService.GetCoreOperations:output_type -> agent.v1.GetCoreOperationsResponse
-	32, // 32: agent.v1.AgentService.ReportCoreOperation:output_type -> agent.v1.ReportCoreOperationResponse
-	33, // 33: agent.v1.AgentService.ReportAccessLogs:output_type -> agent.v1.AccessLogResponse
-	34, // 34: agent.v1.AgentService.GetApplyBatch:output_type -> agent.v1.ApplyBatchResponse
-	35, // 35: agent.v1.AgentService.ReportApplyRun:output_type -> agent.v1.ApplyRunResponse
-	2,  // 36: agent.v1.AgentService.GetAgentCommands:output_type -> agent.v1.GetAgentCommandsResponse
-	5,  // 37: agent.v1.AgentService.ReportAgentCommand:output_type -> agent.v1.ReportAgentCommandResponse
-	8,  // 38: agent.v1.AgentService.ReportOperationEvent:output_type -> agent.v1.ReportOperationEventResponse
-	22, // [22:39] is the sub-list for method output_type
-	5,  // [5:22] is the sub-list for method input_type
+	21, // 17: agent.v1.AgentService.ReportAgentLogs:input_type -> agent.v1.ReportAgentLogsRequest
+	22, // 18: agent.v1.AgentService.GetApplyBatch:input_type -> agent.v1.ApplyBatchRequest
+	23, // 19: agent.v1.AgentService.ReportApplyRun:input_type -> agent.v1.ApplyRunReport
+	1,  // 20: agent.v1.AgentService.GetAgentCommands:input_type -> agent.v1.GetAgentCommandsRequest
+	4,  // 21: agent.v1.AgentService.ReportAgentCommand:input_type -> agent.v1.ReportAgentCommandRequest
+	7,  // 22: agent.v1.AgentService.ReportOperationEvent:input_type -> agent.v1.ReportOperationEventRequest
+	24, // 23: agent.v1.AgentService.JoinMesh:input_type -> agent.v1.JoinMeshRequest
+	25, // 24: agent.v1.AgentService.GetMeshPeers:input_type -> agent.v1.GetMeshPeersRequest
+	26, // 25: agent.v1.AgentService.Heartbeat:output_type -> agent.v1.HeartbeatResponse
+	27, // 26: agent.v1.AgentService.ReportStatus:output_type -> agent.v1.StatusResponse
+	28, // 27: agent.v1.AgentService.GetConfig:output_type -> agent.v1.ConfigResponse
+	29, // 28: agent.v1.AgentService.GetUsers:output_type -> agent.v1.UsersResponse
+	30, // 29: agent.v1.AgentService.ReportTraffic:output_type -> agent.v1.TrafficResponse
+	31, // 30: agent.v1.AgentService.ReportAlive:output_type -> agent.v1.AliveResponse
+	32, // 31: agent.v1.AgentService.StatusStream:output_type -> agent.v1.StatusCommand
+	33, // 32: agent.v1.AgentService.GetForwardingRules:output_type -> agent.v1.ForwardingRulesResponse
+	27, // 33: agent.v1.AgentService.ReportForwardingStatus:output_type -> agent.v1.StatusResponse
+	34, // 34: agent.v1.AgentService.GetCoreOperations:output_type -> agent.v1.GetCoreOperationsResponse
+	35, // 35: agent.v1.AgentService.ReportCoreOperation:output_type -> agent.v1.ReportCoreOperationResponse
+	36, // 36: agent.v1.AgentService.ReportAccessLogs:output_type -> agent.v1.AccessLogResponse
+	37, // 37: agent.v1.AgentService.ReportAgentLogs:output_type -> agent.v1.ReportAgentLogsResponse
+	38, // 38: agent.v1.AgentService.GetApplyBatch:output_type -> agent.v1.ApplyBatchResponse
+	39, // 39: agent.v1.AgentService.ReportApplyRun:output_type -> agent.v1.ApplyRunResponse
+	2,  // 40: agent.v1.AgentService.GetAgentCommands:output_type -> agent.v1.GetAgentCommandsResponse
+	5,  // 41: agent.v1.AgentService.ReportAgentCommand:output_type -> agent.v1.ReportAgentCommandResponse
+	8,  // 42: agent.v1.AgentService.ReportOperationEvent:output_type -> agent.v1.ReportOperationEventResponse
+	40, // 43: agent.v1.AgentService.JoinMesh:output_type -> agent.v1.JoinMeshResponse
+	41, // 44: agent.v1.AgentService.GetMeshPeers:output_type -> agent.v1.GetMeshPeersResponse
+	25, // [25:45] is the sub-list for method output_type
+	5,  // [5:25] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -968,6 +982,8 @@ func file_agent_v1_agent_proto_init() {
 	file_agent_v1_core_proto_init()
 	file_agent_v1_access_log_proto_init()
 	file_agent_v1_config_center_proto_init()
+	file_agent_v1_mesh_proto_init()
+	file_agent_v1_log_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

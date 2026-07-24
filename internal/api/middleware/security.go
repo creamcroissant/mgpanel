@@ -3,6 +3,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net"
 	"net/http"
 	"strconv"
@@ -20,8 +21,8 @@ type RateLimiter struct {
 }
 
 type rateLimitEntry struct {
-	count    int
-	resetAt  time.Time
+	count   int
+	resetAt time.Time
 }
 
 // NewRateLimiter 创建新的限流器
@@ -80,10 +81,10 @@ func (rl *RateLimiter) cleanup() {
 
 // RateLimitConfig Rate Limit 配置
 type RateLimitConfig struct {
-	Limit      int           // 每个窗口的请求数
-	Window     time.Duration // 时间窗口
-	KeyFunc    func(*http.Request) string // 获取限流 key 的函数
-	SkipPaths  []string      // 跳过限流的路径
+	Limit     int                        // 每个窗口的请求数
+	Window    time.Duration              // 时间窗口
+	KeyFunc   func(*http.Request) string // 获取限流 key 的函数
+	SkipPaths []string                   // 跳过限流的路径
 }
 
 // DefaultRateLimitConfig 默认配置
@@ -137,7 +138,9 @@ func RateLimit(config RateLimitConfig) func(http.Handler) http.Handler {
 
 			if !allowed {
 				w.Header().Set("Retry-After", strconv.Itoa(int(time.Until(resetAt).Seconds())))
-				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "rate_limit_exceeded"})
 				return
 			}
 
@@ -269,6 +272,20 @@ func CORS(config CORSConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// SecurityHeaders 设置安全响应头。
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "0")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // getClientIP 获取客户端真实 IP

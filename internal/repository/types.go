@@ -23,14 +23,11 @@ type User struct {
 	TransferEnable    int64
 	SpeedLimit        *int64
 	DeviceLimit       *int64
-	CommissionBalance float64
 	IsAdmin           bool
 	Status            int
 	Banned            bool
 	TrafficExceeded   bool
 	TelegramID        int64
-	InviteUserID      int64
-	InviteLimit       int64
 	LastLoginAt       int64
 	Remarks           string
 	Tags              []string
@@ -89,19 +86,6 @@ type Setting struct {
 	UpdatedAt int64
 }
 
-// InviteCode mirrors the v2_invite_code table.
-type InviteCode struct {
-	ID        int64
-	UserID    int64
-	Code      string
-	Status    int
-	PV        int64
-	Limit     int64
-	ExpireAt  int64
-	CreatedAt int64
-	UpdatedAt int64
-}
-
 // Plugin models enabled plugin metadata and configuration payloads.
 type Plugin struct {
 	ID        int64
@@ -127,7 +111,6 @@ type Plan struct {
 	Tags               []string
 	ResetTrafficMethod *int64
 	CapacityLimit      *int64
-	InviteLimit        *int64
 	Sort               int64
 	CreatedAt          int64
 	UpdatedAt          int64
@@ -211,6 +194,7 @@ type AgentHost struct {
 	AgentVersion          string   // Agent 二进制版本
 	CurrentCoreType       string   // 当前运行核心类型
 	LastHeartbeatAt       int64    // 最后心跳时间
+	ConfigYAML            string   // Agent 上报的运行配置 YAML
 	CreatedAt             int64
 	UpdatedAt             int64
 }
@@ -530,6 +514,19 @@ type ForwardingRuleLog struct {
 	CreatedAt   int64
 }
 
+// AgentMeshPeer represents a WireGuard mesh peer in the database.
+type AgentMeshPeer struct {
+	ID           int64  `json:"id"`
+	AgentHostID  int64  `json:"agent_host_id"`
+	WGPrivateKey string `json:"wg_private_key,omitempty"`
+	WGPublicKey  string `json:"wg_public_key"`
+	WGIP         string `json:"wg_ip"`
+	WGListenPort int    `json:"wg_listen_port"`
+	NetworkID    string `json:"network_id"`
+	CreatedAt    int64  `json:"created_at"`
+	UpdatedAt    int64  `json:"updated_at"`
+}
+
 // CoreStatusSnapshot represents the latest known core capability snapshot reported by an agent host.
 type CoreStatusSnapshot struct {
 	Type         string   `json:"type"`
@@ -573,7 +570,18 @@ type OperationLogEntry struct {
 	CreatedAt     int64           `json:"created_at"`
 }
 
-// OperationBlocker describes an active operation that blocks another operation.
+// MCPApiKey represents a stored MCP API key for LLM access.
+type MCPApiKey struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Prefix     string `json:"prefix"`
+	KeyHash    string `json:"-"`
+	Enabled    bool   `json:"enabled"`
+	LastUsedAt int64  `json:"last_used_at,omitempty"`
+	CreatedBy  int64  `json:"created_by"`
+	CreatedAt  int64  `json:"created_at"`
+	UpdatedAt  int64  `json:"updated_at"`
+}
 type OperationBlocker struct {
 	Scope         string `json:"scope"`
 	ID            string `json:"id"`
@@ -656,87 +664,113 @@ type AccessLogStats struct {
 
 // InboundSpec represents desired inbound configuration at tag granularity.
 type InboundSpec struct {
-	ID              int64
-	AgentHostID     int64
-	CoreType        string
-	Tag             string
-	Enabled         bool
-	SemanticSpec    json.RawMessage
-	CoreSpecific    json.RawMessage
-	DesiredRevision int64
-	CreatedBy       int64
-	UpdatedBy       int64
-	CreatedAt       int64
-	UpdatedAt       int64
+	ID              int64           `json:"id"`
+	AgentHostID     *int64          `json:"agent_host_id"` // nil = template spec
+	CoreType        string          `json:"core_type"`
+	Tag             string          `json:"tag"`
+	Enabled         bool            `json:"enabled"`
+	SemanticSpec    json.RawMessage `json:"semantic_spec"`
+	CoreSpecific    json.RawMessage `json:"core_specific"`
+	DesiredRevision int64           `json:"desired_revision"`
+	CreatedBy       int64           `json:"created_by"`
+	UpdatedBy       int64           `json:"updated_by"`
+	CreatedAt       int64           `json:"created_at"`
+	UpdatedAt       int64           `json:"updated_at"`
 }
 
 // InboundSpecRevision stores immutable snapshots for spec changes.
 type InboundSpecRevision struct {
-	ID         int64
-	SpecID     int64
-	Revision   int64
-	Snapshot   json.RawMessage
-	ChangeNote string
-	OperatorID int64
-	CreatedAt  int64
+	ID         int64           `json:"id"`
+	SpecID     int64           `json:"spec_id"`
+	Revision   int64           `json:"revision"`
+	Snapshot   json.RawMessage `json:"snapshot"`
+	ChangeNote string          `json:"change_note"`
+	OperatorID int64           `json:"operator_id"`
+	CreatedAt  int64           `json:"created_at"`
 }
 
 // DesiredArtifact is a deployable rendered config file for a revision.
 type DesiredArtifact struct {
-	ID              int64
-	AgentHostID     int64
-	CoreType        string
-	DesiredRevision int64
-	Filename        string
-	SourceTag       string
-	Content         []byte
-	ContentHash     string
-	GeneratedAt     int64
+	ID              int64  `json:"id"`
+	AgentHostID     int64  `json:"agent_host_id"`
+	CoreType        string `json:"core_type"`
+	DesiredRevision int64  `json:"desired_revision"`
+	Filename        string `json:"filename"`
+	SourceTag       string `json:"source_tag"`
+	Content         []byte `json:"content"`
+	ContentHash     string `json:"content_hash"`
+	GeneratedAt     int64  `json:"generated_at"`
+}
+
+// CoreConfigItem 表示非 inbound 的核心配置项（outbound/routing/DNS/core 设置）。
+type CoreConfigItem struct {
+	ID              int64           `json:"id"`
+	AgentHostID     *int64          `json:"agent_host_id"` // nil = 模板项
+	CoreType        string          `json:"core_type"`
+	ConfigType      string          `json:"config_type"` // outbound | routing | dns | core_settings
+	Tag             string          `json:"tag"`
+	Enabled         bool            `json:"enabled"`
+	ConfigData      json.RawMessage `json:"config_data"`
+	DesiredRevision int64           `json:"desired_revision"`
+	CreatedBy       int64           `json:"created_by"`
+	UpdatedBy       int64           `json:"updated_by"`
+	CreatedAt       int64           `json:"created_at"`
+	UpdatedAt       int64           `json:"updated_at"`
 }
 
 // ApplyRun tracks release/apply lifecycle for a target revision.
 type ApplyRun struct {
-	RunID            string
-	AgentHostID      int64
-	CoreType         string
-	TargetRevision   int64
-	Status           string
-	ErrorMessage     string
-	PreviousRevision int64
-	RollbackRevision int64
-	OperatorID       int64
-	StartedAt        int64
-	FinishedAt       int64
+	RunID            string `json:"run_id"`
+	AgentHostID      int64  `json:"agent_host_id"`
+	CoreType         string `json:"core_type"`
+	TargetRevision   int64  `json:"target_revision"`
+	Status           string `json:"status"`
+	ErrorMessage     string `json:"error_message"`
+	PreviousRevision int64  `json:"previous_revision"`
+	RollbackRevision int64  `json:"rollback_revision"`
+	OperatorID       int64  `json:"operator_id"`
+	StartedAt        int64  `json:"started_at"`
+	FinishedAt       int64  `json:"finished_at"`
+	CreatedAt        int64  `json:"created_at"`
 }
 
 // AgentConfigInventory is file-level applied observation reported by agents.
 type AgentConfigInventory struct {
-	ID          int64
-	AgentHostID int64
-	CoreType    string
-	Source      string
-	Filename    string
-	HashApplied string
-	ParseStatus string
-	ParseError  string
-	LastSeenAt  int64
+	ID          int64  `json:"id"`
+	AgentHostID int64  `json:"agent_host_id"`
+	CoreType    string `json:"core_type"`
+	Source      string `json:"source"`
+	Filename    string `json:"filename"`
+	HashApplied string `json:"hash_applied"`
+	ParseStatus string `json:"parse_status"`
+	ParseError  string `json:"parse_error"`
+	LastSeenAt  int64  `json:"last_seen_at"`
 }
 
 // InboundIndex is semantic inbound index parsed from applied files.
 type InboundIndex struct {
-	ID          int64
-	AgentHostID int64
-	CoreType    string
-	Source      string
-	Filename    string
-	Tag         string
-	Protocol    string
-	Listen      string
-	Port        int
-	TLS         json.RawMessage
-	Transport   json.RawMessage
-	Multiplex   json.RawMessage
-	LastSeenAt  int64
+	ID          int64           `json:"id"`
+	AgentHostID int64           `json:"agent_host_id"`
+	CoreType    string          `json:"core_type"`
+	Source      string          `json:"source"`
+	Filename    string          `json:"filename"`
+	Tag         string          `json:"tag"`
+	Protocol    string          `json:"protocol"`
+	Listen      string          `json:"listen"`
+	Port        int             `json:"port"`
+	TLS         json.RawMessage `json:"tls,omitempty"`
+	Transport   json.RawMessage `json:"transport,omitempty"`
+	Multiplex   json.RawMessage `json:"multiplex,omitempty"`
+	LastSeenAt  int64           `json:"last_seen_at"`
+}
+
+// CDNOriginLatency records a latency measurement for a CDN origin.
+type CDNOriginLatency struct {
+	ID         int64  `json:"id"`
+	SiteID     int64  `json:"site_id"`
+	Stack      string `json:"stack"`
+	LatencyMs  int    `json:"latency_ms"`
+	UpdatedAt  int64  `json:"updated_at"`
 }
 
 // CDNSiteFilter defines filter conditions for listing CDN sites.
@@ -750,17 +784,17 @@ type CDNSiteFilter struct {
 
 // DriftState tracks desired-applied mismatch status.
 type DriftState struct {
-	ID              int64
-	AgentHostID     int64
-	CoreType        string
-	Filename        string
-	Tag             string
-	DesiredRevision int64
-	DesiredHash     string
-	AppliedHash     string
-	DriftType       string
-	Status          string
-	Detail          json.RawMessage
-	FirstDetectedAt int64
-	LastChangedAt   int64
+	ID              int64           `json:"id"`
+	AgentHostID     int64           `json:"agent_host_id"`
+	CoreType        string          `json:"core_type"`
+	Filename        string          `json:"filename"`
+	Tag             string          `json:"tag"`
+	DesiredRevision int64           `json:"desired_revision"`
+	DesiredHash     string          `json:"desired_hash"`
+	AppliedHash     string          `json:"applied_hash"`
+	DriftType       string          `json:"drift_type"`
+	Status          string          `json:"status"`
+	Detail          json.RawMessage `json:"detail,omitempty"`
+	FirstDetectedAt int64           `json:"first_detected_at"`
+	LastChangedAt   int64           `json:"last_changed_at"`
 }

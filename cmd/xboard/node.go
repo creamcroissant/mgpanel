@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"text/tabwriter"
@@ -26,10 +27,11 @@ func init() {
 		Use:   "list",
 		Short: "List all nodes with real-time status",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runNodeList(store, listAll)
 		},
 	}
@@ -42,10 +44,11 @@ func init() {
 		Short: "Show detailed information for a node",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			id, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid node ID: %w", err)
@@ -63,10 +66,11 @@ func init() {
 		Short: "Show historical statistics for a node",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			id, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid node ID: %w", err)
@@ -83,10 +87,11 @@ func init() {
 		Use:   "status",
 		Short: "Show real-time status of all online nodes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runNodeStatus(store)
 		},
 	}
@@ -136,7 +141,9 @@ func runNodeList(store *sqlite.Store, all bool) error {
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s%s\033[0m\t%s\n",
 			s.ID, s.Name, s.Type, hostPort, statusColor, status, lastSeen)
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		slog.Warn("failed to flush node list output", "error", err)
+	}
 	return nil
 }
 
@@ -244,7 +251,9 @@ func runNodeStat(store *sqlite.Store, id int64, recordType, days int) error {
 		totalUp += r.Upload
 		totalDown += r.Download
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+			slog.Warn("failed to flush node list output", "error", err)
+		}
 
 	fmt.Println("----------------------------------------")
 	fmt.Printf("Total: ↑%s ↓%s = %s\n",

@@ -86,6 +86,43 @@ func (h *AdminConfigCenterApplyHandler) CreateApplyRun(w http.ResponseWriter, r 
 }
 
 // ListApplyRuns handles GET /api/v2/{securePath}/config-center/apply-runs.
+
+
+// CancelApplyRun handles POST /api/v2/{securePath}/config-center/apply-runs/{run_id}/cancel.
+func (h *AdminConfigCenterApplyHandler) CancelApplyRun(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, "admin.config_center.apply.cancel") {
+		return
+	}
+
+	runID := chi.URLParam(r, "run_id")
+	if runID == "" {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.apply.cancel", "error.bad_request", h.i18n)
+		return
+	}
+
+	var payload struct {
+		AgentHostID int64 `json:"agent_host_id"`
+	}
+	if err := decodeJSON(r, &payload); err != nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.apply.cancel", "error.bad_request", h.i18n)
+		return
+	}
+
+	if err := h.apply.CancelApplyRun(r.Context(), service.CancelApplyRunRequest{
+		AgentHostID: payload.AgentHostID,
+		RunID:       runID,
+		OperatorID:  adminID,
+	}); err != nil {
+		h.respondApplyError(r.Context(), w, "admin.config_center.apply.cancel", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"cancelled": true}})
+}
 func (h *AdminConfigCenterApplyHandler) ListApplyRuns(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireAdmin(w, r); !ok {
 		return
@@ -152,6 +189,10 @@ func (h *AdminConfigCenterApplyHandler) GetApplyRunDetail(w http.ResponseWriter,
 	if err != nil {
 		h.respondApplyError(r.Context(), w, "admin.config_center.apply.detail", err)
 		return
+	}
+
+	if result != nil && result.SemanticDiff != nil && result.SemanticDiff.Items == nil {
+		result.SemanticDiff.Items = []service.SemanticDiffItem{}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{

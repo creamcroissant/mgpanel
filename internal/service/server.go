@@ -64,7 +64,7 @@ func (s *serverService) ListForUser(ctx context.Context, userID string) (*Server
 	// 获取用户套餐允许的分组列表
 	groupIDs, err := s.plans.GetGroups(ctx, user.PlanID)
 	if err != nil {
-		// 这里先忽略错误或空结果
+		return nil, fmt.Errorf("get plan groups: %w", err)
 	}
 
 	// 获取旧版分组 ID 对应的套餐
@@ -162,7 +162,10 @@ func computeETag(keys []string) string {
 	if len(keys) == 0 {
 		keys = []string{}
 	}
-	data, _ := json.Marshal(keys)
+	data, err := json.Marshal(keys)
+	if err != nil {
+		data = []byte{}
+	}
 	sum := sha1.Sum(data)
 	return hex.EncodeToString(sum[:])
 }

@@ -127,7 +127,11 @@ func (m *Manager) StopInstance(ctx context.Context, instanceID string) error {
 	}
 
 	// Wait briefly to allow process to terminate fully
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(100 * time.Millisecond):
+	}
 
 	inst, err := core.Status(ctx, instanceID)
 	if err != nil {
@@ -197,7 +201,11 @@ func (m *Manager) SwitchCore(ctx context.Context, fromInstanceID string, toCoreT
 	}
 
 	// 4. 等待端口释放（处理 TCP TIME_WAIT 等）
-	time.Sleep(300 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case <-time.After(300 * time.Millisecond):
+	}
 
 	// 5. 启动新实例
 	toInstanceID := fmt.Sprintf("%s-%d", toCoreType, time.Now().UnixNano())
@@ -205,7 +213,11 @@ func (m *Manager) SwitchCore(ctx context.Context, fromInstanceID string, toCoreT
 		logger.Error("new instance failed to start, rolling back", "error", err)
 
 		// 6. 回滚：重启旧实例（使用备份的端口列表）
-		time.Sleep(200 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
 		if rbErr := m.StartInstance(ctx, backup.CoreType, backup.ID, backup.ConfigPath, backup.ListenPorts); rbErr != nil {
 			logger.Error("rollback failed: system in degraded state", "rollback_error", rbErr)
 			return "", fmt.Errorf("switch failed and rollback failed: %v (original: %w)", rbErr, err)

@@ -50,24 +50,24 @@ func respondNotImplemented(w http.ResponseWriter, namespace string, r *http.Requ
 
 func respondNotImplementedI18n(ctx context.Context, w http.ResponseWriter, namespace string, method string, path string, i18nMgr *i18n.Manager) {
 	lang := requestctx.GetLanguage(ctx)
+	slog.Warn("not implemented endpoint called", "namespace", namespace, "method", method, "path", path)
 	message := "error.not_implemented"
 	if i18nMgr != nil {
 		message = i18nMgr.Translate(lang, message)
 	}
 	respondJSON(w, http.StatusNotImplemented, map[string]any{
-		"message":   message,
-		"namespace": namespace,
-		"method":    method,
-		"path":      path,
+		"message": message,
 	})
 }
 
 func respondError(w http.ResponseWriter, status int, action string, err error) {
 	if status >= 500 {
-		slog.Error("handler internal error", "action", action, "error", err)
+		slog.Error("api: respondError", "action", action, "error", err)
+	} else {
+		slog.Warn("api: respondError", "action", action, "error", err)
 	}
 	respondJSON(w, status, map[string]any{
-		"error":  err.Error(),
+		"error":  "internal error",
 		"action": action,
 	})
 }

@@ -1,10 +1,10 @@
-import { Menu, LogOut, User } from "lucide-react";
+import { Home, Menu, LogOut, Shield, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import ThemeToggle from "../ThemeToggle";
 import LanguageSwitcher from "../LanguageSwitcher";
 import { useAuth } from "@/providers/AuthProvider";
-import { getRouteLabelKey, ROUTES } from "@/lib/constants";
+import { ADMIN_HOME_ROUTE, getRouteLabelKey, isAdminPath, ROUTES, USER_HOME_ROUTE } from "@/lib/constants";
 import {
   Button,
   DropdownMenu,
@@ -30,12 +30,20 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const currentLabelKey = getRouteLabelKey(location.pathname);
+  const isAdminRoute = isAdminPath(location.pathname);
+  const portalLabelKey = isAdminRoute ? "admin.nav.portal" : "nav.portal";
+  const portalSwitchLabelKey = isAdminRoute ? "nav.backToUser" : "nav.adminPortal";
+  const PortalSwitchIcon = isAdminRoute ? Home : Shield;
 
   const handleLogout = async () => {
     await logout();
     navigate(ROUTES.LOGIN);
+  };
+
+  const handlePortalSwitch = () => {
+    navigate(isAdminRoute ? USER_HOME_ROUTE : ADMIN_HOME_ROUTE);
   };
 
   return (
@@ -52,11 +60,20 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <Menu size={18} />
           </Button>
           {currentLabelKey && (
-            <div className="min-w-0">
-              <span className="block max-w-[180px] truncate text-base font-semibold text-foreground sm:max-w-[300px] md:max-w-[420px] lg:max-w-[560px]">
-                {t(currentLabelKey)}
-              </span>
-            </div>
+            <nav className="min-w-0" aria-label={t("common.breadcrumb")}>
+              <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+                <li className="hidden max-w-[130px] truncate text-muted-foreground sm:block">{t(portalLabelKey)}</li>
+                <li className="hidden text-muted-foreground/70 sm:block" aria-hidden="true">
+                  /
+                </li>
+                <li
+                  className="block max-w-[180px] truncate text-base font-semibold text-foreground sm:max-w-[300px] md:max-w-[420px] lg:max-w-[560px]"
+                  aria-current="page"
+                >
+                  {t(currentLabelKey)}
+                </li>
+              </ol>
+            </nav>
           )}
         </div>
 
@@ -81,6 +98,15 @@ export default function Header({ onMenuClick }: HeaderProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {isAdmin && (
+                <>
+                  <DropdownMenuItem onSelect={handlePortalSwitch}>
+                    <PortalSwitchIcon className="mr-2 h-4 w-4" />
+                    {t(portalSwitchLabelKey)}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onSelect={() => navigate(ROUTES.SETTINGS)}>
                 <User className="mr-2 h-4 w-4" />
                 {t("nav.settings")}

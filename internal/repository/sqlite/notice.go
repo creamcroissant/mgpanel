@@ -82,7 +82,7 @@ func (r *noticeRepo) Update(ctx context.Context, notice *repository.Notice) erro
 	const stmt = `UPDATE notices
                   SET sort = ?, title = ?, content = ?, img_url = ?, tags = ?, show = ?, popup = ?, updated_at = ?
                   WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, stmt,
+	result, err := r.db.ExecContext(ctx, stmt,
 		nullableSort(notice.Sort),
 		notice.Title,
 		notice.Content,
@@ -93,12 +93,16 @@ func (r *noticeRepo) Update(ctx context.Context, notice *repository.Notice) erro
 		notice.UpdatedAt,
 		notice.ID,
 	)
-	return err
+	if err != nil { return err }
+		return ensureRowsAffected(result)
 }
 
 func (r *noticeRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM notices WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM notices WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *noticeRepo) Sort(ctx context.Context, ids []int64, updatedAt int64) error {

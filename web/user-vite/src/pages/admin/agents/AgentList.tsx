@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Server } from "lucide-react";
+import { List, Plus, RefreshCw, Server } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import { getAgentHosts, refreshAgentHosts, updateAgentHost } from "@/api/admin";
 import { fetchSettings, revealKey } from "@/api/admin/settings";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { AgentStatus, type AgentHost, type UpdateAgentHostRequest } from "@/types";
 import AgentCorePanel from "./AgentCorePanel";
+import AgentBatchManagePanel from "./AgentBatchManagePanel";
+
 
 const DEFAULT_DEPLOY_SCRIPT_URL =
   "https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh";
@@ -87,6 +89,7 @@ export default function AgentList() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCorePanelOpen, setIsCorePanelOpen] = useState(false);
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentHost | null>(null);
@@ -147,6 +150,10 @@ export default function AgentList() {
 
   const handleOpenDeployDialog = () => {
     deployMutation.mutate();
+  };
+
+  const handleBatchDialogChange = (open: boolean) => {
+    setIsBatchOpen(open);
   };
 
   const handleDialogChange = (open: boolean) => {
@@ -244,6 +251,10 @@ export default function AgentList() {
 
   const actions = (
     <>
+      <Button variant="outline" onClick={() => setIsBatchOpen(true)}>
+        <List className="mr-2 h-4 w-4" />
+        {t("admin.agents.batch.manage")}
+      </Button>
       <Button variant="outline" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
         <RefreshCw className="mr-2 h-4 w-4" />
         {refreshMutation.isPending ? t("common.loading") : t("common.refresh")}
@@ -343,6 +354,13 @@ export default function AgentList() {
           </ResponsiveGrid>
         )}
       </AdminPageShell>
+
+      <AgentBatchManagePanel
+        open={isBatchOpen}
+        onOpenChange={handleBatchDialogChange}
+        agents={agents}
+        onRefetch={refetch}
+      />
 
       <Dialog open={isCorePanelOpen} onOpenChange={handleCorePanelChange}>
         <DialogContent className="sm:max-w-6xl">{selectedAgent && <AgentCorePanel agentHostId={selectedAgent.id} agentName={selectedAgent.name} />}</DialogContent>

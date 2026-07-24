@@ -48,13 +48,7 @@ type AdminStatUserView struct {
 
 // AdminDashboardStats aggregates KPI tiles for the admin home.
 type AdminDashboardStats struct {
-	TodayIncome            float64            `json:"todayIncome"`
 	DayIncomeGrowth        float64            `json:"dayIncomeGrowth"`
-	CurrentMonthIncome     float64            `json:"currentMonthIncome"`
-	LastMonthIncome        float64            `json:"lastMonthIncome"`
-	MonthIncomeGrowth      float64            `json:"monthIncomeGrowth"`
-	TicketPendingTotal     int64              `json:"ticketPendingTotal"`
-	CommissionPendingTotal int64              `json:"commissionPendingTotal"`
 	CurrentMonthNewUsers   int64              `json:"currentMonthNewUsers"`
 	UserGrowth             float64            `json:"userGrowth"`
 	TotalUsers             int64              `json:"totalUsers"`
@@ -192,11 +186,6 @@ func (s *adminStatService) GetDashboardStats(ctx context.Context) (*AdminDashboa
 	tomorrowStart := todayStart + secondsPerDay
 	monthStart := startOfMonthUTC(now)
 	lastMonthStart := startOfMonthUTC(now.AddDate(0, -1, 0))
-	// Orders/Coupons have been removed; income/commission stats are now zeroed.
-	todayIncome := 0.0
-	yesterdayIncome := 0.0
-	currentMonthIncome := 0.0
-	lastMonthIncome := 0.0
 	currentMonthUsers, err := s.users.CountCreatedBetween(ctx, monthStart, tomorrowStart)
 	if err != nil {
 		return nil, err
@@ -224,13 +213,6 @@ func (s *adminStatService) GetDashboardStats(ctx context.Context) (*AdminDashboa
 	}
 
 	stats := &AdminDashboardStats{
-		TodayIncome:            todayIncome,
-		DayIncomeGrowth:        percentageChange(todayIncome, yesterdayIncome),
-		CurrentMonthIncome:     currentMonthIncome,
-		LastMonthIncome:        lastMonthIncome,
-		MonthIncomeGrowth:      percentageChange(currentMonthIncome, lastMonthIncome),
-		TicketPendingTotal:     0,
-		CommissionPendingTotal: 0,
 		CurrentMonthNewUsers:   currentMonthUsers,
 		UserGrowth:             percentageChange(float64(currentMonthUsers), float64(lastMonthUsers)),
 		TotalUsers:             totalUsers,

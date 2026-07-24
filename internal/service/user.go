@@ -79,7 +79,6 @@ func (s *repoBackedUserService) Profile(ctx context.Context, userID string) (map
 		"expired_at":         user.ExpiredAt,
 		"transfer_enable":    user.TransferEnable,
 		"transfer_used":      user.U + user.D,
-		"commission_balance": user.CommissionBalance,
 		"is_admin":           user.IsAdmin,
 		"status":             user.Status,
 		"subscribe_url":      fullSubscribeURL,

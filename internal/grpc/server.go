@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/creamcroissant/xboard/internal/grpc/interceptor"
 	agentv1 "github.com/creamcroissant/xboard/pkg/pb/agent/v1"
@@ -41,16 +42,20 @@ func NewServer(
 	authInterceptor *interceptor.AuthInterceptor,
 	logger *slog.Logger,
 ) (*Server, error) {
+	// Interceptor ordering: Recovery (outermost) catches panics from inner
+	// interceptors, Auth runs before Logging so logs carry authenticated identity.
 	opts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(16 << 20),
+		grpc.MaxSendMsgSize(16 << 20),
 		grpc.ChainUnaryInterceptor(
 			interceptor.Recovery(logger),
-			interceptor.Logging(logger),
 			authInterceptor.Unary(),
+			interceptor.Logging(logger),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptor.StreamRecovery(logger),
-			interceptor.StreamLogging(logger),
 			authInterceptor.Stream(),
+			interceptor.StreamLogging(logger),
 		),
 	}
 
@@ -112,10 +117,20 @@ func IsGRPCRequest(r *http.Request) bool {
 	return strings.HasPrefix(contentType, "application/grpc")
 }
 
-// Stop 优雅停止 gRPC 服务。
+// Stop 优雅停止 gRPC 服务，带 30 秒超时保护。
 func (s *Server) Stop() {
 	s.logger.Info("gRPC server stopping")
-	s.server.GracefulStop()
+	done := make(chan struct{})
+	go func() {
+		s.server.GracefulStop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		s.logger.Warn("gRPC GracefulStop timeout, forcing stop")
+		s.server.Stop()
+	}
 }
 
 // GracefulStop 是 Stop 的别名。

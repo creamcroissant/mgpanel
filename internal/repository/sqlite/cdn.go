@@ -8,7 +8,6 @@ import (
 	"github.com/creamcroissant/xboard/internal/repository"
 )
 
-// ----------------------------------------------------------------
 // Cloudflare Zone
 // ----------------------------------------------------------------
 
@@ -76,8 +75,11 @@ func (r *cloudflareZoneRepo) List(ctx context.Context) ([]*repository.Cloudflare
 }
 
 func (r *cloudflareZoneRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_zones WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_zones WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cloudflareZoneRepo) scanCFZone(row *sql.Row) (*repository.CloudflareZone, error) {
@@ -141,7 +143,7 @@ func (r *cloudflareDNSRecordRepo) Create(ctx context.Context, record *repository
 	`,
 		record.ZoneID, record.Name, record.Type, record.Content,
 		boolToInt(record.Proxied), record.TTL, record.RecordID,
-		record.UpdatedAt, record.CreatedAt, record.UpdatedAt,
+		record.SyncedAt, record.CreatedAt, record.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -188,8 +190,11 @@ func (r *cloudflareDNSRecordRepo) ListByZoneID(ctx context.Context, zoneID int64
 }
 
 func (r *cloudflareDNSRecordRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_dns_records WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_dns_records WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cloudflareDNSRecordRepo) scanCFDNSRecord(row *sql.Row) (*repository.CloudflareDNSRecord, error) {
@@ -211,7 +216,7 @@ func (r *cloudflareDNSRecordRepo) scanCFDNSRecord(row *sql.Row) (*repository.Clo
 
 	rec.Proxied = proxied == 1
 	if syncedAt.Valid {
-		_ = syncedAt.Int64
+		rec.SyncedAt = syncedAt.Int64
 	}
 	return &rec, nil
 }
@@ -231,6 +236,9 @@ func (r *cloudflareDNSRecordRepo) scanCFDNSRecords(rows *sql.Rows) (*repository.
 	}
 
 	rec.Proxied = proxied == 1
+	if syncedAt.Valid {
+		rec.SyncedAt = syncedAt.Int64
+	}
 	return &rec, nil
 }
 
@@ -257,9 +265,9 @@ func (r *cloudfrontDistRepo) Create(ctx context.Context, dist *repository.CloudF
 			cert_arn, price_class, enabled, status, last_synced_at, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		0, dist.DistributionID, dist.DistributionID, dist.Domain,
-		"", "PriceClass_100", boolToInt(dist.Enabled),
-		dist.Status, 0, dist.CreatedAt, dist.UpdatedAt,
+			dist.SiteID, dist.DistributionID, dist.DistributionARN, dist.DomainName,
+			dist.CertARN, dist.PriceClass, boolToInt(dist.Enabled),
+			dist.Status, dist.LastSyncedAt, dist.CreatedAt, dist.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -275,15 +283,14 @@ func (r *cloudfrontDistRepo) Create(ctx context.Context, dist *repository.CloudF
 
 func (r *cloudfrontDistRepo) FindByID(ctx context.Context, id int64) (*repository.CloudFrontDistribution, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, distribution_id, domain_name, enabled, status, created_at, updated_at
+			SELECT id, site_id, distribution_id, distribution_arn, domain_name, cert_arn, price_class, enabled, status, last_synced_at, created_at, updated_at
 		FROM cdn_cloudfront_distributions WHERE id = ?
 	`, id)
 
 	var d repository.CloudFrontDistribution
 	var enabled int
 	err := row.Scan(
-		&d.ID, &d.DistributionID, &d.Domain,
-		&enabled, &d.Status, &d.CreatedAt, &d.UpdatedAt,
+		&d.ID, &d.SiteID, &d.DistributionID, &d.DistributionARN, &d.DomainName, &d.CertARN, &d.PriceClass, &enabled, &d.Status, &d.LastSyncedAt, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
@@ -297,7 +304,7 @@ func (r *cloudfrontDistRepo) FindByID(ctx context.Context, id int64) (*repositor
 
 func (r *cloudfrontDistRepo) List(ctx context.Context) ([]*repository.CloudFrontDistribution, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, distribution_id, domain_name, enabled, status, created_at, updated_at
+			SELECT id, site_id, distribution_id, distribution_arn, domain_name, cert_arn, price_class, enabled, status, last_synced_at, created_at, updated_at
 		FROM cdn_cloudfront_distributions
 		ORDER BY id ASC
 	`)
@@ -311,8 +318,7 @@ func (r *cloudfrontDistRepo) List(ctx context.Context) ([]*repository.CloudFront
 		var d repository.CloudFrontDistribution
 		var enabled int
 		if err := rows.Scan(
-			&d.ID, &d.DistributionID, &d.Domain,
-			&enabled, &d.Status, &d.CreatedAt, &d.UpdatedAt,
+			&d.ID, &d.SiteID, &d.DistributionID, &d.DistributionARN, &d.DomainName, &d.CertARN, &d.PriceClass, &enabled, &d.Status, &d.LastSyncedAt, &d.CreatedAt, &d.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -323,8 +329,11 @@ func (r *cloudfrontDistRepo) List(ctx context.Context) ([]*repository.CloudFront
 }
 
 func (r *cloudfrontDistRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudfront_distributions WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudfront_distributions WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 // ----------------------------------------------------------------
@@ -349,14 +358,14 @@ func (r *cdnSiteRepo) Create(ctx context.Context, site *repository.CDNSite) erro
 			name, description, domain, origin_type, origin_url,
 			cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
 			acceleration_mode, inbound_spec_id, provider, origin_path, origin_protocol,
-			enabled, status, last_deployed_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			enabled, asn_tags, status, last_deployed_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		site.Name, site.Description, site.Domain, site.OriginType, site.OriginURL,
 		site.CacheTTL, site.SSLMode, site.CustomCertPEM, site.CustomKeyPEM,
 		site.AccelerationMode, nullableInt(site.InboundSpecID),
 		site.Provider, site.OriginPath, site.OriginProtocol,
-		boolToInt(site.Enabled), site.Status, nullableInt(site.LastDeployedAt),
+		boolToInt(site.Enabled), site.AsnTags, site.Status, nullableInt(site.LastDeployedAt),
 		site.CreatedAt, site.UpdatedAt,
 	)
 	if err != nil {
@@ -374,22 +383,25 @@ func (r *cdnSiteRepo) Create(ctx context.Context, site *repository.CDNSite) erro
 func (r *cdnSiteRepo) Update(ctx context.Context, site *repository.CDNSite) error {
 	site.UpdatedAt = time.Now().Unix()
 
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE cdn_sites SET
 			name = ?, description = ?, domain = ?, origin_type = ?, origin_url = ?,
 			cache_ttl = ?, ssl_mode = ?, custom_cert_pem = ?, custom_key_pem = ?,
 			acceleration_mode = ?, inbound_spec_id = ?, provider = ?, origin_path = ?,
-			origin_protocol = ?, enabled = ?, status = ?, last_deployed_at = ?
+			origin_protocol = ?, enabled = ?, asn_tags = ?, status = ?, last_deployed_at = ?
 		WHERE id = ?
 	`,
 		site.Name, site.Description, site.Domain, site.OriginType, site.OriginURL,
 		site.CacheTTL, site.SSLMode, site.CustomCertPEM, site.CustomKeyPEM,
 		site.AccelerationMode, nullableInt(site.InboundSpecID),
 		site.Provider, site.OriginPath, site.OriginProtocol,
-		boolToInt(site.Enabled), site.Status, nullableInt(site.LastDeployedAt),
+		boolToInt(site.Enabled), site.AsnTags, site.Status, nullableInt(site.LastDeployedAt),
 		site.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnSiteRepo) FindByID(ctx context.Context, id int64) (*repository.CDNSite, error) {
@@ -397,9 +409,21 @@ func (r *cdnSiteRepo) FindByID(ctx context.Context, id int64) (*repository.CDNSi
 		SELECT id, name, description, domain, origin_type, origin_url,
 			cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
 			acceleration_mode, inbound_spec_id, provider, origin_path, origin_protocol,
-			enabled, status, last_deployed_at, created_at, updated_at
+			enabled, asn_tags, status, last_deployed_at, created_at, updated_at
 		FROM cdn_sites WHERE id = ?
 	`, id)
+
+	return r.scanSite(row)
+}
+
+func (r *cdnSiteRepo) FindByDomain(ctx context.Context, domain string) (*repository.CDNSite, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, name, description, domain, origin_type, origin_url,
+			cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
+			acceleration_mode, inbound_spec_id, provider, origin_path, origin_protocol,
+			enabled, asn_tags, status, last_deployed_at, created_at, updated_at
+		FROM cdn_sites WHERE domain = ?
+	`, domain)
 
 	return r.scanSite(row)
 }
@@ -409,7 +433,7 @@ func (r *cdnSiteRepo) FindByInboundSpecID(ctx context.Context, specID int64) (*r
 		SELECT id, name, description, domain, origin_type, origin_url,
 			cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
 			acceleration_mode, inbound_spec_id, provider, origin_path, origin_protocol,
-			enabled, status, last_deployed_at, created_at, updated_at
+			enabled, asn_tags, status, last_deployed_at, created_at, updated_at
 		FROM cdn_sites WHERE inbound_spec_id = ?
 	`, specID)
 
@@ -420,7 +444,7 @@ func (r *cdnSiteRepo) list(ctx context.Context, whereClause string, args []inter
 	q := `SELECT id, name, description, domain, origin_type, origin_url,
 		cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
 		acceleration_mode, inbound_spec_id, provider, origin_path, origin_protocol,
-		enabled, status, last_deployed_at, created_at, updated_at
+		enabled, asn_tags, status, last_deployed_at, created_at, updated_at
 	FROM cdn_sites`
 	if whereClause != "" {
 		q += " WHERE " + whereClause
@@ -498,8 +522,11 @@ func (r *cdnSiteRepo) buildSiteFilter(filter repository.CDNSiteFilter) (string, 
 }
 
 func (r *cdnSiteRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_sites WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_sites WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnSiteRepo) scanSite(row *sql.Row) (*repository.CDNSite, error) {
@@ -513,7 +540,7 @@ func (r *cdnSiteRepo) scanSite(row *sql.Row) (*repository.CDNSite, error) {
 		&site.OriginType, &site.OriginURL, &site.CacheTTL, &site.SSLMode,
 		&site.CustomCertPEM, &site.CustomKeyPEM, &site.AccelerationMode,
 		&inboundSpecID, &site.Provider, &site.OriginPath, &site.OriginProtocol,
-		&enabled, &site.Status, &lastDeployedAt, &site.CreatedAt, &site.UpdatedAt,
+		&enabled, &site.AsnTags, &site.Status, &lastDeployedAt, &site.CreatedAt, &site.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
@@ -543,7 +570,7 @@ func (r *cdnSiteRepo) scanSites(rows *sql.Rows) (*repository.CDNSite, error) {
 		&site.OriginType, &site.OriginURL, &site.CacheTTL, &site.SSLMode,
 		&site.CustomCertPEM, &site.CustomKeyPEM, &site.AccelerationMode,
 		&inboundSpecID, &site.Provider, &site.OriginPath, &site.OriginProtocol,
-		&enabled, &site.Status, &lastDeployedAt, &site.CreatedAt, &site.UpdatedAt,
+		&enabled, &site.AsnTags, &site.Status, &lastDeployedAt, &site.CreatedAt, &site.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -599,7 +626,7 @@ func (r *cdnEdgeRepo) Create(ctx context.Context, edge *repository.CDNEdge) erro
 }
 
 func (r *cdnEdgeRepo) Update(ctx context.Context, edge *repository.CDNEdge) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE cdn_edges SET
 			site_id = ?, agent_host_id = ?, weight = ?, enabled = ?, status = ?,
 			last_error = ?, deployed_at = ?, updated_at = ?
@@ -609,7 +636,10 @@ func (r *cdnEdgeRepo) Update(ctx context.Context, edge *repository.CDNEdge) erro
 		edge.Status, edge.LastError, nullableInt(edge.DeployedAt),
 		time.Now().Unix(), edge.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnEdgeRepo) FindByID(ctx context.Context, id int64) (*repository.CDNEdge, error) {
@@ -647,8 +677,11 @@ func (r *cdnEdgeRepo) ListBySiteID(ctx context.Context, siteID int64) ([]*reposi
 }
 
 func (r *cdnEdgeRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_edges WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_edges WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnEdgeRepo) scanEdge(row *sql.Row) (*repository.CDNEdge, error) {
@@ -732,7 +765,7 @@ func (r *cdnCacheRuleRepo) Create(ctx context.Context, rule *repository.CDNCache
 }
 
 func (r *cdnCacheRuleRepo) Update(ctx context.Context, rule *repository.CDNCacheRule) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE cdn_cache_rules SET
 			site_id = ?, match_type = ?, match_value = ?, cache_ttl = ?,
 			bypass = ?, priority = ?
@@ -741,7 +774,10 @@ func (r *cdnCacheRuleRepo) Update(ctx context.Context, rule *repository.CDNCache
 		rule.SiteID, rule.MatchType, rule.MatchValue,
 		rule.CacheTTL, boolToInt(rule.Bypass), rule.Priority, rule.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnCacheRuleRepo) FindByID(ctx context.Context, id int64) (*repository.CDNCacheRule, error) {
@@ -777,8 +813,11 @@ func (r *cdnCacheRuleRepo) ListBySiteID(ctx context.Context, siteID int64) ([]*r
 }
 
 func (r *cdnCacheRuleRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cache_rules WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cache_rules WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *cdnCacheRuleRepo) scanCacheRule(row *sql.Row) (*repository.CDNCacheRule, error) {

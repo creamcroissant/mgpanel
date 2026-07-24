@@ -194,6 +194,12 @@ type applyExecutionResult struct {
 }
 
 func (a *AgentBatchApplier) normalizeArtifacts(artifacts []*agentv1.ApplyArtifact) ([]normalizedArtifact, error) {
+	return normalizeArtifacts(artifacts)
+}
+
+// normalizeArtifacts is a shared package-level function that validates and sorts
+// apply artifacts. It is used by both AgentBatchApplier and SwitcherApplier.
+func normalizeArtifacts(artifacts []*agentv1.ApplyArtifact) ([]normalizedArtifact, error) {
 	if len(artifacts) == 0 {
 		return nil, fmt.Errorf("apply batch has no artifacts")
 	}

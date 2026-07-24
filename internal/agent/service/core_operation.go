@@ -174,11 +174,23 @@ func (a *Agent) executeCoreOperation(ctx context.Context, operation *agentv1.Cor
 }
 
 func (a *Agent) executeInstallCore(ctx context.Context, operation *agentv1.CoreOperation) (string, []byte, string) {
+	if a == nil {
+		return "failed", nil, "agent is nil"
+	}
 	var payload agentv1.InstallCorePayload
 	if err := json.Unmarshal(operation.GetRequestPayload(), &payload); err != nil {
 		return "failed", nil, err.Error()
 	}
-	installer := core.NewInstaller(core.InstallerConfig{ScriptPath: a.cfg.Core.InstallScriptPath, SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath, XrayBinaryPath: a.cfg.Core.XrayBinaryPath, ServiceName: a.cfg.Protocol.ServiceName}, nil, nil)
+	installer := core.NewInstaller(core.InstallerConfig{
+			ScriptPath: a.cfg.Core.InstallScriptPath,
+			SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath,
+			XrayBinaryPath: a.cfg.Core.XrayBinaryPath,
+			ServiceName: a.cfg.Protocol.ServiceName,
+			SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
+			XrayReleaseRepo: a.cfg.Core.XrayReleaseRepo,
+			ReleaseBaseURL: a.cfg.Core.ReleaseBaseURL,
+			CoreInstallDir: a.cfg.Core.CoreInstallDir,
+	}, nil, nil)
 	resp, err := installer.InstallCore(ctx, &agentv1.InstallCoreRequest{CoreType: operation.GetCoreType(), Action: payload.Action, Version: payload.Version, Channel: payload.Channel, Flavor: payload.Flavor, Activate: payload.Activate, RequestId: payload.RequestId})
 	a.invalidateCapabilitiesCache()
 	if err != nil {
@@ -246,7 +258,16 @@ func (a *Agent) executeEnsureCore(ctx context.Context, operation *agentv1.CoreOp
 	if err := json.Unmarshal(operation.GetRequestPayload(), &payload); err != nil {
 		return "failed", nil, err.Error()
 	}
-	installer := core.NewInstaller(core.InstallerConfig{ScriptPath: a.cfg.Core.InstallScriptPath, SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath, XrayBinaryPath: a.cfg.Core.XrayBinaryPath, ServiceName: a.cfg.Protocol.ServiceName}, nil, nil)
+	installer := core.NewInstaller(core.InstallerConfig{
+			ScriptPath: a.cfg.Core.InstallScriptPath,
+			SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath,
+			XrayBinaryPath: a.cfg.Core.XrayBinaryPath,
+			ServiceName: a.cfg.Protocol.ServiceName,
+			SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
+			XrayReleaseRepo: a.cfg.Core.XrayReleaseRepo,
+			ReleaseBaseURL: a.cfg.Core.ReleaseBaseURL,
+			CoreInstallDir: a.cfg.Core.CoreInstallDir,
+	}, nil, nil)
 	resp, err := installer.InstallCore(ctx, &agentv1.InstallCoreRequest{CoreType: operation.GetCoreType(), Action: "ensure", Version: payload.Version, Channel: payload.Channel, Flavor: payload.Flavor})
 	a.invalidateCapabilitiesCache()
 	if err != nil {
@@ -362,8 +383,10 @@ func (a *Agent) invalidateCapabilitiesCache() {
 	if a == nil {
 		return
 	}
+	a.capsMu.Lock()
 	a.cachedCaps = nil
 	a.capsDetectedAt = 0
+	a.capsMu.Unlock()
 }
 
 func int32SliceToInt(input []int32) []int {

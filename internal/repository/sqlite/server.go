@@ -172,7 +172,7 @@ func (r *serverRepo) Update(ctx context.Context, server *repository.Server) erro
 
 	server.UpdatedAt = time.Now().Unix()
 
-	_, err := r.db.ExecContext(ctx, query,
+	result, err := r.db.ExecContext(ctx, query,
 		server.Code,
 		server.GroupID,
 		server.RouteID,
@@ -196,7 +196,10 @@ func (r *serverRepo) Update(ctx context.Context, server *repository.Server) erro
 		server.UpdatedAt,
 		server.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *serverRepo) UpdateHeartbeat(ctx context.Context, id int64, heartbeatAt int64) error {
@@ -207,8 +210,11 @@ func (r *serverRepo) UpdateHeartbeat(ctx context.Context, id int64, heartbeatAt 
 
 func (r *serverRepo) Delete(ctx context.Context, id int64) error {
 	const query = `DELETE FROM servers WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, id)
-	return err
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *serverRepo) FindByAgentHostID(ctx context.Context, agentHostID int64) ([]*repository.Server, error) {

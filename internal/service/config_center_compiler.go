@@ -25,7 +25,9 @@ var (
 // ArtifactCompilerService renders desired artifacts from inbound semantic specs.
 type ArtifactCompilerService interface {
 	RenderArtifacts(ctx context.Context, req RenderArtifactsRequest) (*RenderArtifactsResult, error)
+	RenderCoreConfigs(ctx context.Context, req RenderArtifactsRequest) (*RenderArtifactsResult, error)
 	DeleteArtifacts(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64) error
+	GetLatestRevision(ctx context.Context, agentHostID int64, coreType string) (int64, error)
 }
 
 // RenderArtifactsRequest defines one rendering batch for host/core/revision.
@@ -98,20 +100,23 @@ type renderedArtifact struct {
 }
 
 type artifactCompilerService struct {
-	specs     repository.InboundSpecRepository
-	artifacts repository.DesiredArtifactRepository
-	renderers map[string]artifactRenderer
+	specs           repository.InboundSpecRepository
+	coreConfigItems repository.CoreConfigItemRepository
+	artifacts       repository.DesiredArtifactRepository
+	renderers       map[string]artifactRenderer
 }
 
 // NewArtifactCompilerService creates ArtifactCompilerService.
 func NewArtifactCompilerService(
 	specs repository.InboundSpecRepository,
 	artifacts repository.DesiredArtifactRepository,
+	coreConfigItems repository.CoreConfigItemRepository,
 ) ArtifactCompilerService {
 	service := &artifactCompilerService{
-		specs:     specs,
-		artifacts: artifacts,
-		renderers: map[string]artifactRenderer{},
+		specs:           specs,
+		artifacts:       artifacts,
+		coreConfigItems: coreConfigItems,
+		renderers:       map[string]artifactRenderer{},
 	}
 
 	singBoxRenderer := newSingBoxArtifactRenderer()
@@ -238,7 +243,16 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 		warnings = append(warnings, renderedWarnings...)
 	}
 
-	if err := s.artifacts.DeleteByHostCoreRevision(ctx, req.AgentHostID, coreType, req.DesiredRevision); err != nil {
+	// Collect unique source tags from rendered artifacts to scope deletion
+	sourceTags := make([]string, 0, len(metadata))
+	seenTag := make(map[string]struct{}, len(metadata))
+	for _, m := range metadata {
+		if _, ok := seenTag[m.SourceTag]; !ok {
+			seenTag[m.SourceTag] = struct{}{}
+			sourceTags = append(sourceTags, m.SourceTag)
+		}
+	}
+	if err := s.artifacts.DeleteByHostCoreRevision(ctx, req.AgentHostID, coreType, req.DesiredRevision, sourceTags...); err != nil {
 		return nil, err
 	}
 	if err := s.artifacts.CreateBatch(ctx, artifacts); err != nil {
@@ -270,19 +284,141 @@ func (s *artifactCompilerService) DeleteArtifacts(ctx context.Context, agentHost
 	return s.artifacts.DeleteByHostCoreRevision(ctx, agentHostID, normalizedCore, desiredRevision)
 }
 
+// RenderCoreConfigs renders core config items (outbound, routing, dns, core_settings) into artifacts.
+func (s *artifactCompilerService) RenderCoreConfigs(ctx context.Context, req RenderArtifactsRequest) (*RenderArtifactsResult, error) {
+	if s == nil || s.coreConfigItems == nil || s.artifacts == nil {
+		return nil, fmt.Errorf("artifact compiler service not configured / artifact 编译服务未配置")
+	}
+	if req.AgentHostID <= 0 {
+		return nil, fmt.Errorf("%w (agent_host_id is required / 不能为空)", ErrArtifactCompileInvalidRequest)
+	}
+
+	coreType := normalizeCoreType(req.CoreType)
+	if coreType == "" {
+		return nil, fmt.Errorf("%w (core_type must be sing-box or xray / 必须是 sing-box 或 xray)", ErrArtifactCompileInvalidRequest)
+	}
+
+	// Use the requested revision if provided, otherwise compute one
+	revision := req.DesiredRevision
+	if revision <= 0 {
+		latest, err := s.artifacts.GetLatestRevision(ctx, req.AgentHostID, coreType)
+		if err != nil {
+			return nil, fmt.Errorf("get latest revision: %w", err)
+		}
+		if latest <= 0 {
+			revision = 1
+		} else {
+			revision = latest + 1
+		}
+	}
+
+	// List all enabled core config items for this host
+	filter := repository.CoreConfigItemFilter{
+		AgentHostID: &req.AgentHostID,
+		CoreType:    &coreType,
+		Enabled:     boolPtr(true),
+		Limit:       1000,
+		Offset:      0,
+	}
+	items, err := s.coreConfigItems.List(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("list core config items: %w", err)
+	}
+
+	artifacts := make([]*repository.DesiredArtifact, 0, len(items))
+	metadata := make([]RenderedArtifactMetadata, 0, len(items))
+
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
+		// Serialize config_data to JSON bytes
+		configDataBytes, err := json.Marshal(item.ConfigData)
+		if err != nil {
+			return nil, fmt.Errorf("marshal core config item (id=%d tag=%s): %w", item.ID, item.Tag, err)
+		}
+
+		// Build filename
+		filename := fmt.Sprintf("core-%s-%s.json", item.ConfigType, item.Tag)
+
+		// Compute content hash
+		hash := md5.Sum(configDataBytes)
+
+		artifact := &repository.DesiredArtifact{
+			AgentHostID:     req.AgentHostID,
+			CoreType:        coreType,
+			DesiredRevision: revision,
+			Filename:        filename,
+			SourceTag:       item.Tag,
+			Content:         configDataBytes,
+			ContentHash:     hex.EncodeToString(hash[:]),
+		}
+
+		artifacts = append(artifacts, artifact)
+		metadata = append(metadata, RenderedArtifactMetadata{
+			SpecID:      item.ID,
+			SourceTag:   item.Tag,
+			Filename:    filename,
+			ContentHash: hex.EncodeToString(hash[:]),
+		})
+	}
+
+	if len(artifacts) == 0 {
+		return &RenderArtifactsResult{
+			DesiredRevision: revision,
+			ArtifactCount:   0,
+			Artifacts:       nil,
+			Warnings:        nil,
+		}, nil
+	}
+
+	// Delete old artifacts at same revision then create new ones
+	// Collect unique source tags from rendered artifacts to scope deletion
+	sourceTags := make([]string, 0, len(metadata))
+	seenTag := make(map[string]struct{}, len(metadata))
+	for _, m := range metadata {
+		if _, ok := seenTag[m.SourceTag]; !ok {
+			seenTag[m.SourceTag] = struct{}{}
+			sourceTags = append(sourceTags, m.SourceTag)
+		}
+	}
+	if err := s.artifacts.DeleteByHostCoreRevision(ctx, req.AgentHostID, coreType, revision, sourceTags...); err != nil {
+		return nil, fmt.Errorf("delete existing artifacts: %w", err)
+	}
+	if err := s.artifacts.CreateBatch(ctx, artifacts); err != nil {
+		return nil, fmt.Errorf("create artifacts: %w", err)
+	}
+
+	return &RenderArtifactsResult{
+		DesiredRevision: revision,
+		ArtifactCount:   len(artifacts),
+		Artifacts:       metadata,
+	}, nil
+}
+
+// GetLatestRevision returns the highest desired_revision seen for a host/core_type.
+func (s *artifactCompilerService) GetLatestRevision(ctx context.Context, agentHostID int64, coreType string) (int64, error) {
+	if s == nil || s.artifacts == nil {
+		return 0, fmt.Errorf("artifact compiler service not configured / artifact 编译服务未配置")
+	}
+	normalizedCore := normalizeCoreType(coreType)
+	if normalizedCore == "" {
+		return 0, fmt.Errorf("%w (core_type must be sing-box or xray / 必须是 sing-box 或 xray)", ErrArtifactCompileInvalidRequest)
+	}
+	return s.artifacts.GetLatestRevision(ctx, agentHostID, normalizedCore)
+}
+
 func (s *artifactCompilerService) listSpecsByHostAndCore(ctx context.Context, agentHostID int64, coreType string) ([]*repository.InboundSpec, error) {
 	limit := 200
 	offset := 0
 	all := make([]*repository.InboundSpec, 0)
 
 	for {
-		hostID := agentHostID
-		core := coreType
-		items, err := s.specs.List(ctx, repository.InboundSpecFilter{
-			AgentHostID: &hostID,
-			CoreType:    &core,
-			Limit:       limit,
-			Offset:      offset,
+		items, err := s.specs.ListByAgentHost(ctx, agentHostID, repository.InboundSpecFilter{
+			CoreType: &coreType,
+			Limit:    limit,
+			Offset:   offset,
 		})
 		if err != nil {
 			return nil, err
@@ -300,7 +436,7 @@ func (s *artifactCompilerService) listSpecsByHostAndCore(ctx context.Context, ag
 	return all, nil
 }
 
-func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec) (template.UnifiedInbound, error) {
+func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec, semanticObject map[string]any) (template.UnifiedInbound, error) {
 	if semantic == nil {
 		return template.UnifiedInbound{}, fmt.Errorf("semantic spec is nil")
 	}
@@ -325,6 +461,30 @@ func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec) 
 			return template.UnifiedInbound{}, fmt.Errorf("parse semantic_spec.transport: %w", err)
 		}
 		inbound.Transport = artifactBuildUnifiedTransport(transportObject)
+	}
+	if artifactRawObjectPresent(semantic.Multiplex) {
+		multiplexObject, err := artifactDecodeJSONObject(semantic.Multiplex)
+		if err != nil {
+			return template.UnifiedInbound{}, fmt.Errorf("parse semantic_spec.multiplex: %w", err)
+		}
+		inbound.Multiplex = artifactBuildUnifiedMultiplex(multiplexObject)
+	}
+	if artifactRawObjectPresent(semantic.Sniffing) {
+		sniffingObject, err := artifactDecodeJSONObject(semantic.Sniffing)
+		if err != nil {
+			return template.UnifiedInbound{}, fmt.Errorf("parse semantic_spec.sniffing: %w", err)
+		}
+		inbound.Sniffing = artifactBuildUnifiedSniffing(sniffingObject)
+	}
+
+	// Extract users and options from raw semanticObject (data not in typed struct fields)
+	if semanticObject != nil {
+		inbound.Users = artifactBuildUnifiedUsers(semanticObject)
+		if optionsRaw, ok := semanticObject["options"]; ok {
+			if optionsMap, ok := optionsRaw.(map[string]any); ok {
+				inbound.Options = optionsMap
+			}
+		}
 	}
 
 	return inbound, nil
@@ -855,4 +1015,76 @@ func artifactSplitHostPort(dest string) (string, int) {
 		return trimmed, 0
 	}
 	return host, port
+}
+
+// artifactBuildUnifiedMultiplex builds a UnifiedMultiplex from a decoded JSON object.
+func artifactBuildUnifiedMultiplex(raw map[string]any) *template.UnifiedMultiplex {
+	if len(raw) == 0 {
+		return nil
+	}
+	multiplex := &template.UnifiedMultiplex{
+		Enabled:    artifactToBoolWithDefault(artifactLookupFirstValue(raw, "enabled"), true),
+		Protocol:   artifactStringByKeys(raw, "protocol"),
+		MaxStreams: artifactIntByKeys(raw, "max_streams", "maxStreams"),
+		Padding:    artifactToBoolWithDefault(artifactLookupFirstValue(raw, "padding"), false),
+	}
+	if brutalRaw, ok := artifactMapByKeys(raw, "brutal"); ok {
+		multiplex.Brutal = &template.UnifiedBrutal{
+			Enabled:  artifactToBoolWithDefault(artifactLookupFirstValue(brutalRaw, "enabled"), true),
+			UpMbps:   artifactIntByKeys(brutalRaw, "up_mbps", "upMbps"),
+			DownMbps: artifactIntByKeys(brutalRaw, "down_mbps", "downMbps"),
+		}
+	}
+	return multiplex
+}
+
+// artifactBuildUnifiedSniffing builds a UnifiedSniffing from a decoded JSON object.
+func artifactBuildUnifiedSniffing(raw map[string]any) *template.UnifiedSniffing {
+	if len(raw) == 0 {
+		return nil
+	}
+	return &template.UnifiedSniffing{
+		Enabled:         artifactToBoolWithDefault(artifactLookupFirstValue(raw, "enabled"), true),
+		DestOverride:    artifactStringSliceByKeys(raw, "dest_override", "destOverride"),
+		MetadataOnly:    artifactToBoolWithDefault(artifactLookupFirstValue(raw, "metadata_only", "metadataOnly"), false),
+		DomainsExcluded: artifactStringSliceByKeys(raw, "domains_excluded", "domainsExcluded"),
+		RouteOnly:       artifactToBoolWithDefault(artifactLookupFirstValue(raw, "route_only", "routeOnly"), false),
+	}
+}
+
+// artifactBuildUnifiedUsers extracts []UnifiedUser from a parsed semantic spec object.
+// It looks for a "users" array where each entry has uuid/id, email/name, password, flow, method.
+func artifactBuildUnifiedUsers(semanticObject map[string]any) []template.UnifiedUser {
+	if semanticObject == nil {
+		return nil
+	}
+	rawUsers, ok := semanticObject["users"]
+	if !ok {
+		return nil
+	}
+	usersArr, ok := rawUsers.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]template.UnifiedUser, 0, len(usersArr))
+	for _, raw := range usersArr {
+		userMap, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		user := template.UnifiedUser{
+			UUID:     firstNonEmpty(artifactStringByKeys(userMap, "uuid", "id"), ""),
+			Email:    artifactStringByKeys(userMap, "email", "name"),
+			Password: artifactStringByKeys(userMap, "password", "pass"),
+			Flow:     artifactStringByKeys(userMap, "flow"),
+			Method:   artifactStringByKeys(userMap, "method"),
+		}
+		result = append(result, user)
+	}
+	return result
+}
+
+// boolPtr returns a pointer to a bool value.
+func boolPtr(v bool) *bool {
+	return &v
 }

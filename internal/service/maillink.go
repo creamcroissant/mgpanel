@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -221,7 +222,9 @@ func (s *mailLinkService) bumpCooldown(ctx context.Context, email string) {
 	if s.cooldown == nil {
 		return
 	}
-	_ = s.cooldown.SetString(ctx, s.cooldownKey(email), time.Now().Format(time.RFC3339), mailLinkSendCooldown)
+	if err := s.cooldown.SetString(ctx, s.cooldownKey(email), time.Now().Format(time.RFC3339), mailLinkSendCooldown); err != nil {
+		slog.Warn("failed to set mail link cooldown", "email", email, "error", err)
+	}
 }
 
 func (s *mailLinkService) cooldownKey(email string) string {

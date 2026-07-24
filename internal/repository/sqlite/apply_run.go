@@ -30,13 +30,16 @@ func (r *applyRunRepo) Create(ctx context.Context, run *repository.ApplyRun) err
 	if run.StartedAt == 0 {
 		run.StartedAt = now
 	}
+	if run.CreatedAt == 0 {
+		run.CreatedAt = now
+	}
 
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO apply_runs (
 			run_id, agent_host_id, core_type, target_revision, status,
 			error_message, previous_revision, rollback_revision, operator_id,
-			started_at, finished_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			started_at, finished_at, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		run.RunID,
 		run.AgentHostID,
@@ -49,8 +52,28 @@ func (r *applyRunRepo) Create(ctx context.Context, run *repository.ApplyRun) err
 		run.OperatorID,
 		run.StartedAt,
 		run.FinishedAt,
+		run.CreatedAt,
 	)
 	return err
+}
+
+func (r *applyRunRepo) MarkStarted(ctx context.Context, runID, status string, startedAt int64) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE apply_runs
+		SET status = ?, started_at = ?
+		WHERE run_id = ? AND status = 'pending'
+	`, status, startedAt, runID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
 }
 
 func (r *applyRunRepo) UpdateStatus(ctx context.Context, runID, status, errorMessage string, rollbackRevision int64, finishedAt int64) error {
@@ -77,7 +100,7 @@ func (r *applyRunRepo) FindByRunID(ctx context.Context, runID string) (*reposito
 		SELECT
 			run_id, agent_host_id, core_type, target_revision, status,
 			error_message, previous_revision, rollback_revision, operator_id,
-			started_at, finished_at
+			started_at, finished_at, created_at
 		FROM apply_runs
 		WHERE run_id = ?
 		LIMIT 1
@@ -93,7 +116,7 @@ func (r *applyRunRepo) List(ctx context.Context, filter repository.ApplyRunFilte
 		SELECT
 			run_id, agent_host_id, core_type, target_revision, status,
 			error_message, previous_revision, rollback_revision, operator_id,
-			started_at, finished_at
+			started_at, finished_at, created_at
 		FROM apply_runs
 		WHERE 1 = 1
 	`)
@@ -180,6 +203,7 @@ func (r *applyRunRepo) scanApplyRun(scanner applyRunScanner) (*repository.ApplyR
 		&run.OperatorID,
 		&run.StartedAt,
 		&run.FinishedAt,
+		&run.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
@@ -188,4 +212,14 @@ func (r *applyRunRepo) scanApplyRun(scanner applyRunScanner) (*repository.ApplyR
 		return nil, err
 	}
 	return &run, nil
+}
+
+func (r *applyRunRepo) DeleteByClaimAge(ctx context.Context, maxAge time.Duration) (int64, error) {
+	deadline := time.Now().Unix() - int64(maxAge.Seconds())
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM apply_runs WHERE started_at IS NOT NULL AND started_at < ?`, deadline)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -76,6 +76,7 @@ type xrayInbound struct {
 	Port           int                 `json:"port"`
 	Settings       json.RawMessage     `json:"settings"`
 	StreamSettings *xrayStreamSettings `json:"streamSettings"`
+	Sniffing       *xraySniffing       `json:"sniffing"`
 }
 
 type xrayStreamSettings struct {
@@ -98,6 +99,14 @@ type xrayTLSSettings struct {
 type xrayTLSCertificate struct {
 	CertificateFile string `json:"certificateFile"`
 	KeyFile         string `json:"keyFile"`
+}
+
+type xraySniffing struct {
+	Enabled        bool     `json:"enabled"`
+	DestOverride   []string `json:"destOverride"`
+	MetadataOnly   bool     `json:"metadataOnly"`
+	DomainsExcluded []string `json:"domainsExcluded"`
+	RouteOnly      bool     `json:"routeOnly"`
 }
 
 type xrayRealitySettings struct {
@@ -143,6 +152,25 @@ func buildXrayInbound(inbound UnifiedInbound) map[string]any {
 	streamSettings := buildXrayStreamSettings(inbound.Transport, inbound.TLS)
 	if streamSettings != nil {
 		result["streamSettings"] = streamSettings
+	}
+
+	if inbound.Sniffing != nil && inbound.Sniffing.Enabled {
+		sniffing := map[string]any{
+			"enabled": true,
+		}
+		if len(inbound.Sniffing.DestOverride) > 0 {
+			sniffing["destOverride"] = inbound.Sniffing.DestOverride
+		}
+		if inbound.Sniffing.MetadataOnly {
+			sniffing["metadataOnly"] = true
+		}
+		if len(inbound.Sniffing.DomainsExcluded) > 0 {
+			sniffing["domainsExcluded"] = inbound.Sniffing.DomainsExcluded
+		}
+		if inbound.Sniffing.RouteOnly {
+			sniffing["routeOnly"] = true
+		}
+		result["sniffing"] = sniffing
 	}
 
 	return result
@@ -386,6 +414,16 @@ func parseXrayInbound(inbound xrayInbound) UnifiedInbound {
 	if inbound.StreamSettings != nil {
 		result.Transport = parseXrayTransport(inbound.StreamSettings)
 		result.TLS = parseXrayTLS(inbound.StreamSettings)
+	}
+
+	if inbound.Sniffing != nil {
+		result.Sniffing = &UnifiedSniffing{
+			Enabled:         inbound.Sniffing.Enabled,
+			DestOverride:    inbound.Sniffing.DestOverride,
+			MetadataOnly:    inbound.Sniffing.MetadataOnly,
+			DomainsExcluded: inbound.Sniffing.DomainsExcluded,
+			RouteOnly:       inbound.Sniffing.RouteOnly,
+		}
 	}
 
 	users, options := parseXraySettings(inbound.Protocol, inbound.Settings)

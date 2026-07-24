@@ -20,15 +20,14 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [, setInviteCode] = useState("");
 
   const registerMutation = useMutation({
     mutationFn: () =>
       register({
         email,
         password,
-        invite_code: inviteCode || undefined,
       }),
     onSuccess: (data) => {
       authLogin(data.token);
@@ -156,7 +155,6 @@ export default function Register() {
                 htmlFor="register-invite"
                 className="text-sm font-medium text-foreground"
               >
-                {t("auth.inviteCode")}
               </label>
               <div className="relative">
                 <Ticket className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -164,7 +162,6 @@ export default function Register() {
                   id="register-invite"
                   type="text"
                   placeholder="Optional"
-                  value={inviteCode}
                   onChange={(event) => setInviteCode(event.target.value)}
                   className="h-11 pl-10"
                 />

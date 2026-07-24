@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/creamcroissant/xboard/internal/api/requestctx"
 	"github.com/creamcroissant/xboard/internal/repository"
 	"github.com/creamcroissant/xboard/internal/service"
 )
@@ -19,6 +20,10 @@ func NewAdminAccessLogHandler(accessLogService service.AccessLogService) *AdminA
 }
 
 func (h *AdminAccessLogHandler) Fetch(w http.ResponseWriter, r *http.Request) {
+	if claims := requestctx.AdminFromContext(r.Context()); claims.ID == "" {
+		respondJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
 	filter := repository.AccessLogFilter{
 		Limit:  getIntQuery(r, "limit", 20),
 		Offset: getIntQuery(r, "offset", 0),
@@ -64,6 +69,10 @@ func (h *AdminAccessLogHandler) Fetch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminAccessLogHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	if claims := requestctx.AdminFromContext(r.Context()); claims.ID == "" {
+		respondJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
 	filter := repository.AccessLogFilter{}
 	if id := getInt64Query(r, "user_id"); id > 0 {
 		filter.UserID = &id
@@ -88,6 +97,10 @@ func (h *AdminAccessLogHandler) GetStats(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *AdminAccessLogHandler) Cleanup(w http.ResponseWriter, r *http.Request) {
+	if claims := requestctx.AdminFromContext(r.Context()); claims.ID == "" {
+		respondJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
 	count, err := h.accessLogService.CleanupOldLogs(r.Context())
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "cleanup_logs", err)

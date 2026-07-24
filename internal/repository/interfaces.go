@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // Store 暴露每个聚合根对应的仓储接口。
@@ -19,7 +20,6 @@ type Store interface {
 	SubscriptionFilterReasons() SubscriptionFilterReasonRepository
 	Users() UserRepository
 	Settings() SettingRepository
-	InviteCodes() InviteCodeRepository
 	Plugins() PluginRepository
 	Plans() PlanRepository
 	LoginLogs() LoginLogRepository
@@ -45,6 +45,7 @@ type Store interface {
 	InboundSpecs() InboundSpecRepository
 	InboundSpecRevisions() InboundSpecRevisionRepository
 	DesiredArtifacts() DesiredArtifactRepository
+		CoreConfigItems() CoreConfigItemRepository
 	ApplyRuns() ApplyRunRepository
 	TrafficReportDedups() TrafficReportDedupRepository
 	AgentConfigInventories() AgentConfigInventoryRepository
@@ -53,9 +54,24 @@ type Store interface {
 	CDNSites() CDNSiteRepository
 	CDNEdges() CDNEdgeRepository
 	CDNCacheRules() CDNCacheRuleRepository
+	CDNOriginLatencies() CDNOriginLatencyRepository
 	CloudflareZones() CloudflareZoneRepository
 	CloudflareDNSRecords() CloudflareDNSRecordRepository
 	CloudFrontDistributions() CloudFrontDistributionRepository
+		MCPApiKeys() MCPApiKeyRepository
+	AgentMeshPeers() AgentMeshPeerRepository
+}
+
+
+// MCPApiKeyRepository manages MCP API keys for LLM access.
+type MCPApiKeyRepository interface {
+	Create(ctx context.Context, key *MCPApiKey) error
+	GetByID(ctx context.Context, id int64) (*MCPApiKey, error)
+	GetByPrefix(ctx context.Context, prefix string) (*MCPApiKey, error)
+	List(ctx context.Context) ([]*MCPApiKey, error)
+	Update(ctx context.Context, key *MCPApiKey) error
+	Delete(ctx context.Context, id int64) error
+	UpdateLastUsed(ctx context.Context, id int64, at int64) error
 }
 
 // CoreOperationRepository manages asynchronous core management tasks.
@@ -91,7 +107,7 @@ type AgentLifecycleOperationRepository interface {
 	FindByID(ctx context.Context, id string) (*AgentLifecycleOperation, error)
 	List(ctx context.Context, filter AgentLifecycleOperationFilter) ([]*AgentLifecycleOperation, error)
 	Count(ctx context.Context, filter AgentLifecycleOperationFilter) (int64, error)
-	ClaimNext(ctx context.Context, agentHostID int64, statuses []string, claimedBy string, claimedAt int64, reclaimBefore *int64, limit int) ([]*AgentLifecycleOperation, error)
+	ClaimNext(ctx context.Context, agentHostID int64, statuses []string, operationTypes []string, claimedBy string, claimedAt int64, reclaimBefore *int64, limit int) ([]*AgentLifecycleOperation, error)
 }
 
 // AgentTrafficPolicyRepository manages per-agent traffic threshold and reset policy.
@@ -160,18 +176,6 @@ type SettingRepository interface {
 	Upsert(ctx context.Context, setting *Setting) error
 	List(ctx context.Context) ([]Setting, error)
 	ListByCategory(ctx context.Context, category string) ([]Setting, error)
-}
-
-// InviteCodeRepository 管理邀请码相关操作。
-type InviteCodeRepository interface {
-	IncrementPV(ctx context.Context, code string) error
-	FindByCode(ctx context.Context, code string) (*InviteCode, error)
-	MarkUsed(ctx context.Context, id int64) error
-	CreateBatch(ctx context.Context, codes []*InviteCode) error
-	CountByStatus(ctx context.Context, status int) (int64, error)
-	CountByUser(ctx context.Context, userID int64) (int64, error)
-	List(ctx context.Context, limit, offset int) ([]*InviteCode, error)
-	CountAll(ctx context.Context) (int64, error)
 }
 
 // PluginRepository 提供插件元数据与配置访问。
@@ -463,6 +467,14 @@ type SubscriptionTemplateRepository interface {
 	SetDefault(ctx context.Context, id int64) error
 }
 
+// AgentMeshPeerRepository manages WireGuard mesh peer records.
+type AgentMeshPeerRepository interface {
+	Upsert(ctx context.Context, peer *AgentMeshPeer) error
+	FindByAgentHostID(ctx context.Context, agentHostID int64) (*AgentMeshPeer, error)
+	ListByNetworkID(ctx context.Context, networkID string) ([]*AgentMeshPeer, error)
+	Delete(ctx context.Context, agentHostID int64) error
+}
+
 // ForwardingRuleRepository 管理端口转发规则。
 type ForwardingRuleRepository interface {
 	// CRUD 操作
@@ -551,11 +563,27 @@ type AccessLogRepository interface {
 type InboundSpecRepository interface {
 	Create(ctx context.Context, spec *InboundSpec) error
 	Update(ctx context.Context, spec *InboundSpec) error
+	UpdateWithRevision(ctx context.Context, spec *InboundSpec, expectedRevision int64) error
 	Delete(ctx context.Context, id int64) error
 	FindByID(ctx context.Context, id int64) (*InboundSpec, error)
 	FindByHostCoreTag(ctx context.Context, agentHostID int64, coreType, tag string) (*InboundSpec, error)
 	List(ctx context.Context, filter InboundSpecFilter) ([]*InboundSpec, error)
 	Count(ctx context.Context, filter InboundSpecFilter) (int64, error)
+
+	// FindByCoreTag 全局查询（模板 spec 唯一性校验）。
+	FindByCoreTag(ctx context.Context, coreType, tag string) (*InboundSpec, error)
+	// ListByAgentHost 返回主机绑定的 specs（host-specific + 模板 spec 绑定到该主机的）。
+	ListByAgentHost(ctx context.Context, agentHostID int64, filter InboundSpecFilter) ([]*InboundSpec, error)
+	CountByAgentHost(ctx context.Context, agentHostID int64, filter InboundSpecFilter) (int64, error)
+}
+
+// SpecHostBindingRepository manages spec-to-host bindings for template specs.
+type SpecHostBindingRepository interface {
+	Bind(ctx context.Context, specID, agentHostID int64) error
+	Unbind(ctx context.Context, specID, agentHostID int64) error
+	UnbindAll(ctx context.Context, specID int64) error
+	ListBySpec(ctx context.Context, specID int64) ([]int64, error)
+	ListByHost(ctx context.Context, agentHostID int64) ([]int64, error)
 }
 
 // InboundSpecRevisionRepository manages immutable spec revisions.
@@ -566,10 +594,23 @@ type InboundSpecRevisionRepository interface {
 	GetMaxRevision(ctx context.Context, specID int64) (int64, error)
 }
 
+// CoreConfigItemRepository manages non-inbound core config items (outbound/routing/dns/core_settings).
+type CoreConfigItemRepository interface {
+	Create(ctx context.Context, item *CoreConfigItem) error
+	Update(ctx context.Context, item *CoreConfigItem) error
+	Delete(ctx context.Context, id int64) error
+	FindByID(ctx context.Context, id int64) (*CoreConfigItem, error)
+	FindByHostCoreTypeTag(ctx context.Context, agentHostID int64, coreType, configType, tag string) (*CoreConfigItem, error)
+	FindByCoreTypeTag(ctx context.Context, coreType, configType, tag string) (*CoreConfigItem, error)
+	ListByHost(ctx context.Context, agentHostID int64, coreType string, configType *string) ([]*CoreConfigItem, error)
+	List(ctx context.Context, filter CoreConfigItemFilter) ([]*CoreConfigItem, error)
+	Count(ctx context.Context, filter CoreConfigItemFilter) (int64, error)
+}
+
 // DesiredArtifactRepository manages rendered artifact files.
 type DesiredArtifactRepository interface {
 	CreateBatch(ctx context.Context, artifacts []*DesiredArtifact) error
-	DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64) error
+	DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, sourceTags ...string) error
 	List(ctx context.Context, filter DesiredArtifactFilter) ([]*DesiredArtifact, error)
 	Count(ctx context.Context, filter DesiredArtifactFilter) (int64, error)
 	GetLatestRevision(ctx context.Context, agentHostID int64, coreType string) (int64, error)
@@ -580,9 +621,11 @@ type DesiredArtifactRepository interface {
 type ApplyRunRepository interface {
 	Create(ctx context.Context, run *ApplyRun) error
 	UpdateStatus(ctx context.Context, runID, status, errorMessage string, rollbackRevision int64, finishedAt int64) error
+	MarkStarted(ctx context.Context, runID, status string, startedAt int64) error
 	FindByRunID(ctx context.Context, runID string) (*ApplyRun, error)
 	List(ctx context.Context, filter ApplyRunFilter) ([]*ApplyRun, error)
 	Count(ctx context.Context, filter ApplyRunFilter) (int64, error)
+	DeleteByClaimAge(ctx context.Context, maxAge time.Duration) (int64, error)
 }
 
 // TrafficReportDedupRepository manages idempotency keys for traffic reports.
@@ -636,6 +679,7 @@ type CDNSite struct {
 	OriginPath       string // path prefix for origin
 	OriginProtocol   string // "http", "https"
 	Enabled          bool
+	AsnTags          string
 	LastDeployedAt   *int64 // timestamp of last deploy
 	CreatedAt        int64
 	UpdatedAt        int64
@@ -670,7 +714,8 @@ type CDNCacheRule struct {
 // CloudflareZone represents a Cloudflare zone integration.
 type CloudflareZone struct {
 	ID        int64
-	AccountID string
+	AccountID string // maps to api_token_encrypted column (legacy name, keep for backward compat)
+	APITokenEncrypted string
 	ZoneID    string
 	ZoneName  string
 	Status    string
@@ -682,29 +727,33 @@ type CloudflareZone struct {
 
 // CloudflareDNSRecord represents a Cloudflare DNS record managed by the panel.
 type CloudflareDNSRecord struct {
-	ID       int64
-	ZoneID   int64 // internal CloudflareZone ID
-	RecordID string
-	Name     string
-	Type     string // A, AAAA, CNAME, etc.
-	Content  string
-	TTL      int
-	Proxied  bool
+	ID        int64
+	ZoneID    int64 // internal CloudflareZone ID
+	RecordID  string
+	Name      string
+	Type      string // A, AAAA, CNAME, etc.
+	Content   string
+	TTL       int
+	Proxied   bool
+	SyncedAt  int64
 	CreatedAt int64
 	UpdatedAt int64
 }
 
 // CloudFrontDistribution represents a CloudFront distribution integration.
 type CloudFrontDistribution struct {
-	ID             int64
-	DistributionID string
-	Domain         string
-	OriginDomain   string
-	Aliases        string
-	Status         string
-	Enabled        bool
-	CreatedAt      int64
-	UpdatedAt      int64
+	ID              int64
+	SiteID          int64  // FK to cdn_sites
+	DistributionID  string // CloudFront Distribution ID (E1234567890)
+	DistributionARN string
+	DomainName      string // dxxx.cloudfront.net
+	CertARN         string
+	PriceClass      string
+	Enabled         bool
+	Status          string
+	LastSyncedAt    int64
+	CreatedAt       int64
+	UpdatedAt       int64
 }
 
 // ----------------------------------------------------------------
@@ -717,6 +766,7 @@ type CDNSiteRepository interface {
 	Update(ctx context.Context, site *CDNSite) error
 	FindByID(ctx context.Context, id int64) (*CDNSite, error)
 	FindByInboundSpecID(ctx context.Context, specID int64) (*CDNSite, error)
+	FindByDomain(ctx context.Context, domain string) (*CDNSite, error)
 	List(ctx context.Context, filter CDNSiteFilter) ([]*CDNSite, error)
 	Count(ctx context.Context, filter CDNSiteFilter) (int64, error)
 	Delete(ctx context.Context, id int64) error
@@ -738,6 +788,13 @@ type CDNCacheRuleRepository interface {
 	FindByID(ctx context.Context, id int64) (*CDNCacheRule, error)
 	ListBySiteID(ctx context.Context, siteID int64) ([]*CDNCacheRule, error)
 	Delete(ctx context.Context, id int64) error
+}
+
+// CDNOriginLatencyRepository manages origin latency measurements for CDN sites.
+type CDNOriginLatencyRepository interface {
+	Upsert(ctx context.Context, siteID int64, stack string, latencyMs int64) error
+	ListBySiteID(ctx context.Context, siteID int64) ([]*CDNOriginLatency, error)
+	ListAll(ctx context.Context) ([]*CDNOriginLatency, error)
 }
 
 // CloudflareZoneRepository manages Cloudflare zone integrations.

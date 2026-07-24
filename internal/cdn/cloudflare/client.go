@@ -269,9 +269,12 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte) (json
 	}
 	defer resp.Body.Close()
 
-	raw, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB limit
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if len(raw) >= 10<<20 {
+		return nil, fmt.Errorf("cloudflare response too large: %d bytes", len(raw))
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

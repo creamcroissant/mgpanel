@@ -551,11 +551,16 @@ func buildClashVless(node Node, cdn *CDNConfig) map[string]any {
 		if opts := buildXHTTPOpts(node.Settings); len(opts) > 0 {
 			proxy["xhttp-opts"] = opts
 		}
-		// CDN 域名替换：仅对 xhttp 协议生效
+		// CDN 域名替换：仅对 xhttp 协议生效。只替换连接目标和传输层 host/path，
+		// TLS/Reality servername 保留原节点配置，避免证书或 Reality 校验失败。
 		if cdn != nil {
 			proxy["server"] = cdn.Domain
 			proxy["port"] = 443
-			proxy["servername"] = cdn.Domain
+			if settingBool(node.Settings, "tls") {
+				if _, ok := proxy["servername"]; !ok && node.Host != "" {
+					proxy["servername"] = node.Host
+				}
+			}
 			xopts, _ := proxy["xhttp-opts"].(map[string]any)
 			if xopts == nil {
 				xopts = map[string]any{}

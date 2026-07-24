@@ -124,19 +124,20 @@ type ConvertResult struct {
 
 // agentCoreService 组合核心管理相关依赖与配置。
 type agentCoreService struct {
-	agentHosts     repository.AgentHostRepository
-	instances      repository.AgentCoreInstanceRepository
-	switchLogs     repository.AgentCoreSwitchLogRepository
-	templates      repository.ConfigTemplateRepository
-	converters     *template.ConverterRegistry
-	logger         *slog.Logger
-	grpcTLS        *client.TLSConfig
-	grpcTimeout    client.TimeoutConfig
-	grpcKeepalive  *client.KeepaliveConfig
-	grpcPort       string
-	grpcClientFunc func(cfg client.Config) (*client.AgentClient, error)
-	operations     CoreOperationService
-	snapshots      CoreSnapshotService
+	agentHosts          repository.AgentHostRepository
+	instances           repository.AgentCoreInstanceRepository
+	switchLogs          repository.AgentCoreSwitchLogRepository
+	templates           repository.ConfigTemplateRepository
+	converters          *template.ConverterRegistry
+	logger              *slog.Logger
+	grpcTLS             *client.TLSConfig
+	grpcTimeout         client.TimeoutConfig
+	grpcKeepalive       *client.KeepaliveConfig
+	grpcPort            string
+	grpcClientFunc      func(ctx context.Context, cfg client.Config) (*client.AgentClient, error)
+	operations          CoreOperationService
+	snapshots           CoreSnapshotService
+	binaryVersionStates repository.BinaryVersionStateRepository
 }
 
 // NewAgentCoreService 组装核心管理服务。
@@ -153,13 +154,14 @@ func NewAgentCoreService(
 
 // AgentCoreServiceOptions 定义 gRPC 客户端构造参数。
 type AgentCoreServiceOptions struct {
-	GRPCTLS        *client.TLSConfig
-	Timeout        client.TimeoutConfig
-	Keepalive      *client.KeepaliveConfig
-	GRPCPort       string
-	ClientFactory  func(cfg client.Config) (*client.AgentClient, error)
-	Operations     repository.CoreOperationRepository
-	OperationGuard AgentOperationGuard
+	GRPCTLS             *client.TLSConfig
+	Timeout             client.TimeoutConfig
+	Keepalive           *client.KeepaliveConfig
+	GRPCPort            string
+	ClientFactory       func(ctx context.Context, cfg client.Config) (*client.AgentClient, error)
+	Operations          repository.CoreOperationRepository
+	OperationGuard      AgentOperationGuard
+	BinaryVersionStates repository.BinaryVersionStateRepository
 }
 
 // NewAgentCoreServiceWithOptions 构造可定制的核心管理服务。
@@ -184,19 +186,20 @@ func NewAgentCoreServiceWithOptions(
 		factory = client.NewAgentClient
 	}
 	return &agentCoreService{
-		agentHosts:     agentHosts,
-		instances:      instances,
-		switchLogs:     switchLogs,
-		templates:      templates,
-		converters:     converters,
-		logger:         logger,
-		grpcTLS:        opts.GRPCTLS,
-		grpcTimeout:    opts.Timeout,
-		grpcKeepalive:  opts.Keepalive,
-		grpcPort:       grpcPort,
-		grpcClientFunc: factory,
-		operations:     NewCoreOperationService(opts.Operations, opts.OperationGuard),
-		snapshots:      NewCoreSnapshotService(agentHosts, instances),
+		agentHosts:          agentHosts,
+		instances:           instances,
+		switchLogs:          switchLogs,
+		templates:           templates,
+		converters:          converters,
+		logger:              logger,
+		grpcTLS:             opts.GRPCTLS,
+		grpcTimeout:         opts.Timeout,
+		grpcKeepalive:       opts.Keepalive,
+		grpcPort:            grpcPort,
+		grpcClientFunc:      factory,
+		operations:          NewCoreOperationService(opts.Operations, opts.OperationGuard),
+		snapshots:           NewCoreSnapshotService(agentHosts, instances),
+		binaryVersionStates: opts.BinaryVersionStates,
 	}
 }
 
@@ -219,17 +222,78 @@ func (s *agentCoreService) GetCores(ctx context.Context, agentHostID int64) ([]*
 	if err != nil {
 		return nil, err
 	}
-	if len(snapshots) == 0 && strings.TrimSpace(host.CoreVersion) != "" {
-		return []*agentv1.CoreInfo{{Type: "reported", Version: host.CoreVersion, Installed: true, Capabilities: append([]string(nil), host.Capabilities...)}}, nil
-	}
-	result := make([]*agentv1.CoreInfo, 0, len(snapshots))
+	result := make([]*agentv1.CoreInfo, 0, len(snapshots)+2)
+	seen := make(map[string]struct{}, len(snapshots)+2)
 	for _, snapshot := range snapshots {
 		if snapshot == nil {
 			continue
 		}
-		result = append(result, &agentv1.CoreInfo{Type: snapshot.Type, Version: snapshot.Version, Installed: snapshot.Installed, Capabilities: append([]string(nil), snapshot.Capabilities...)})
+		coreType := strings.TrimSpace(snapshot.Type)
+		if coreType == "" {
+			continue
+		}
+		seen[coreType] = struct{}{}
+		result = append(result, &agentv1.CoreInfo{Type: coreType, Version: snapshot.Version, Installed: snapshot.Installed, Capabilities: append([]string(nil), snapshot.Capabilities...)})
 	}
-	return result, nil
+	if s.binaryVersionStates != nil {
+		s.mergeInstalledCoreStates(ctx, agentHostID, &result, seen)
+	}
+	if len(result) > 0 {
+		return result, nil
+	}
+	// Ultimate fallback: single core from host record
+	if strings.TrimSpace(host.CoreVersion) != "" {
+		coreType := strings.TrimSpace(host.CurrentCoreType)
+		if coreType == "" {
+			coreType = "reported"
+		}
+		return []*agentv1.CoreInfo{{Type: coreType, Version: host.CoreVersion, Installed: true, Capabilities: append([]string(nil), host.Capabilities...)}}, nil
+	}
+	return []*agentv1.CoreInfo{}, nil
+}
+
+func (s *agentCoreService) mergeInstalledCoreStates(ctx context.Context, agentHostID int64, result *[]*agentv1.CoreInfo, seen map[string]struct{}) {
+	states, err := s.binaryVersionStates.List(ctx, repository.BinaryVersionFilter{AgentHostID: &agentHostID, Limit: len(binaryVersionComponents)})
+	if err != nil {
+		return
+	}
+	byComponent := make(map[string]*repository.BinaryVersionState, len(states))
+	for _, state := range states {
+		if state == nil {
+			continue
+		}
+		component, err := NormalizeBinaryVersionComponent(state.Component)
+		if err != nil || component == BinaryVersionComponentAgent {
+			continue
+		}
+		byComponent[component] = state
+	}
+	for _, component := range binaryVersionComponents {
+		if component == BinaryVersionComponentAgent {
+			continue
+		}
+		if _, ok := seen[component]; ok {
+			continue
+		}
+		state := byComponent[component]
+		if !isInstalledCoreBinaryState(state) {
+			continue
+		}
+		seen[component] = struct{}{}
+		*result = append(*result, &agentv1.CoreInfo{Type: component, Version: strings.TrimSpace(state.LocalVersion), Installed: true, Capabilities: unmarshalStringSlice(state.CapabilitiesJSON)})
+	}
+}
+
+func isInstalledCoreBinaryState(state *repository.BinaryVersionState) bool {
+	if state == nil || strings.TrimSpace(state.LocalVersion) == "" {
+		return false
+	}
+	switch strings.TrimSpace(state.Status) {
+	case BinaryVersionStatusMissing, BinaryVersionStatusUnknown, "":
+		return false
+	default:
+		return true
+	}
 }
 
 func (s *agentCoreService) GetInstances(ctx context.Context, agentHostID int64) ([]*repository.AgentCoreInstance, error) {
@@ -242,7 +306,14 @@ func (s *agentCoreService) GetInstances(ctx context.Context, agentHostID int64) 
 		}
 		return nil, err
 	}
-	return s.instances.ListByAgentHostID(ctx, agentHostID)
+	instances, err := s.instances.ListByAgentHostID(ctx, agentHostID)
+	if err != nil {
+		return nil, err
+	}
+	if instances == nil {
+		instances = []*repository.AgentCoreInstance{}
+	}
+	return instances, nil
 }
 
 func (s *agentCoreService) CreateInstance(ctx context.Context, req CreateInstanceRequest) (*repository.CoreOperation, error) {
@@ -281,11 +352,44 @@ func (s *agentCoreService) SwitchCore(ctx context.Context, req SwitchCoreRequest
 	if req.AgentHostID == 0 || strings.TrimSpace(req.FromInstanceID) == "" || strings.TrimSpace(req.ToCoreType) == "" {
 		return nil, ErrBadRequest
 	}
-	configJSON, _, _, err := s.resolveConfigJSON(ctx, req.ConfigTemplateID, req.ConfigJSON)
-	if err != nil {
-		return nil, err
+	var configJSON []byte
+	var templateID = req.ConfigTemplateID
+	var err error
+
+	if len(req.ConfigJSON) == 0 && req.ConfigTemplateID <= 0 {
+		oldConfig, sourceCore, tplID, findErr := s.findInstanceConfig(ctx, req.AgentHostID, req.FromInstanceID)
+		if findErr == nil {
+			targetCore := strings.TrimSpace(req.ToCoreType)
+			if strings.ToLower(sourceCore) == strings.ToLower(targetCore) {
+				configJSON = oldConfig
+				if tplID != nil {
+					templateID = *tplID
+				}
+			} else if s.converters != nil {
+				inbounds, parseErr := s.converters.Parse(oldConfig, sourceCore)
+				if parseErr == nil {
+					converted, convertErr := s.converters.Convert(inbounds, targetCore)
+					if convertErr == nil {
+						configJSON = converted
+						templateID = 0
+					}
+				}
+			}
+		}
 	}
-	payload, err := json.Marshal(&agentv1.SwitchCorePayload{FromInstanceId: strings.TrimSpace(req.FromInstanceID), ToCoreType: strings.TrimSpace(req.ToCoreType), ConfigJson: configJSON, SwitchId: strings.TrimSpace(req.SwitchID), ListenPorts: listenPortsToInt32(req.ListenPorts), ZeroDowntime: ptrToBool(req.ZeroDowntime), ConfigTemplateId: req.ConfigTemplateID})
+
+	if len(configJSON) == 0 {
+		var resolvedTplID *int64
+		configJSON, _, resolvedTplID, err = s.resolveConfigJSON(ctx, req.ConfigTemplateID, req.ConfigJSON)
+		if err != nil {
+			return nil, err
+		}
+		if resolvedTplID != nil {
+			templateID = *resolvedTplID
+		}
+	}
+
+	payload, err := json.Marshal(&agentv1.SwitchCorePayload{FromInstanceId: strings.TrimSpace(req.FromInstanceID), ToCoreType: strings.TrimSpace(req.ToCoreType), ConfigJson: configJSON, SwitchId: strings.TrimSpace(req.SwitchID), ListenPorts: listenPortsToInt32(req.ListenPorts), ZeroDowntime: ptrToBool(req.ZeroDowntime), ConfigTemplateId: templateID})
 	if err != nil {
 		return nil, err
 	}
@@ -352,9 +456,13 @@ func buildSwitchLogsFromOperations(items []*repository.CoreOperation) []*reposit
 			continue
 		}
 		var req agentv1.SwitchCorePayload
-		_ = json.Unmarshal(op.RequestPayload, &req)
+		if err := json.Unmarshal(op.RequestPayload, &req); err != nil {
+			slog.Debug("failed to unmarshal switch core request payload", "error", err)
+		}
 		var result map[string]any
-		_ = json.Unmarshal(op.ResultPayload, &result)
+		if err := json.Unmarshal(op.ResultPayload, &result); err != nil {
+				slog.Warn("agent_core: parse ResultPayload failed", "error", err)
+			}
 		var fromCoreType *string
 		fromInstanceID := strings.TrimSpace(req.GetFromInstanceId())
 		var fromPtr *string
@@ -446,7 +554,7 @@ func (s *agentCoreService) resolveConfigJSON(ctx context.Context, templateID int
 		payload = []byte(tpl.Content)
 		tplID = &tpl.ID
 	} else {
-		return nil, "", nil, fmt.Errorf("config json required / 需要配置 JSON")
+		payload = json.RawMessage(`{}`)
 	}
 	normalized, err := normalizeRawConfigJSON(payload)
 	if err != nil {
@@ -491,4 +599,57 @@ func ptrToBool(value *bool) bool {
 		return false
 	}
 	return *value
+}
+
+func (s *agentCoreService) findInstanceConfig(ctx context.Context, agentHostID int64, instanceID string) ([]byte, string, *int64, error) {
+	if s.operations == nil {
+		return nil, "", nil, fmt.Errorf("operations service unavailable")
+	}
+	ops, _, err := s.operations.List(ctx, ListCoreOperationsRequest{
+		AgentHostID: &agentHostID,
+		Statuses:    []string{coreOperationStatusCompleted},
+		Limit:       50,
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	for _, op := range ops {
+		if op == nil {
+			continue
+		}
+		if op.OperationType == coreOperationTypeCreate {
+			var payload agentv1.CreateCoreInstancePayload
+			if err := json.Unmarshal(op.RequestPayload, &payload); err == nil {
+				if payload.GetInstanceId() == instanceID {
+					var tplID *int64
+					if payload.GetConfigTemplateId() > 0 {
+						val := payload.GetConfigTemplateId()
+						tplID = &val
+					}
+					return payload.GetConfigJson(), op.CoreType, tplID, nil
+				}
+			}
+		} else if op.OperationType == coreOperationTypeSwitch {
+			var result map[string]any
+			if err := json.Unmarshal(op.ResultPayload, &result); err == nil {
+				newInstanceID, ok := result["new_instance_id"].(string)
+				if !ok {
+					continue
+				}
+				if newInstanceID == instanceID {
+					var payload agentv1.SwitchCorePayload
+					if err := json.Unmarshal(op.RequestPayload, &payload); err == nil {
+						var tplID *int64
+						if payload.GetConfigTemplateId() > 0 {
+							val := payload.GetConfigTemplateId()
+							tplID = &val
+						}
+						return payload.GetConfigJson(), op.CoreType, tplID, nil
+					}
+				}
+			}
+		}
+	}
+	return nil, "", nil, repository.ErrNotFound
 }

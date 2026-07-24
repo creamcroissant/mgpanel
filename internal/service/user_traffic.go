@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -50,16 +52,18 @@ type UserTrafficService interface {
 type userTrafficService struct {
 	trafficRepo       repository.UserTrafficRepository
 	userRepo          repository.UserRepository
+	plans             repository.PlanRepository
 	statCollector     TrafficStatCollectorWithHost
 	notificationQueue *async.NotificationQueue
 	settings          repository.SettingRepository
 }
 
 // NewUserTrafficService creates a new UserTrafficService.
-func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRepo repository.UserRepository) UserTrafficService {
+func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRepo repository.UserRepository, plans repository.PlanRepository) UserTrafficService {
 	return &userTrafficService{
 		trafficRepo: trafficRepo,
 		userRepo:    userRepo,
+		plans:       plans,
 	}
 }
 
@@ -67,6 +71,7 @@ func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRep
 func NewUserTrafficServiceWithCollector(
 	trafficRepo repository.UserTrafficRepository,
 	userRepo repository.UserRepository,
+	plans repository.PlanRepository,
 	collector TrafficStatCollectorWithHost,
 	notificationQueue *async.NotificationQueue,
 	settings repository.SettingRepository,
@@ -74,6 +79,7 @@ func NewUserTrafficServiceWithCollector(
 	return &userTrafficService{
 		trafficRepo:       trafficRepo,
 		userRepo:          userRepo,
+		plans:             plans,
 		statCollector:     collector,
 		notificationQueue: notificationQueue,
 		settings:          settings,
@@ -112,7 +118,14 @@ func (s *userTrafficService) ProcessTraffic(ctx context.Context, agentHostID int
 		}
 
 		if err := s.trafficRepo.CreatePeriod(ctx, period); err != nil {
-			return err
+			// Another goroutine may have created the period concurrently
+			period, err = s.trafficRepo.GetCurrentPeriod(ctx, userID)
+			if err != nil {
+				return err
+			}
+			if period == nil {
+				return fmt.Errorf("failed to create period and no existing period found: %w", err)
+			}
 		}
 	}
 
@@ -121,11 +134,29 @@ func (s *userTrafficService) ProcessTraffic(ctx context.Context, agentHostID int
 		return err
 	}
 
-	// 3. Check quota if not already exceeded
+	// 3. Re-fetch the period to get actual current traffic values after the atomic increment.
+	//    This prevents a TOCTOU race where the old period values read before the atomic update
+	//    would miss traffic from concurrent requests.
+	updatedPeriod, err := s.trafficRepo.GetCurrentPeriod(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if updatedPeriod == nil {
+		// Period was removed concurrently; nothing more to do.
+		return nil
+	}
+	period = updatedPeriod
+
+	// 4. Check quota if not already exceeded
 	if !period.Exceeded && period.QuotaBytes > 0 {
-		currentUpload := period.UploadBytes + upload
-		currentDownload := period.DownloadBytes + download
-		if currentUpload+currentDownload >= period.QuotaBytes {
+		currentUpload := period.UploadBytes
+		currentDownload := period.DownloadBytes
+		// 检测溢出：如果 currentUpload + currentDownload 超过 MaxInt64，直接视为超配额
+		total := currentUpload + currentDownload
+		if total < currentUpload || total < currentDownload {
+			total = math.MaxInt64
+		}
+		if total >= period.QuotaBytes {
 			// Mark period as exceeded
 			if err := s.trafficRepo.MarkPeriodExceeded(ctx, userID, period.PeriodStart); err != nil {
 				return err
@@ -139,12 +170,12 @@ func (s *userTrafficService) ProcessTraffic(ctx context.Context, agentHostID int
 		}
 	}
 
-	// 4. Also update the legacy user.u and user.d columns for backward compatibility
+	// 5. Also update the legacy user.u and user.d columns for backward compatibility
 	if err := s.userRepo.IncrementTraffic(ctx, userID, upload, download); err != nil {
 		return err
 	}
 
-	// 5. Collect traffic delta for stat_users aggregation (with agent host tracking)
+	// 6. Collect traffic delta for stat_users aggregation (with agent host tracking)
 	if s.statCollector != nil {
 		s.statCollector.CollectWithHost(agentHostID, userID, upload, download)
 	}
@@ -271,14 +302,24 @@ func (s *userTrafficService) ResetExpiredPeriods(ctx context.Context) (int, erro
 	}
 
 	processed := 0
+	var errs []error
 	for _, userID := range userIDs {
 		// Get user to retrieve their quota
 		user, err := s.userRepo.FindByID(ctx, userID)
 		if err != nil {
+			errs = append(errs, fmt.Errorf("find user %d: %w", userID, err))
 			continue
 		}
 		if user == nil {
 			continue
+		}
+
+		// Check if user's plan prohibits traffic reset
+		if user.PlanID > 0 && s.plans != nil {
+			plan, err := s.plans.FindByID(ctx, user.PlanID)
+			if err == nil && plan != nil && plan.ResetTrafficMethod != nil && *plan.ResetTrafficMethod == planResetNever {
+				continue
+			}
 		}
 
 		// Create new period based on settings
@@ -293,17 +334,23 @@ func (s *userTrafficService) ResetExpiredPeriods(ctx context.Context) (int, erro
 		}
 
 		if err := s.trafficRepo.CreatePeriod(ctx, period); err != nil {
+			errs = append(errs, fmt.Errorf("create period for user %d: %w", userID, err))
 			continue
 		}
 
 		// Reset user's exceeded status if they have a new quota
 		if user.TrafficExceeded && user.TransferEnable > 0 {
-			_ = s.userRepo.SetTrafficExceeded(ctx, userID, false)
+			if err := s.userRepo.SetTrafficExceeded(ctx, userID, false); err != nil {
+				errs = append(errs, fmt.Errorf("reset exceeded for user %d: %w", userID, err))
+			}
 		}
 
 		processed++
 	}
 
+	if len(errs) > 0 {
+		return processed, errors.Join(errs...)
+	}
 	return processed, nil
 }
 
@@ -318,6 +365,10 @@ func (s *userTrafficService) ResetUserExceededStatus(ctx context.Context, userID
 }
 
 func (s *userTrafficService) calculatePeriodTimes(ctx context.Context, user *repository.User, now time.Time) (int64, int64) {
+	// 当 settings 为 nil 时（通过 NewUserTrafficService 创建时），使用默认周期
+	if s.settings == nil {
+		return s.calculateDefaultPeriodTimes(now)
+	}
 	modeSetting, _ := s.settings.Get(ctx, "traffic_reset_mode")
 	mode := ""
 	if modeSetting != nil {
@@ -361,5 +412,11 @@ func (s *userTrafficService) calculatePeriodTimes(ctx context.Context, user *rep
 	startTime := time.Date(startYear, startMonth, targetDay, 0, 0, 0, 0, now.Location())
 	endTime := startTime.AddDate(0, 1, 0)
 
+	return startTime.Unix(), endTime.Unix()
+}
+
+func (s *userTrafficService) calculateDefaultPeriodTimes(now time.Time) (int64, int64) {
+	startTime := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	endTime := startTime.AddDate(0, 1, 0)
 	return startTime.Unix(), endTime.Unix()
 }

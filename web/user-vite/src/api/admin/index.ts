@@ -128,6 +128,7 @@ export {
   createConfigCenterSpec,
   updateConfigCenterSpec,
   getConfigCenterSpecHistory,
+  deleteConfigCenterSpec,
   importConfigCenterSpecsFromApplied,
   listConfigCenterArtifacts,
   getConfigCenterTextDiff,
@@ -140,6 +141,9 @@ export {
   listConfigCenterRecoveryStates,
 } from "./configCenter";
 
+// Agent config API
+export { getAgentConfigYAML, reportAgentConfig } from "./agentConfig";
+
 // CDN API
 export {
   fetchCDNSites,
@@ -148,4 +152,25 @@ export {
   deleteCDNSite,
   deployCDNSite,
   undeployCDNSite,
+  fetchProbeReport,
 } from "./cdn";
+
+export type { ProbeReportItem, ProbeReportResponse } from "./cdn";
+
+// MCP API Key management
+export {
+  fetchMCPKeys,
+  createMCPKey,
+  revokeMCPKey,
+  deleteMCPKey,
+} from "./mcp";
+
+export type { MCPApiKey, CreateKeyRequest } from "./mcp";
+
+// Core Config API
+export {
+  listCoreConfigItems,
+  createCoreConfigItem,
+  updateCoreConfigItem,
+  deleteCoreConfigItem,
+} from "./configCenter";

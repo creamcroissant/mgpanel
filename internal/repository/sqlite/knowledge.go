@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/creamcroissant/xboard/internal/repository"
@@ -85,7 +86,7 @@ func (r *knowledgeRepo) Update(ctx context.Context, knowledge *repository.Knowle
 	const stmt = `UPDATE knowledge
                   SET language = ?, category = ?, title = ?, body = ?, sort = ?, show = ?, updated_at = ?
                   WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, stmt,
+	result, err := r.db.ExecContext(ctx, stmt,
 		strings.TrimSpace(knowledge.Language),
 		strings.TrimSpace(knowledge.Category),
 		strings.TrimSpace(knowledge.Title),
@@ -95,13 +96,22 @@ func (r *knowledgeRepo) Update(ctx context.Context, knowledge *repository.Knowle
 		knowledge.UpdatedAt,
 		knowledge.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if err := ensureRowsAffected(result); err != nil {
+		return fmt.Errorf("knowledge: %w", err)
+	}
+	return nil
 }
 
 func (r *knowledgeRepo) Delete(ctx context.Context, id int64) error {
 	// 按主键删除知识记录。
-	_, err := r.db.ExecContext(ctx, `DELETE FROM knowledge WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM knowledge WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *knowledgeRepo) Sort(ctx context.Context, ids []int64, updatedAt int64) error {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/creamcroissant/xboard/internal/api/requestctx"
+	"github.com/creamcroissant/xboard/internal/repository"
 	"github.com/creamcroissant/xboard/internal/service"
 	"github.com/creamcroissant/xboard/internal/support/i18n"
 )
@@ -96,6 +97,16 @@ func (h *AdminConfigCenterDriftHandler) ListAppliedSnapshot(w http.ResponseWrite
 	if err != nil {
 		h.respondDriftError(r.Context(), w, "admin.config_center.drift.snapshot", err)
 		return
+	}
+
+	if result == nil {
+		result = &service.ListAppliedSnapshotResult{}
+	}
+	if result.Inventories == nil {
+		result.Inventories = []*repository.AgentConfigInventory{}
+	}
+	if result.InboundIndexes == nil {
+		result.InboundIndexes = []*repository.InboundIndex{}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"os"
 	"strings"
 
 	"github.com/creamcroissant/xboard/internal/bootstrap"
 	"github.com/creamcroissant/xboard/internal/config"
+	"github.com/creamcroissant/xboard/internal/service"
 )
 
 func resolveRuntimeVersion() string {
@@ -53,4 +55,20 @@ func buildBootstrapConfig(cfg *config.Config, runtimeVersion string, signingKey 
 			},
 		},
 	}
+}
+
+func buildBinaryVersionProvider() service.BinaryVersionRemoteProvider {
+	repos := map[string]string{
+		service.BinaryVersionComponentAgent:   envOrDefault("XBOARD_VERSION_REPO_AGENT", "creamcroissant/xboard2p"),
+		service.BinaryVersionComponentSingBox: envOrDefault("XBOARD_VERSION_REPO_SING_BOX", "SagerNet/sing-box"),
+		service.BinaryVersionComponentXray:    envOrDefault("XBOARD_VERSION_REPO_XRAY", "XTLS/Xray-core"),
+	}
+	return service.NewGitHubVersionProviderWithRepos(repos)
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
 }

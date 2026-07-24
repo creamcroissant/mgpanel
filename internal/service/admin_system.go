@@ -155,7 +155,10 @@ func (s *adminSystemService) I18n() *i18n.Manager {
 
 // SystemStatus 汇总系统状态（版本、环境、计数、运行时信息）。
 func (s *adminSystemService) SystemStatus(ctx context.Context) (AdminSystemStatus, error) {
-	host, _ := s.hostname()
+	host, err := s.hostname()
+	if err != nil {
+		host = "unknown"
+	}
 	now := s.now().UTC()
 	uptime := now.Unix() - s.startedAt.Unix()
 	if uptime < 0 {

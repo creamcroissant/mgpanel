@@ -127,7 +127,7 @@ jobs:
 
           echo "Building ${AGENT_BIN}"
           go build -trimpath \
-            -ldflags "-s -w" \
+            -ldflags "-s -w -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
             -o "dist/release/${AGENT_BIN}" \
             ./cmd/agent
 

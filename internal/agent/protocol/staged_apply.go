@@ -311,20 +311,29 @@ func copyDirContents(srcDir, dstDir string) error {
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		srcFile, err := os.Open(path)
-		if err != nil {
+		if err = func() error {
+			srcFile, openErr := os.Open(path)
+			if openErr != nil {
+				return openErr
+			}
+			defer srcFile.Close()
+			dstFile, openErr := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, entryInfo.Mode())
+			if openErr != nil {
+				return openErr
+			}
+			_, copyErr := io.Copy(dstFile, srcFile)
+			closeErr := dstFile.Close()
+			if copyErr != nil {
+				if closeErr != nil {
+					return fmt.Errorf("write: %w, close: %v", copyErr, closeErr)
+				}
+				return copyErr
+			}
+			return closeErr
+		}(); err != nil {
 			return err
 		}
-		defer srcFile.Close()
-		dstFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, entryInfo.Mode())
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
-			_ = dstFile.Close()
-			return err
-		}
-		return dstFile.Close()
+		return nil
 	})
 }
 
@@ -512,7 +521,7 @@ func inboundTag(inbound map[string]any) string {
 	if inbound == nil {
 		return ""
 	}
-	tag, _ := inbound["tag"].(string)
+	tag, _ := inbound["tag"].(string) // ok check done by caller, empty string on mismatch
 	return strings.TrimSpace(tag)
 }
 

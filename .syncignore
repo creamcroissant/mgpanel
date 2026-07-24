@@ -1,0 +1,88 @@
+# xboard ↔ xboard2p 同步差异规则（gitignore-like）
+# 供 scripts/repo-diff.sh 使用，用于“管理视图”过滤。
+# 注意：最后一条匹配规则生效，支持 ! 反选。
+
+# 本地规格流程/代理配置（不属于发行子仓）
+.spec-workflow/
+.serena/
+.mcp.json
+
+# 主仓专用 issue/CI 流程
+.github/ISSUE_TEMPLATE/
+.github/workflows/ci.yml
+
+# 同步到 xboard2p 时忽略所有测试资产（目录 / 文件 / 脚本）
+test/
+tests/
+test_data/
+**/test/
+**/tests/
+**/test_data/
+**/testdata/
+**/__tests__/
+
+# 常见测试文件命名（多语言）
+**/*_test.go
+internal/config/loader_test.go
+**/*_test.py
+**/*_test.sh
+**/*_test.js
+**/*_test.jsx
+**/*_test.ts
+**/*_test.tsx
+**/*_test.yml
+**/*_test.yaml
+**/*_test.json
+**/*.test.py
+**/*.test.js
+**/*.test.jsx
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.py
+**/*.spec.js
+**/*.spec.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/test_*.py
+**/test_*.sh
+**/test_*.js
+**/test_*.ts
+**/test*.cjs
+**/*test*.cjs
+**/test*.mjs
+**/*test*.mjs
+
+# 测试场景关键字命名
+**/*e2e*.py
+**/*e2e*.sh
+**/*e2e*.js
+**/*e2e*.ts
+**/*smoke*.py
+**/*smoke*.sh
+**/*smoke*.js
+**/*smoke*.ts
+**/*fixture*.*
+**/*fixtures*.*
+**/*mock*.*
+**/*fake*.*
+**/*stub*.*
+
+# 已知测试入口/配置
+scripts/e2e-test.sh
+smoke_test.py
+integration_test.py
+agent_config_test.yml
+test.md
+
+# 同步到 xboard2p 时忽略除 README 外的所有文档
+docs/
+**/*.md
+**/*.rst
+**/*.adoc
+**/*.txt
+
+# README 文档白名单（允许同步）
+!README*
+!readme*
+!**/README*
+!**/readme*

@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	corecdn "github.com/creamcroissant/xboard/internal/cdn"
 	"github.com/creamcroissant/xboard/internal/cdn/cloudflare"
 	"github.com/creamcroissant/xboard/internal/repository"
 	"github.com/creamcroissant/xboard/internal/support/security"
@@ -64,32 +66,37 @@ type CDNService interface {
 	// 一键部署/卸载加速（stub，Provider 调用暂不集成）
 	DeployAcceleration(ctx context.Context, accelerationID int64) error
 	UndoDeployAcceleration(ctx context.Context, accelerationID int64) error
+
+	// Origin Latency 监控
+	ReportOriginLatency(ctx context.Context, siteID int64, stack string, domain string, latencyMs int64) error
+	GetOriginLatencies(ctx context.Context) ([]*repository.CDNOriginLatency, error)
+	GetAllOriginLatencies(ctx context.Context) ([]*repository.CDNOriginLatency, error)
 }
 
 // CreateCDNSiteRequest 创建 CDN 站点请求
 type CreateCDNSiteRequest struct {
-	Name            string
-	Description     string
-	Domain          string
-	OriginType      string
-	OriginURL       string
-	CacheTTL        int
-	SSLMode         string
+	Name             string
+	Description      string
+	Domain           string
+	OriginType       string
+	OriginURL        string
+	CacheTTL         int
+	SSLMode          string
 	AccelerationMode string
-	Enabled         bool
+	Enabled          bool
 }
 
 // UpdateCDNSiteRequest 更新 CDN 站点请求
 type UpdateCDNSiteRequest struct {
-	Name            *string
-	Description     *string
-	Domain          *string
-	OriginType      *string
-	OriginURL       *string
-	CacheTTL        *int
-	SSLMode         *string
+	Name             *string
+	Description      *string
+	Domain           *string
+	OriginType       *string
+	OriginURL        *string
+	CacheTTL         *int
+	SSLMode          *string
 	AccelerationMode *string
-	Enabled         *bool
+	Enabled          *bool
 }
 
 // CreateCDNCacheRuleRequest 创建缓存规则请求
@@ -118,18 +125,18 @@ type ProviderStatusResult struct {
 
 // CDNAccelerationConfig 表示一条加速配置（对应 cdn_sites 记录，acceleration_mode=xhttp）
 type CDNAccelerationConfig struct {
-	ID               int64   `json:"id"`
-	InboundSpecID    int64   `json:"inbound_spec_id"`
-	CDNSiteID        int64   `json:"cdn_site_id"`
-	Provider         string  `json:"provider"`
-	Domain           string  `json:"domain"`
-	OriginPath       string  `json:"origin_path"`
-	OriginProtocol   string  `json:"origin_protocol"`
-	Enabled          bool    `json:"enabled"`
-	DeployStatus     string  `json:"deploy_status"`
-	LastDeployedAt   *int64  `json:"last_deployed_at"`
-	CreatedAt        int64   `json:"created_at"`
-	UpdatedAt        int64   `json:"updated_at"`
+	ID             int64  `json:"id"`
+	InboundSpecID  int64  `json:"inbound_spec_id"`
+	CDNSiteID      int64  `json:"cdn_site_id"`
+	Provider       string `json:"provider"`
+	Domain         string `json:"domain"`
+	OriginPath     string `json:"origin_path"`
+	OriginProtocol string `json:"origin_protocol"`
+	Enabled        bool   `json:"enabled"`
+	DeployStatus   string `json:"deploy_status"`
+	LastDeployedAt *int64 `json:"last_deployed_at"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 // UpdateCDNAccelerationRequest 更新加速配置的请求（指针字段表示可选更新）
@@ -141,12 +148,15 @@ type UpdateCDNAccelerationRequest struct {
 	Enabled        *bool   `json:"enabled,omitempty"`
 }
 
+var ErrCDNSiteInvalid = errors.New("service: invalid cdn site / CDN 站点配置无效")
+
 // cdnService 实现 CDNService 接口
 type cdnService struct {
-	sites        repository.CDNSiteRepository
-	edges        repository.CDNEdgeRepository
-	cacheRules   repository.CDNCacheRuleRepository
-	cfZones      repository.CloudflareZoneRepository
+	sites          repository.CDNSiteRepository
+	edges          repository.CDNEdgeRepository
+	cacheRules     repository.CDNCacheRuleRepository
+	originLatency  repository.CDNOriginLatencyRepository
+	cfZones        repository.CloudflareZoneRepository
 	cfDNS        repository.CloudflareDNSRecordRepository
 	cfDists      repository.CloudFrontDistributionRepository
 	settings     repository.SettingRepository
@@ -204,13 +214,26 @@ func NewCDNServiceWithLogger(
 			svc.agentHosts = v
 		case AgentLifecycleOperationService:
 			svc.lifecycleOps = v
+		case repository.CDNOriginLatencyRepository:
+			svc.originLatency = v
 		}
 	}
 	return svc
 }
 
+func validateCDNSiteForCaddy(domain, originType, originURL string) error {
+	if err := corecdn.ValidateCaddySiteConfig(domain, originType, originURL); err != nil {
+		return fmt.Errorf("%w: %v", ErrCDNSiteInvalid, err)
+	}
+	return nil
+}
+
 // CreateSite 创建 CDN 站点
 func (s *cdnService) CreateSite(ctx context.Context, req CreateCDNSiteRequest) (*repository.CDNSite, error) {
+	if err := validateCDNSiteForCaddy(req.Domain, req.OriginType, req.OriginURL); err != nil {
+		return nil, err
+	}
+
 	site := &repository.CDNSite{
 		Name:             req.Name,
 		Description:      req.Description,
@@ -245,6 +268,16 @@ func (s *cdnService) UpdateSite(ctx context.Context, id int64, req UpdateCDNSite
 		site.Description = *req.Description
 	}
 	if req.Domain != nil {
+		// 检查域名唯一性（仅当域名变更时）
+		if *req.Domain != site.Domain {
+			existing, err := s.sites.FindByDomain(ctx, *req.Domain)
+			if err != nil && !errors.Is(err, repository.ErrNotFound) {
+				return nil, err
+			}
+			if existing != nil && existing.ID != id {
+				return nil, fmt.Errorf("domain %s already in use by site %d", *req.Domain, existing.ID)
+			}
+		}
 		site.Domain = *req.Domain
 	}
 	if req.OriginType != nil {
@@ -264,6 +297,10 @@ func (s *cdnService) UpdateSite(ctx context.Context, id int64, req UpdateCDNSite
 	}
 	if req.Enabled != nil {
 		site.Enabled = *req.Enabled
+	}
+
+	if err := validateCDNSiteForCaddy(site.Domain, site.OriginType, site.OriginURL); err != nil {
+		return nil, err
 	}
 
 	if err := s.sites.Update(ctx, site); err != nil {
@@ -362,15 +399,143 @@ func (s *cdnService) ListCacheRules(ctx context.Context, siteID int64) ([]*repos
 	return s.cacheRules.ListBySiteID(ctx, siteID)
 }
 
-// DeploySite 部署 CDN 站点到边缘节点（stub，仅记录日志）
+// DeploySite 部署 CDN 站点到其关联的边缘节点
 func (s *cdnService) DeploySite(ctx context.Context, siteID int64) error {
-	s.logger.Info("deploy cdn site (stub)", "site_id", siteID)
+	s.logger.Info("deploy site", "site_id", siteID)
+
+	site, err := s.sites.FindByID(ctx, siteID)
+	if err != nil {
+		return fmt.Errorf("deploy site: find site %d: %w", siteID, err)
+	}
+	if site == nil {
+		return fmt.Errorf("site not found: %d", siteID)
+	}
+
+	edges, err := s.edges.ListBySiteID(ctx, siteID)
+	if err != nil {
+		return fmt.Errorf("deploy site: list edges: %w", err)
+	}
+
+	s.logger.Info("deploying site",
+		"site_id", siteID,
+		"domain", site.Domain,
+		"edge_count", len(edges),
+	)
+
+	if s.lifecycleOps != nil {
+		for _, edge := range edges {
+			payload, err := json.Marshal(map[string]any{
+				"action":      AgentLifecycleOperationTypeCDNDeploySite,
+				"site_id":     siteID,
+				"domain":      site.Domain,
+				"origin_type": site.OriginType,
+				"origin_url":  site.OriginURL,
+				"cache_ttl":   site.CacheTTL,
+				"ssl_mode":    site.SSLMode,
+				"edge_id":     edge.ID,
+				"agent_id":    edge.AgentHostID,
+			})
+			if err != nil {
+				s.logger.Error("marshal cdn lifecycle payload", "error", err, "action", "cdn_deploy")
+				payload = json.RawMessage("{}")
+			}
+			_, err = s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
+				AgentHostID:    edge.AgentHostID,
+				OperationType:  AgentLifecycleOperationTypeCDNDeploySite,
+				RequestPayload: payload,
+				Source:         "system",
+			})
+			if err != nil {
+				s.logger.Error("deploy site: create lifecycle operation",
+					"edge_id", edge.ID,
+					"agent_host_id", edge.AgentHostID,
+					"error", err,
+				)
+				continue
+			}
+			s.logger.Info("deploy site: created lifecycle operation",
+				"edge_id", edge.ID,
+				"agent_host_id", edge.AgentHostID,
+			)
+		}
+	} else {
+		s.logger.Warn("deploy site: lifecycleOps not configured, skipping command queue")
+	}
+
+	site.Status = "deploying"
+	if err := s.sites.Update(ctx, site); err != nil {
+		return fmt.Errorf("deploy site: update status: %w", err)
+	}
+
+	s.logger.Info("deploy site complete", "site_id", siteID)
 	return nil
 }
 
-// UndeploySite 从边缘节点卸载 CDN 站点（stub，仅记录日志）
+// UndeploySite 从边缘节点卸载 CDN 站点
 func (s *cdnService) UndeploySite(ctx context.Context, siteID int64) error {
-	s.logger.Info("undeploy cdn site (stub)", "site_id", siteID)
+	s.logger.Info("undeploy site", "site_id", siteID)
+
+	site, err := s.sites.FindByID(ctx, siteID)
+	if err != nil {
+		return fmt.Errorf("undeploy site: find site %d: %w", siteID, err)
+	}
+	if site == nil {
+		return fmt.Errorf("site not found: %d", siteID)
+	}
+
+	edges, err := s.edges.ListBySiteID(ctx, siteID)
+	if err != nil {
+		return fmt.Errorf("undeploy site: list edges: %w", err)
+	}
+
+	s.logger.Info("undeploying site",
+		"site_id", siteID,
+		"domain", site.Domain,
+		"edge_count", len(edges),
+	)
+
+	if s.lifecycleOps != nil {
+		for _, edge := range edges {
+			payload, err := json.Marshal(map[string]any{
+				"action":   AgentLifecycleOperationTypeCDNRemoveSite,
+				"site_id":  siteID,
+				"domain":   site.Domain,
+				"edge_id":  edge.ID,
+				"agent_id": edge.AgentHostID,
+			})
+			if err != nil {
+				s.logger.Error("marshal cdn lifecycle payload", "error", err, "action", "cdn_deploy")
+				payload = json.RawMessage("{}")
+			}
+			_, err = s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
+				AgentHostID:    edge.AgentHostID,
+				OperationType:  AgentLifecycleOperationTypeCDNRemoveSite,
+				RequestPayload: payload,
+				Source:         "system",
+			})
+			if err != nil {
+				s.logger.Error("undeploy site: create lifecycle operation",
+					"edge_id", edge.ID,
+					"agent_host_id", edge.AgentHostID,
+					"error", err,
+				)
+				continue
+			}
+			s.logger.Info("undeploy site: created lifecycle operation",
+				"edge_id", edge.ID,
+				"agent_host_id", edge.AgentHostID,
+			)
+		}
+	} else {
+		s.logger.Warn("undeploy site: lifecycleOps not configured, skipping command queue")
+	}
+
+	site.Status = "active"
+	if err := s.sites.Update(ctx, site); err != nil {
+		return fmt.Errorf("undeploy site: update status: %w", err)
+	}
+
+	s.logger.Info("undeploy site complete", "site_id", siteID)
 	return nil
 }
 
@@ -418,10 +583,10 @@ func (s *cdnService) ListCloudflareZones(ctx context.Context) ([]*repository.Clo
 // AddCloudflareZone 添加 Cloudflare 区域到管理
 func (s *cdnService) AddCloudflareZone(ctx context.Context, name, zoneID string) (*repository.CloudflareZone, error) {
 	zone := &repository.CloudflareZone{
-		ZoneName:  name,
-		ZoneID:    zoneID,
-		Status:    "active",
-		Enabled:   true,
+		ZoneName: name,
+		ZoneID:   zoneID,
+		Status:   "active",
+		Enabled:  true,
 	}
 	if err := s.cfZones.Create(ctx, zone); err != nil {
 		return nil, fmt.Errorf("add cloudflare zone: %w", err)
@@ -617,6 +782,13 @@ func (s *cdnService) DeleteAcceleration(ctx context.Context, id int64) error {
 	if err != nil {
 		return fmt.Errorf("list acceleration edges before delete: %w", err)
 	}
+	// Pre-validate all edges are deletable
+	for _, e := range edges {
+		if _, err := s.edges.FindByID(ctx, e.ID); err != nil {
+			return fmt.Errorf("pre-check edge %d: %w", e.ID, err)
+		}
+	}
+	// Execute deletions
 	for _, e := range edges {
 		if err := s.edges.Delete(ctx, e.ID); err != nil {
 			return fmt.Errorf("delete edge %d: %w", e.ID, err)
@@ -703,15 +875,22 @@ func (s *cdnService) DeployAcceleration(ctx context.Context, accelerationID int6
 	// 3. 通过 command queue 向每个边缘 Agent 下发 deploy_cdn_site
 	if s.lifecycleOps != nil {
 		for _, edge := range edges {
-			payload, _ := json.Marshal(map[string]any{
-				"action":    "deploy_cdn_site",
-				"site_id":   accelerationID,
-				"domain":    site.Domain,
-				"origin":    site.OriginURL,
-				"edge_id":   edge.ID,
-				"agent_id":  edge.AgentHostID,
+			payload, err := json.Marshal(map[string]any{
+				"action":      AgentLifecycleOperationTypeCDNDeploySite,
+				"site_id":     accelerationID,
+				"domain":      site.Domain,
+				"origin_type": site.OriginType,
+				"origin_url":  site.OriginURL,
+				"cache_ttl":   site.CacheTTL,
+				"ssl_mode":    site.SSLMode,
+				"edge_id":     edge.ID,
+				"agent_id":    edge.AgentHostID,
 			})
-			_, err := s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
+			if err != nil {
+				s.logger.Error("marshal cdn lifecycle payload", "error", err, "action", "cdn_deploy")
+				payload = json.RawMessage("{}")
+			}
+			_, err = s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
 				AgentHostID:    edge.AgentHostID,
 				OperationType:  AgentLifecycleOperationTypeCDNDeploySite,
 				RequestPayload: payload,
@@ -770,14 +949,18 @@ func (s *cdnService) UndoDeployAcceleration(ctx context.Context, accelerationID 
 	// 2. 向每个 Agent 下发 remove_cdn_site
 	if s.lifecycleOps != nil {
 		for _, edge := range edges {
-			payload, _ := json.Marshal(map[string]any{
-				"action":   "remove_cdn_site",
+			payload, err := json.Marshal(map[string]any{
+				"action":   AgentLifecycleOperationTypeCDNRemoveSite,
 				"site_id":  accelerationID,
 				"domain":   site.Domain,
 				"edge_id":  edge.ID,
 				"agent_id": edge.AgentHostID,
 			})
-			_, err := s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
+			if err != nil {
+				s.logger.Error("marshal cdn lifecycle payload", "error", err, "action", "cdn_deploy")
+				payload = json.RawMessage("{}")
+			}
+			_, err = s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
 				AgentHostID:    edge.AgentHostID,
 				OperationType:  AgentLifecycleOperationTypeCDNRemoveSite,
 				RequestPayload: payload,
@@ -808,4 +991,27 @@ func (s *cdnService) UndoDeployAcceleration(ctx context.Context, accelerationID 
 
 	s.logger.Info("undo deploy acceleration complete", "acceleration_id", accelerationID)
 	return nil
+}
+
+// ReportOriginLatency 上报源站延迟数据
+func (s *cdnService) ReportOriginLatency(ctx context.Context, siteID int64, stack string, domain string, latencyMs int64) error {
+	if s.originLatency == nil {
+		s.logger.Warn("originLatency repo not configured, skipping ReportOriginLatency")
+		return nil
+	}
+	return s.originLatency.Upsert(ctx, siteID, stack, latencyMs)
+}
+
+// GetOriginLatencies 获取所有源站延迟数据
+func (s *cdnService) GetOriginLatencies(ctx context.Context) ([]*repository.CDNOriginLatency, error) {
+	if s.originLatency == nil {
+		s.logger.Warn("originLatency repo not configured, returning empty")
+		return []*repository.CDNOriginLatency{}, nil
+	}
+	return s.originLatency.ListAll(ctx)
+}
+
+// GetAllOriginLatencies 获取所有源站延迟数据（别名，语义与 GetOriginLatencies 相同）
+func (s *cdnService) GetAllOriginLatencies(ctx context.Context) ([]*repository.CDNOriginLatency, error) {
+	return s.GetOriginLatencies(ctx)
 }

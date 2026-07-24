@@ -145,4 +145,7 @@ export type {
   ListConfigCenterRecoveryStatesParams,
   ConfigCenterDriftState,
   ConfigCenterDriftStateListResponse,
+  CoreConfigItem,
+  CoreConfigType,
+  UpsertCoreConfigItemRequest,
 } from "./configCenter";

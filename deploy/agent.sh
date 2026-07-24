@@ -809,6 +809,11 @@ EOF
         return 1
     fi
 
+    if ! run_privileged "$OPENRC_SERVICE_CMD" "$service_name" start; then
+        echo "Error: failed to start OpenRC service ${service_name}."
+        return 1
+    fi
+
     echo "${service_name} OpenRC service installed."
     return 0
 }
@@ -2319,6 +2324,10 @@ elif is_systemd_available; then
         if ! run_privileged systemctl enable xboard-agent; then
             echo "Error: failed to enable xboard-agent service."
             fail_stage "systemd service enable failed"
+        fi
+        if ! run_privileged systemctl start xboard-agent; then
+            echo "Error: failed to start xboard-agent service."
+            fail_stage "systemd service start failed"
         fi
         echo "xboard-agent.service installed."
     else

@@ -79,7 +79,7 @@ func (r *subscriptionTemplateRepo) ListPublic(ctx context.Context) ([]*repositor
 
 func (r *subscriptionTemplateRepo) Update(ctx context.Context, tpl *repository.SubscriptionTemplate) error {
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE subscription_templates
 		SET name = ?, description = ?, type = ?, content = ?, is_default = ?, is_public = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
@@ -88,12 +88,15 @@ func (r *subscriptionTemplateRepo) Update(ctx context.Context, tpl *repository.S
 		return err
 	}
 	tpl.UpdatedAt = now
-	return nil
+	return ensureRowsAffected(result)
 }
 
 func (r *subscriptionTemplateRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM subscription_templates WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM subscription_templates WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *subscriptionTemplateRepo) SetDefault(ctx context.Context, id int64) error {

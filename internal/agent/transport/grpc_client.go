@@ -413,6 +413,13 @@ func (c *GRPCClient) ReportAccessLogs(ctx context.Context, report *agentv1.Acces
 	})
 }
 
+// ReportAgentLogs reports agent log entries.
+func (c *GRPCClient) ReportAgentLogs(ctx context.Context, req *agentv1.ReportAgentLogsRequest) (*agentv1.ReportAgentLogsResponse, error) {
+	return callUnary(ctx, c, CallConfig{Timeout: 10 * time.Second}, func(ctx context.Context) (*agentv1.ReportAgentLogsResponse, error) {
+		return c.client.ReportAgentLogs(ctx, req)
+	})
+}
+
 // GetApplyBatch fetches hybrid config-center apply artifacts for current revision.
 func (c *GRPCClient) GetApplyBatch(ctx context.Context, coreType string, currentRevision int64) (*agentv1.ApplyBatchResponse, error) {
 	return callUnary(ctx, c, CallConfig{}, func(ctx context.Context) (*agentv1.ApplyBatchResponse, error) {
@@ -427,6 +434,20 @@ func (c *GRPCClient) GetApplyBatch(ctx context.Context, coreType string, current
 func (c *GRPCClient) ReportApplyRun(ctx context.Context, report *agentv1.ApplyRunReport) (*agentv1.ApplyRunResponse, error) {
 	return callUnary(ctx, c, CallConfig{}, func(ctx context.Context) (*agentv1.ApplyRunResponse, error) {
 		return c.client.ReportApplyRun(ctx, report)
+	})
+}
+
+// JoinMesh joins the WireGuard mesh network.
+func (c *GRPCClient) JoinMesh(ctx context.Context, req *agentv1.JoinMeshRequest) (*agentv1.JoinMeshResponse, error) {
+	return callUnary(ctx, c, CallConfig{}, func(ctx context.Context) (*agentv1.JoinMeshResponse, error) {
+		return c.client.JoinMesh(ctx, req)
+	})
+}
+
+// GetMeshPeers returns all mesh peers in the network.
+func (c *GRPCClient) GetMeshPeers(ctx context.Context, req *agentv1.GetMeshPeersRequest) (*agentv1.GetMeshPeersResponse, error) {
+	return callUnary(ctx, c, CallConfig{}, func(ctx context.Context) (*agentv1.GetMeshPeersResponse, error) {
+		return c.client.GetMeshPeers(ctx, req)
 	})
 }
 

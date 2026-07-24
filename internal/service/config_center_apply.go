@@ -26,6 +26,9 @@ const (
 	applyRunStatusSuccess    = "success"
 	applyRunStatusFailed     = "failed"
 	applyRunStatusRolledBack = "rolled_back"
+
+	// applyRunClaimTimeout 定义了 apply run 从 pending 到被 agent 领取的超时阈值。
+	// agent 领取后标记为 applying，超过此时间未完成则视为超时。
 )
 
 // ApplyOrchestratorService orchestrates apply run lifecycle and batch payload assembly.
@@ -36,6 +39,8 @@ type ApplyOrchestratorService interface {
 	GetApplyRunDetail(ctx context.Context, req GetApplyRunDetailRequest) (*GetApplyRunDetailResult, error)
 	GetApplyBatch(ctx context.Context, req GetApplyBatchRequest) (*GetApplyBatchResult, error)
 	ReportApplyResult(ctx context.Context, req ReportApplyResultRequest) error
+	CancelApplyRun(ctx context.Context, req CancelApplyRunRequest) error
+	CleanupExpiredApplyRuns(ctx context.Context, maxAge time.Duration) (int, error)
 }
 
 // PrepareApplyRunRequest validates target revision artifacts and creates/reuses one apply run.
@@ -112,6 +117,13 @@ type GetApplyBatchResult struct {
 	TargetRevision   int64
 	PreviousRevision int64
 	Artifacts        []ApplyBatchArtifact
+}
+
+// CancelApplyRunRequest carries cancel request for an apply run.
+type CancelApplyRunRequest struct {
+	AgentHostID int64
+	RunID       string
+	OperatorID  int64
 }
 
 // ReportApplyResultRequest carries one apply callback event.
@@ -648,6 +660,52 @@ func findReusableOpenApplyRun(ctx context.Context, applyRuns repository.ApplyRun
 		}
 	}
 	return nil, nil
+}
+
+
+func (s *applyOrchestratorService) CancelApplyRun(ctx context.Context, req CancelApplyRunRequest) error {
+	if s == nil || s.applyRuns == nil {
+		return ErrApplyOrchestratorNotConfigured
+	}
+	if req.AgentHostID <= 0 {
+		return fmt.Errorf("%w (agent_host_id is required / 不能为空)", ErrApplyOrchestratorInvalidRequest)
+	}
+	runID := strings.TrimSpace(req.RunID)
+	if runID == "" {
+		return fmt.Errorf("%w (run_id is required / 不能为空)", ErrApplyOrchestratorInvalidRequest)
+	}
+
+	run, err := s.applyRuns.FindByRunID(ctx, runID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrApplyOrchestratorNotFound
+		}
+		return err
+	}
+	if run.AgentHostID != req.AgentHostID {
+		return ErrApplyOrchestratorPermissionDenied
+	}
+
+	// 只有 pending 状态的 run 可以被取消
+	if run.Status != applyRunStatusPending && run.Status != applyRunStatusApplying {
+		return fmt.Errorf("%w (run status is %s, expected pending or applying / 发布状态为 %s，需要 pending 或 applying)", ErrApplyOrchestratorInvalidState, run.Status, run.Status)
+	}
+
+	if err := s.applyRuns.UpdateStatus(ctx, runID, applyRunStatusFailed, "cancelled by operator", 0, time.Now().Unix()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *applyOrchestratorService) CleanupExpiredApplyRuns(ctx context.Context, maxAge time.Duration) (int, error) {
+	if s == nil || s.applyRuns == nil {
+		return 0, ErrApplyOrchestratorNotConfigured
+	}
+	n, err := s.applyRuns.DeleteByClaimAge(ctx, maxAge)
+	if err != nil {
+		return 0, fmt.Errorf("cleanup expired apply runs: %w", err)
+	}
+	return int(n), nil
 }
 
 func (s *applyOrchestratorService) findReusableOpenApplyRun(ctx context.Context, agentHostID int64, coreType string, targetRevision int64) (*repository.ApplyRun, error) {

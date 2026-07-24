@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Gauge, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertTriangle, Copy, Gauge, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { getAgentTrafficStatus, resetAgentTrafficCycle } from "@/api/admin";
@@ -27,6 +27,15 @@ interface TrafficCycleStatusCardProps {
   agentHostId: number;
 }
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function hasTrustedCounters(status: AgentTrafficPolicyStatus | undefined): boolean {
   return status?.state?.counter_seen === true;
 }
@@ -42,12 +51,11 @@ function getUsagePercent(status: AgentTrafficPolicyStatus | undefined): number {
   return Math.min(100, Math.max(0, (status.usage_bytes / status.threshold_bytes) * 100));
 }
 
-function MetricTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-muted/20 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</div>
-      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+      <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }
@@ -100,12 +108,12 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
   return (
     <Card className="border border-border shadow-none" data-testid="agent-traffic-cycle-card">
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 shrink">
             <CardTitle className="text-sm">{t("admin.cores.trafficCycleTitle")}</CardTitle>
             <CardDescription>{t("admin.cores.trafficCycleDescription")}</CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => statusQuery.refetch()} disabled={statusQuery.isFetching}>
               <RefreshCw className="mr-2 h-3.5 w-3.5" />
               {t("common.refresh")}
@@ -165,9 +173,31 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
               <MetricTile label={t("admin.cores.trafficCycleUpload")} value={formatTrustedBytes(status.cycle_upload_bytes, trusted, t)} />
               <MetricTile label={t("admin.cores.trafficCycleDownload")} value={formatTrustedBytes(status.cycle_download_bytes, trusted, t)} />
               <MetricTile label={t("admin.cores.trafficCycleTotal")} value={formatTrustedBytes(status.cycle_total_bytes, trusted, t)} />
-              <MetricTile label={t("admin.cores.trafficNextResetAt")} value={nextResetAt} hint={status.next_reset_cycle_key} />
-              <MetricTile label={t("admin.cores.trafficLastResetAt")} value={status.policy.last_reset_at ? formatDateTime(status.policy.last_reset_at) : "-"} hint={status.policy.last_reset_cycle_key} />
-              <MetricTile label={t("admin.cores.trafficBootId")} value={trusted ? status.state?.boot_id || "-" : t("admin.cores.trafficUnknown")} />
+              <MetricTile label={t("admin.cores.trafficNextResetAt")} value={nextResetAt} />
+              <MetricTile label={t("admin.cores.trafficLastResetAt")} value={status.policy.last_reset_at ? formatDateTime(status.policy.last_reset_at) : "-"} />
+              <div className="rounded-md border border-border bg-muted/20 p-3">
+                <div className="text-xs text-muted-foreground">{t("admin.cores.trafficBootId")}</div>
+                {trusted && status.state?.boot_id ? (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 truncate text-sm font-mono text-foreground" title={status.state.boot_id}>
+                      {status.state.boot_id}
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      aria-label={t("common.copy")}
+                      onClick={async () => {
+                        const copied = await copyText(status.state!.boot_id);
+                        if (copied) toast.success(t("common.success"));
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{t("admin.cores.trafficUnknown")}</div>
+                )}
+              </div>
             </div>
           </>
         ) : null}

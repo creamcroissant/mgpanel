@@ -79,8 +79,8 @@ func (r *planRepo) Create(ctx context.Context, plan *repository.Plan) (*reposito
 	}
 	const stmt = `INSERT INTO plans (
 		group_id, name, prices, sell, transfer_enable, speed_limit, device_limit,
-		show, renew, content, tags, reset_traffic_method, capacity_limit, invite_limit, sort, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		show, renew, content, tags, reset_traffic_method, capacity_limit, sort, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	tags, err := encodeStringSlice(plan.Tags)
 	if err != nil {
@@ -104,7 +104,6 @@ func (r *planRepo) Create(ctx context.Context, plan *repository.Plan) (*reposito
 		tags,
 		optionalInt64(plan.ResetTrafficMethod),
 		optionalInt64(plan.CapacityLimit),
-		optionalInt64(plan.InviteLimit),
 		plan.Sort,
 		plan.CreatedAt,
 		plan.UpdatedAt,
@@ -140,7 +139,6 @@ func (r *planRepo) Update(ctx context.Context, plan *repository.Plan) error {
 		tags = ?,
 		reset_traffic_method = ?,
 		capacity_limit = ?,
-		invite_limit = ?,
 		sort = ?,
 		updated_at = ?
 	WHERE id = ?`
@@ -152,7 +150,7 @@ func (r *planRepo) Update(ctx context.Context, plan *repository.Plan) error {
 	if err != nil {
 		return fmt.Errorf("encode plan prices: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx, stmt,
+	result, err := r.db.ExecContext(ctx, stmt,
 		optionalInt64(plan.GroupID),
 		plan.Name,
 		pricesJSON,
@@ -166,12 +164,17 @@ func (r *planRepo) Update(ctx context.Context, plan *repository.Plan) error {
 		tags,
 		optionalInt64(plan.ResetTrafficMethod),
 		optionalInt64(plan.CapacityLimit),
-		optionalInt64(plan.InviteLimit),
 		plan.Sort,
 		plan.UpdatedAt,
 		plan.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if err := ensureRowsAffected(result); err != nil {
+		return fmt.Errorf("plan: %w", err)
+	}
+	return nil
 }
 
 func (r *planRepo) Delete(ctx context.Context, id int64) error {
@@ -232,6 +235,7 @@ func (r *planRepo) BindGroups(ctx context.Context, planID int64, groupIDs []int6
 
 func (r *planRepo) UnbindGroups(ctx context.Context, planID int64) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM plan_server_groups WHERE plan_id = ?", planID)
+	// idempotent: no error if not found
 	return err
 }
 
@@ -287,7 +291,6 @@ func updatePlanTx(ctx context.Context, tx *sql.Tx, plan *repository.Plan) error 
 		tags = ?,
 		reset_traffic_method = ?,
 		capacity_limit = ?,
-		invite_limit = ?,
 		sort = ?,
 		updated_at = ?
 	WHERE id = ?`
@@ -301,7 +304,7 @@ func updatePlanTx(ctx context.Context, tx *sql.Tx, plan *repository.Plan) error 
 		return fmt.Errorf("encode plan prices: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, stmt,
+	result, err := tx.ExecContext(ctx, stmt,
 		optionalInt64(plan.GroupID),
 		plan.Name,
 		pricesJSON,
@@ -315,18 +318,23 @@ func updatePlanTx(ctx context.Context, tx *sql.Tx, plan *repository.Plan) error 
 		tags,
 		optionalInt64(plan.ResetTrafficMethod),
 		optionalInt64(plan.CapacityLimit),
-		optionalInt64(plan.InviteLimit),
 		plan.Sort,
 		plan.UpdatedAt,
 		plan.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if err := ensureRowsAffected(result); err != nil {
+		return fmt.Errorf("plan: %w", err)
+	}
+	return nil
 }
 
 func replacePlanGroupsTx(ctx context.Context, tx *sql.Tx, planID int64, groupIDs []int64) error {
 	if _, err := tx.ExecContext(ctx, "DELETE FROM plan_server_groups WHERE plan_id = ?", planID); err != nil {
 		return err
-	}
+	} // idempotent: no error if not found
 	if len(groupIDs) == 0 {
 		return nil
 	}
@@ -383,7 +391,6 @@ func scanPlan(scanner planScanner) (*repository.Plan, error) {
 		tags           sql.NullString
 		resetMethod    sql.NullInt64
 		capacityLimit  sql.NullInt64
-		inviteLimit    sql.NullInt64
 		sort           int64
 		createdAt      int64
 		updatedAt      int64
@@ -404,7 +411,6 @@ func scanPlan(scanner planScanner) (*repository.Plan, error) {
 		&tags,
 		&resetMethod,
 		&capacityLimit,
-		&inviteLimit,
 		&sort,
 		&createdAt,
 		&updatedAt,
@@ -437,7 +443,6 @@ func scanPlan(scanner planScanner) (*repository.Plan, error) {
 		Tags:               decodedTags,
 		ResetTrafficMethod: nullableIntPtr(resetMethod),
 		CapacityLimit:      nullableIntPtr(capacityLimit),
-		InviteLimit:        nullableIntPtr(inviteLimit),
 		Sort:               sort,
 		CreatedAt:          createdAt,
 		UpdatedAt:          updatedAt,
@@ -459,7 +464,6 @@ const (
 	       tags,
 	       reset_traffic_method,
 	       capacity_limit,
-	       invite_limit,
 	       sort,
 	       created_at,
 	       updated_at`

@@ -16,7 +16,6 @@ export interface UserProfile {
   is_staff: boolean;
   status: number;
   banned: boolean;
-  commission_balance: number;
   telegram_id?: number;
   subscribe_url?: string;
   created_at: number;

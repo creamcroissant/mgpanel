@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/creamcroissant/xboard/internal/grpc/handler"
 	"github.com/creamcroissant/xboard/internal/grpc/interceptor"
 	"github.com/creamcroissant/xboard/internal/job"
+	"github.com/creamcroissant/xboard/internal/mcp"
+	"github.com/creamcroissant/xboard/internal/mcp/tools"
 	"github.com/creamcroissant/xboard/internal/migrations"
 	"github.com/creamcroissant/xboard/internal/protocol"
 	"github.com/creamcroissant/xboard/internal/repository/sqlite"
@@ -25,6 +29,7 @@ import (
 	"github.com/creamcroissant/xboard/internal/support/i18n"
 	"github.com/creamcroissant/xboard/internal/support/logging"
 	"github.com/creamcroissant/xboard/internal/template"
+	"github.com/go-chi/chi/v5"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -38,6 +43,27 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
+}
+
+// meshRoutingJob implements job.Runnable for periodic mesh routing table computation.
+type meshRoutingJob struct {
+	meshService service.AgentMeshService
+	logger      *slog.Logger
+}
+
+func (j *meshRoutingJob) Name() string { return "mesh_routing_compute" }
+
+func (j *meshRoutingJob) Run(ctx context.Context) error {
+	if err := j.meshService.ComputeRoutingTables(ctx); err != nil {
+		return err
+	}
+	// Push computed routes as agent commands
+	if pusher, ok := j.meshService.(interface{ PushRoutingTables(context.Context) error }); ok {
+		if err := pusher.PushRoutingTables(ctx); err != nil {
+			j.logger.Warn("failed to push routing tables", "error", err)
+		}
+	}
+	return nil
 }
 
 func registerSchedulerJob(scheduler *job.Scheduler, field, spec string, runnable job.Runnable) error {
@@ -56,6 +82,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	service.SetAgentTaskTimeouts(
+		cfg.AgentTask.CoreOperationClaimTimeout,
+		cfg.AgentTask.LifecycleOperationClaimTimeout,
+		cfg.AgentTask.ApplyRunClaimTimeout,
+	)
 
 	runtimeVersion := resolveRuntimeVersion()
 
@@ -112,16 +144,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 	store := sqlite.NewStore(db)
 
 	// Services initialization
-	inviteService := service.NewInviteService(store.InviteCodes(), store.Users())
 	captchaService := service.NewCaptchaService(store.Settings(), nil)
 	notificationQueue := async.NewNotificationQueue()
 	queuedNotifier := async.NewQueueNotifier(notificationQueue)
 	verifyService := service.NewVerificationService(infra.Cache, queuedNotifier, store.Settings(), store.Users(), captchaService)
 	passwordService := service.NewPasswordService(store.Users(), infra.Hasher, verifyService, infra.Cache)
-	registrationService := service.NewRegistrationService(store.Users(), inviteService, store.Settings(), infra.Hasher, verifyService, infra.Cache)
+	registrationService := service.NewRegistrationService(store.Users(), store.Settings(), infra.Hasher, verifyService, infra.Cache)
 	mailLinkService := service.NewMailLinkService(store.Users(), store.Settings(), queuedNotifier, infra.Cache)
 	commService := service.NewCommService(store.Settings(), store.Plugins())
-	planService := service.NewPlanService(store.Plans(), store.Users(), store.Settings(), store.ServerGroups())
+	planService := service.NewPlanService(store.Plans(), store.Users(), store.Settings(), store.ServerGroups(), logger)
 	i18nManager, err := i18n.NewManager(
 		i18n.WithLogger(logger),
 		i18n.WithDefaultLang("en-US"),
@@ -161,7 +192,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Multi-accumulator for multi-granularity statistics (hourly, daily, monthly)
 	multiAccumulator := job.NewMultiAccumulator(3) // 0=hourly, 1=daily, 2=monthly
 	serverTrafficService := service.NewServerTrafficService(store.Users(), multiAccumulator)
-	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), multiAccumulator, notificationQueue, store.Settings())
+	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), store.Plans(), multiAccumulator, notificationQueue, store.Settings())
 	userServerSelectionService := service.NewUserServerSelectionService(store.UserTraffic())
 	trafficQueue := async.NewTrafficQueue()
 	subLogQueue := async.NewSubscriptionLogQueue(store.SubscriptionLogs(), logger)
@@ -196,11 +227,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 		store.ConfigTemplates(),
 		converterRegistry,
 		logger,
-		service.AgentCoreServiceOptions{Operations: store.CoreOperations(), OperationGuard: agentOperationGuard},
+		service.AgentCoreServiceOptions{Operations: store.CoreOperations(), OperationGuard: agentOperationGuard, BinaryVersionStates: store.BinaryVersionStates()},
 	)
 	accessLogService := service.NewAccessLogService(store)
-	artifactCompilerService := service.NewArtifactCompilerService(store.InboundSpecs(), store.DesiredArtifacts())
-	inboundSpecService := service.NewInboundSpecService(store.InboundSpecs(), store.InboundSpecRevisions(), store.InboundIndexes(), artifactCompilerService)
+	artifactCompilerService := service.NewArtifactCompilerService(store.InboundSpecs(), store.DesiredArtifacts(), store.CoreConfigItems())
+	inboundSpecService := service.NewInboundSpecService(store.InboundSpecs(), store.InboundSpecRevisions(), store.InboundIndexes(), store.SpecHostBindings(), artifactCompilerService)
+	coreConfigItemService := service.NewCoreConfigItemService(store.CoreConfigItems(), artifactCompilerService)
 	driftAndDiffService := service.NewDriftAndDiffService(store.DesiredArtifacts(), store.AgentConfigInventories(), store.InboundIndexes(), store.DriftStates())
 	inventoryIngestService := service.NewInventoryIngestService(store.AgentConfigInventories(), store.InboundIndexes())
 	applyOrchestratorService := service.NewApplyOrchestratorServiceWithGuard(store.DesiredArtifacts(), store.ApplyRuns(), driftAndDiffService, agentOperationGuard)
@@ -212,7 +244,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		store.Settings(),
 		store.CloudflareZones(), store.CloudflareDNSRecords(), store.CloudFrontDistributions(),
 		cfg.Auth.SigningKey,
-		store.AgentHosts(), agentLifecycleOperationService,
+		store.AgentHosts(), agentLifecycleOperationService, store.CDNOriginLatencies(),
 	)
 
 	inboundSpecService.SetCDNService(cdnService)
@@ -224,12 +256,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 		LifecycleOperations: agentLifecycleOperationService,
 		Logger:              logger,
 	})
-	binaryVersionService := service.NewBinaryVersionService(store.BinaryVersionStates(), store.AgentHosts(), nil)
+	binaryVersionService := service.NewBinaryVersionServiceWithOptions(store.BinaryVersionStates(), store.AgentHosts(), buildBinaryVersionProvider(), service.BinaryVersionServiceOptions{CoreOperations: store.CoreOperations()})
 	shortLinkService := service.NewShortLinkService(store.ShortLinks(), store.Users(), store.Settings())
 	subscriptionSourceService := service.NewSubscriptionSourceService(store.SubscriptionSources(), service.SubscriptionSourceServiceOptions{})
 	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), store.Plans(), userServerSelectionService, serverTelemetryService)
 	coreOperationService := service.NewCoreOperationService(store.CoreOperations(), agentOperationGuard)
 	coreSnapshotService := service.NewCoreSnapshotService(store.AgentHosts(), store.AgentCoreInstances())
+	meshService := service.NewAgentMeshService(store.AgentMeshPeers(), store.AgentHosts(), agentLifecycleOperationService)
 
 	scheduler := job.NewScheduler(logger)
 
@@ -282,6 +315,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if _, err := scheduler.Register("@every 3s", agentHostMetricsFlushJob); err != nil {
 		return err
 	}
+	// Schedule mesh routing table computation and push every 60 seconds
+	if err := registerSchedulerJob(scheduler, "mesh_routing_compute", "@every 60s", &meshRoutingJob{meshService: meshService, logger: logger}); err != nil {
+		return err
+	}
 	scheduler.Start()
 
 	services := api.Services{
@@ -307,7 +344,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Traffic:                 serverTrafficService,
 		Telemetry:               serverTelemetryService,
 		Verify:                  verifyService,
-		Invite:                  inviteService,
 		Password:                passwordService,
 		Register:                registrationService,
 		MailLink:                mailLinkService,
@@ -322,6 +358,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Forwarding:              forwardingService,
 		AccessLog:               accessLogService,
 		InboundSpec:             inboundSpecService,
+		CoreConfigItem:          coreConfigItemService,
 		DriftAndDiff:            driftAndDiffService,
 		ApplyOrchestrator:       applyOrchestratorService,
 		OperationLog:            operationLogService,
@@ -330,16 +367,20 @@ func runServe(cmd *cobra.Command, args []string) error {
 		BinaryVersion:           binaryVersionService,
 		UserSelection:           userServerSelectionService,
 		ShortLink:               shortLinkService,
+		MCPApiKeys:              service.NewMCPApiKeyService(store.MCPApiKeys()),
 		CDN:                     cdnService,
+		Mesh:                    meshService,
 		TrafficQueue:            trafficQueue,
 		SubLogQueue:             subLogQueue,
 		I18n:                    i18nManager,
 	}
 
+	corsOrigins := deriveCORSOrigins(cfg)
 	router := api.NewRouter(
 		logger,
 		services,
 		cfg.Metrics,
+		api.WithCORSAllowedOrigins(corsOrigins),
 		api.WithAdminUI(api.AdminUIOptions{
 			Enabled:         cfg.UI.Admin.Enabled,
 			Dir:             cfg.UI.Admin.Dir,
@@ -361,6 +402,51 @@ func runServe(cmd *cobra.Command, args []string) error {
 			Dir:     cfg.UI.Install.Dir,
 		}),
 	)
+
+	// Initialize AgentLogCache (shared by gRPC and MCP)
+	agentLogCache := service.NewAgentLogCache(infra.Cache, cfg.MCP.MaxAgentLogLines)
+
+	// Initialize MCP API key service and MCP server
+	mcpAPIKeySvc := service.NewMCPApiKeyService(store.MCPApiKeys())
+	mcpKeyValidator := service.KeyCheckFunc(func(rawKey string) (bool, error) {
+		_, err := mcpAPIKeySvc.Validate(context.Background(), rawKey)
+		return err == nil, nil
+	})
+	if cfg.MCP.Enabled {
+		mcpRegistry := tools.NewRegistry()
+
+		// Register all tool handlers
+		mcpRegistry.Register(tools.NewSystemStatusHandler(adminSystemService))
+		mcpRegistry.Register(tools.NewSystemSettingsHandler(adminSystemSettingsService))
+		mcpRegistry.Register(tools.NewAgentListHandler(agentHostService))
+		mcpRegistry.Register(tools.NewAgentStatusHandler(agentHostService))
+		mcpRegistry.Register(tools.NewAgentConfigYAMLHandler(agentHostService))
+		mcpRegistry.Register(tools.NewAgentLogsFetchHandler(agentLogCache))
+		mcpRegistry.Register(tools.NewServerListHandler(adminServerService))
+		mcpRegistry.Register(tools.NewServerStatsHandler(adminNodeStatService))
+		mcpRegistry.Register(tools.NewUserListHandler(adminUserService))
+		mcpRegistry.Register(tools.NewUserDetailHandler(adminUserService))
+		mcpRegistry.Register(tools.NewPlanListHandler(planService))
+		mcpRegistry.Register(tools.NewCDNSiteListHandler(cdnService))
+		mcpRegistry.Register(tools.NewMeshNetworkHandler(meshService))
+		mcpRegistry.Register(tools.NewOperationLogsListHandler(operationLogService))
+		mcpRegistry.Register(tools.NewAccessLogsListHandler(accessLogService))
+		mcpRegistry.Register(tools.NewServerLogHandler(cfg.Log.LogDir, cfg.MCP.ServerLogMaxLines))
+		mcpRegistry.Register(tools.NewConfigArtifactsHandler(driftAndDiffService))
+
+		mcpServer := mcp.NewServer(mcp.Config{
+			APIKey:            cfg.MCP.APIKey,
+			LogDir:            cfg.Log.LogDir,
+			ServerLogMaxLines: cfg.MCP.ServerLogMaxLines,
+		}, mcpRegistry, logger, mcp.WithKeyValidator(mcpKeyValidator))
+
+		// Mount MCP routes on the chi router
+		if r, ok := router.(chi.Router); ok {
+			mcpServer.Mount(r)
+		} else {
+			logger.Warn("cannot mount MCP server: router is not a chi.Router")
+		}
+	}
 
 	server := bootstrap.NewHTTPServer(legacyCfg, router)
 
@@ -386,6 +472,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 			agentLifecycleOperationService,
 			agentTrafficLifecycleService,
 			binaryVersionService,
+			cdnService,
+			meshService,
+			agentLogCache,
 			logger,
 		)
 
@@ -422,7 +511,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err)
 		}
-		defer lis.Close()
+		defer lis.Close() // redundant with server.Shutdown below, but safe to close twice
 
 		go func() {
 			logger.Info("http+grpc mux server starting", "addr", cfg.HTTP.Addr, "env", cfg.Log.Environment)
@@ -452,22 +541,66 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	<-ctx.Done()
+	shutdownTimeout := cfg.HTTP.ShutdownTimeout
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 30 * time.Second
+	}
 	stopCtx := scheduler.Stop()
-	<-stopCtx.Done()
+	select {
+	case <-stopCtx.Done():
+	case <-time.After(shutdownTimeout):
+		logger.Warn("scheduler stop timed out, forcing shutdown")
+	}
+	// Each shutdown gets its own independent timeout so they don't
+	// compete for the same deadline window.
+	grpcShutdownCtx, grpcShutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer grpcShutdownCancel()
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
-	defer cancel()
+	httpShutdownCtx, httpShutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer httpShutdownCancel()
 
-	// Shutdown gRPC server
+	var wg sync.WaitGroup
+
+	// Shutdown gRPC server (concurrent with HTTP)
 	if grpcServer != nil {
-		logger.Info("shutting down gRPC server")
-		grpcServer.Stop()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			logger.Info("shutting down gRPC server")
+			done := make(chan struct{})
+			go func() {
+				grpcServer.GracefulStop()
+				close(done)
+			}()
+			select {
+			case <-done:
+				logger.Info("gRPC server gracefully stopped")
+			case <-grpcShutdownCtx.Done():
+				logger.Warn("gRPC server GracefulStop timeout, forcing stop")
+				grpcServer.Stop()
+			}
+		}()
 	}
 
-	logger.Info("shutting down http server")
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("server shutdown error", "error", err)
-	}
+	// Shutdown HTTP server (concurrent with gRPC)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		logger.Info("shutting down http server")
+		if err := server.Shutdown(httpShutdownCtx); err != nil {
+			logger.Error("http server shutdown error", "error", err)
+		}
+	}()
+
+	wg.Wait()
 	logger.Info("server exited cleanly")
+	return nil
+}
+
+// deriveCORSOrigins 返回 CORS 允许的来源列表，优先使用配置项，否则返回 nil（使用默认行为）。
+func deriveCORSOrigins(cfg *config.Config) []string {
+	if cfg != nil && len(cfg.Security.CORSAllowedOrigins) > 0 {
+		return cfg.Security.CORSAllowedOrigins
+	}
 	return nil
 }

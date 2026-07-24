@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/smtp"
 	"net/url"
@@ -406,6 +407,7 @@ func (s *adminSystemSettingsService) prepareCategorySettingsForSave(ctx context.
 			entry, err := s.settings.Get(ctx, communicationKeySettingKey)
 			if err != nil {
 				if errors.Is(err, repository.ErrNotFound) {
+					slog.Debug("communication key not found when resolving masked placeholder", "category", category)
 					continue
 				}
 				return nil, err
@@ -668,7 +670,9 @@ func (d smtpDialer) Test(ctx context.Context, config SMTPConfig, timeout time.Du
 			return fmt.Errorf("SMTP TLS connection failed / SMTP TLS 连接失败: %w", err)
 		}
 		defer tlsConn.Close()
-		_ = tlsConn.SetDeadline(deadline)
+		if err := tlsConn.SetDeadline(deadline); err != nil {
+			slog.Warn("smtp: set tls deadline failed", "error", err)
+		}
 		client, err := smtp.NewClient(tlsConn, host)
 		if err != nil {
 			return fmt.Errorf("SMTP client init failed / SMTP 客户端初始化失败: %w", err)
@@ -685,7 +689,9 @@ func (d smtpDialer) Test(ctx context.Context, config SMTPConfig, timeout time.Du
 		return fmt.Errorf("SMTP connection failed / SMTP 连接失败: %w", err)
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(deadline)
+	if err := conn.SetDeadline(deadline); err != nil {
+		slog.Warn("smtp: set deadline failed", "error", err)
+	}
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
 		return fmt.Errorf("SMTP client init failed / SMTP 客户端初始化失败: %w", err)

@@ -81,7 +81,7 @@ export default function Login() {
             <h1 className="text-2xl font-semibold tracking-tight">
               {t("auth.login")}
             </h1>
-            <p className="text-sm text-muted-foreground">Welcome back to XBoard</p>
+            <p className="text-sm text-muted-foreground">{t("auth.welcomeBack")}</p>
           </div>
         </CardHeader>
 
@@ -166,7 +166,7 @@ export default function Login() {
               className="h-11 w-full"
               disabled={loginMutation.isPending}
             >
-              {loginMutation.isPending ? "登录中..." : t("auth.login")}
+              {loginMutation.isPending ? t("auth.loggingIn") : t("auth.login")}
             </Button>
           </form>
         </CardContent>

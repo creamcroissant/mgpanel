@@ -36,6 +36,35 @@ func (c *NetIOCollector) SetFetcher(fetcher NetIOCountersFetcher) {
 	c.fetcher = fetcher
 }
 
+// CollectCumulative 返回当前累计流量的原始字节数（不计算增量）。
+func (c *NetIOCollector) CollectCumulative(ctx context.Context) (uploadTotal, downloadTotal uint64, err error) {
+	var totalSent, totalRecv uint64
+
+	if c.iface != "" {
+		counters, err := c.fetcher(ctx, true)
+		if err != nil {
+			return 0, 0, err
+		}
+		for _, counter := range counters {
+			if counter.Name == c.iface {
+				totalSent = counter.BytesSent
+				totalRecv = counter.BytesRecv
+				break
+			}
+		}
+	} else {
+		counters, err := c.fetcher(ctx, false)
+		if err != nil {
+			return 0, 0, err
+		}
+		if len(counters) > 0 {
+			totalSent = counters[0].BytesSent
+			totalRecv = counters[0].BytesRecv
+		}
+	}
+	return totalSent, totalRecv, nil
+}
+
 // NetIODelta 描述相邻两次采集的流量增量。
 type NetIODelta struct {
 	Upload   uint64 // 上次采集以来的上传字节数

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -28,16 +29,26 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// configCtxKey is used to cache the loaded config in the command context.
+type configCtxKey struct{}
+
 func prepareConfigForCommand(cmd *cobra.Command) error {
 	if cmd != nil && cmd.Name() == "serve" {
 		if _, err := config.EnsureDefaultConfig(config.EnsureDefaultConfigOptions{ConfigPath: configPath}); err != nil {
 			return fmt.Errorf("ensure default config: %w", err)
 		}
 	}
-	_, err := config.LoadWithOptions(config.LoadOptions{ConfigPath: configPath})
+	cfg, err := config.LoadWithOptions(config.LoadOptions{ConfigPath: configPath})
 	if err != nil {
 		return err
 	}
+	// Cache config in command context for downstream use.
+	parentCtx := cmd.Context()
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx := context.WithValue(parentCtx, configCtxKey{}, cfg)
+	cmd.SetContext(ctx)
 	return nil
 }
 
@@ -47,7 +58,7 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

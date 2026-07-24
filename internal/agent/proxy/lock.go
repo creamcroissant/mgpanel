@@ -36,6 +36,13 @@ func (m *GroupLockManager) TryLock(groupID string) bool {
 	return lock.TryLock()
 }
 
+// RemoveGroupLock removes the mutex for the specified group from the map.
+func (m *GroupLockManager) RemoveGroupLock(groupID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.locks, groupID)
+}
+
 func (m *GroupLockManager) getLock(groupID string) *sync.Mutex {
 	m.mu.Lock()
 	defer m.mu.Unlock()

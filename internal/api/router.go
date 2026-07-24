@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -56,6 +57,20 @@ func resolveRateLimitConfig() (middleware.RateLimitConfig, bool) {
 	return config, enabled
 }
 
+func corsConfigFromOptions(opts routerOptions) middleware.CORSConfig {
+	if len(opts.corsAllowedOrigins) > 0 {
+		return middleware.CORSConfig{
+			AllowedOrigins:   opts.corsAllowedOrigins,
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Requested-With"},
+			ExposedHeaders:   []string{"X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"},
+			AllowCredentials: false,
+			MaxAge:           86400,
+		}
+	}
+	return middleware.DefaultCORSConfig()
+}
+
 type Services struct {
 	Config                  service.ConfigService
 	User                    service.UserService
@@ -73,7 +88,6 @@ type Services struct {
 	Traffic                 service.ServerTrafficService
 	Telemetry               service.ServerTelemetryService
 	Verify                  service.VerificationService
-	Invite                  service.InviteService
 	Password                service.PasswordService
 	Register                service.RegistrationService
 	MailLink                service.MailLinkService
@@ -89,6 +103,7 @@ type Services struct {
 	Forwarding              service.ForwardingService
 	AccessLog               service.AccessLogService
 	InboundSpec             service.InboundSpecService
+	CoreConfigItem          service.CoreConfigItemService
 	DriftAndDiff            service.DriftAndDiffService
 	ApplyOrchestrator       service.ApplyOrchestratorService
 	OperationLog            service.OperationLogService
@@ -102,7 +117,9 @@ type Services struct {
 	SubscriptionSource      service.SubscriptionSourceService
 	UserSelection           service.UserServerSelectionService
 	ShortLink               service.ShortLinkService
+	MCPApiKeys              service.MCPApiKeyService
 	CDN                     service.CDNService
+	Mesh                    service.AgentMeshService
 	TrafficQueue            *async.TrafficQueue
 	SubLogQueue             *async.SubscriptionLogQueue
 	I18n                    *i18n.Manager
@@ -116,95 +133,63 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 			opt(&options)
 		}
 	}
-	if services.Config == nil {
-		panic("router requires ConfigService")
+	// Validate required services — nil pointers cause NPE in handler constructors
+	required := map[string]interface{}{
+		"AccessLog":               services.AccessLog,
+		"AdminKnowledge":          services.AdminKnowledge,
+		"AdminNodeStat":           services.AdminNodeStat,
+		"AdminNotice":             services.AdminNotice,
+		"AdminPath":               services.AdminPath,
+		"AdminPlan":               services.AdminPlan,
+		"AdminServer":             services.AdminServer,
+		"AdminStat":               services.AdminStat,
+		"AdminSystem":             services.AdminSystem,
+		"AdminSystemSettings":     services.AdminSystemSettings,
+		"AdminUser":               services.AdminUser,
+		"AgentCore":               services.AgentCore,
+		"AgentHost":               services.AgentHost,
+		"AgentLifecycleOperation": services.AgentLifecycleOperation,
+		"AgentTrafficLifecycle":   services.AgentTrafficLifecycle,
+		"ApplyOrchestrator":       services.ApplyOrchestrator,
+		"Auth":                    services.Auth,
+		"BinaryVersion":           services.BinaryVersion,
+		"CDN":                     services.CDN,
+		"Comm":                    services.Comm,
+		"Config":                  services.Config,
+		"CoreConfigItem":          services.CoreConfigItem,
+		"DriftAndDiff":            services.DriftAndDiff,
+		"Forwarding":              services.Forwarding,
+		"I18n":                    services.I18n,
+		"MCPApiKeys":           services.MCPApiKeys,
+		"InboundSpec":             services.InboundSpec,
+		"Install":                 services.Install,
+		"MailLink":                services.MailLink,
+		"Mesh":                    services.Mesh,
+		"OperationLog":            services.OperationLog,
+		"Password":                services.Password,
+		"Plan":                    services.Plan,
+		"Register":                services.Register,
+		"Server":                  services.Server,
+		"ServerAuth":              services.ServerAuth,
+		"ServerNode":              services.ServerNode,
+		"ShortLink":               services.ShortLink,
+		"Subscription":            services.Subscription,
+		"SubscriptionFilter":      services.SubscriptionFilter,
+		"SubscriptionSource":      services.SubscriptionSource,
+		"Telemetry":               services.Telemetry,
+		"Traffic":                 services.Traffic,
+		"TrafficQueue":            services.TrafficQueue,
+		"User":                    services.User,
+		"UserKnowledge":           services.UserKnowledge,
+		"UserNotice":              services.UserNotice,
+		"UserSelection":           services.UserSelection,
+		"UserStat":                services.UserStat,
+		"Verify":                  services.Verify,
 	}
-	if services.User == nil {
-		panic("router requires UserService")
-	}
-	if services.UserStat == nil {
-		panic("router requires UserStatService")
-	}
-	if services.UserSelection == nil {
-		panic("router requires UserSelectionService")
-	}
-	if services.UserKnowledge == nil {
-		panic("router requires UserKnowledgeService")
-	}
-	if services.UserNotice == nil {
-		panic("router requires UserNoticeService")
-	}
-	if services.Auth == nil {
-		panic("router requires AuthService")
-	}
-	if services.AdminPath == nil {
-		panic("router requires AdminPathService")
-	}
-	if services.Install == nil {
-		panic("router requires InstallService")
-	}
-	if services.AdminServer == nil {
-		panic("router requires AdminServerService")
-	}
-	if services.ServerAuth == nil {
-		panic("router requires ServerAuthService")
-	}
-	if services.ServerNode == nil {
-		panic("router requires ServerNodeService")
-	}
-	if services.Traffic == nil {
-		panic("router requires ServerTrafficService")
-	}
-	if services.AdminPlan == nil {
-		panic("router requires AdminPlanService")
-	}
-	if services.AdminUser == nil {
-		panic("router requires AdminUserService")
-	}
-	if services.AdminStat == nil {
-		panic("router requires AdminStatService")
-	}
-	if services.AdminNotice == nil {
-		panic("router requires AdminNoticeService")
-	}
-	if services.AdminKnowledge == nil {
-		panic("router requires AdminKnowledgeService")
-	}
-	if services.AdminSystem == nil {
-		panic("router requires AdminSystemService")
-	}
-	if services.Telemetry == nil {
-		panic("router requires ServerTelemetryService")
-	}
-	if services.Verify == nil {
-		panic("router requires VerificationService")
-	}
-	if services.Invite == nil {
-		panic("router requires InviteService")
-	}
-	if services.Password == nil {
-		panic("router requires PasswordService")
-	}
-	if services.Register == nil {
-		panic("router requires RegistrationService")
-	}
-	if services.MailLink == nil {
-		panic("router requires MailLinkService")
-	}
-	if services.Comm == nil {
-		panic("router requires CommService")
-	}
-	if services.Plan == nil {
-		panic("router requires PlanService")
-	}
-	if services.Server == nil {
-		panic("router requires ServerService")
-	}
-	if services.Subscription == nil {
-		panic("router requires SubscriptionService")
-	}
-	if services.I18n == nil {
-		panic("router requires I18n Manager")
+	for name, svc := range required {
+		if svc == nil {
+			panic(fmt.Sprintf("router: required service %q is nil", name))
+		}
 	}
 
 	r := chi.NewRouter()
@@ -238,7 +223,8 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 	}
 
 	middlewares := []func(http.Handler) http.Handler{
-		middleware.CORS(middleware.DefaultCORSConfig()),
+		middleware.SecurityHeaders,
+		middleware.CORS(corsConfigFromOptions(options)),
 		middleware.BodyLimit(middleware.BodyLimitConfig{
 			MaxBytes: 10 * 1024 * 1024, // 10MB
 		}),
@@ -370,9 +356,9 @@ func registerAPIRoutes(root chi.Router, services Services) {
 
 func registerV2Routes(api chi.Router, services Services) {
 	api.Route("/v2", func(v2 chi.Router) {
-		registerV2AdminRoutes(v2, services.Config, services.Auth, services.AdminPath, services.Plan, services.AdminPlan, services.AdminUser, services.AdminServer, services.AdminStat, services.AdminNodeStat, services.AdminSystem, services.AdminSystemSettings, services.AdminNotice, services.AdminKnowledge, services.Invite, services.AgentHost, services.AgentCore, services.AgentLifecycleOperation, services.AgentTrafficLifecycle, services.BinaryVersion, services.Forwarding, services.CDN, services.AccessLog, services.InboundSpec, services.DriftAndDiff, services.ApplyOrchestrator, services.OperationLog, services.SubscriptionFilter, services.SubscriptionSource, services.I18n)
+		registerV2AdminRoutes(v2, services.Config, services.Auth, services.AdminPath, services.Plan, services.AdminPlan, services.AdminUser, services.AdminServer, services.AdminStat, services.AdminNodeStat, services.AdminSystem, services.AdminSystemSettings, services.AdminNotice, services.AdminKnowledge, services.AgentHost, services.AgentCore, services.AgentLifecycleOperation, services.AgentTrafficLifecycle, services.BinaryVersion, services.Forwarding, services.CDN, services.AccessLog, services.InboundSpec, services.CoreConfigItem, services.DriftAndDiff, services.ApplyOrchestrator, services.OperationLog, services.SubscriptionFilter, services.SubscriptionSource, services.MCPApiKeys, services.Mesh, services.I18n)
 		registerV2UserRoutes(v2, services.User, services.Auth, services.I18n)
-		registerV2PassportRoutes(v2, services.Auth, services.Verify, services.Invite, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
+		registerV2PassportRoutes(v2, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
 		registerV2ServerRoutes(v2, services.ServerAuth, services.ServerNode, services.Telemetry, services.Traffic, services.TrafficQueue, services.I18n)
 		registerV2GuestRoutes(v2, services.I18n)
 	})
@@ -387,7 +373,7 @@ func registerV2GuestRoutes(v2 chi.Router, i18nManager *i18n.Manager) {
 	})
 }
 
-func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, auth service.AuthService, adminPath service.AdminPathService, plan service.PlanService, adminPlan service.AdminPlanService, adminUser service.AdminUserService, adminServer service.AdminServerService, adminStat service.AdminStatService, adminNodeStat service.AdminNodeStatService, adminSystem service.AdminSystemService, adminSystemSettings service.AdminSystemSettingsService, adminNotice service.AdminNoticeService, adminKnowledge service.AdminKnowledgeService, inviteService service.InviteService, agentHost service.AgentHostService, agentCore service.AgentCoreService, agentLifecycleOperation service.AgentLifecycleOperationService, agentTrafficLifecycle service.AgentTrafficLifecycleService, binaryVersion service.BinaryVersionService, forwarding service.ForwardingService, cdn service.CDNService, accessLog service.AccessLogService, inboundSpec service.InboundSpecService, driftAndDiff service.DriftAndDiffService, applyOrchestrator service.ApplyOrchestratorService, operationLog service.OperationLogService, subscriptionFilter service.SubscriptionFilterService, subscriptionSource service.SubscriptionSourceService, i18nManager *i18n.Manager) {
+func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, auth service.AuthService, adminPath service.AdminPathService, plan service.PlanService, adminPlan service.AdminPlanService, adminUser service.AdminUserService, adminServer service.AdminServerService, adminStat service.AdminStatService, adminNodeStat service.AdminNodeStatService, adminSystem service.AdminSystemService, adminSystemSettings service.AdminSystemSettingsService, adminNotice service.AdminNoticeService, adminKnowledge service.AdminKnowledgeService, agentHost service.AgentHostService, agentCore service.AgentCoreService, agentLifecycleOperation service.AgentLifecycleOperationService, agentTrafficLifecycle service.AgentTrafficLifecycleService, binaryVersion service.BinaryVersionService, forwarding service.ForwardingService, cdn service.CDNService, accessLog service.AccessLogService, inboundSpec service.InboundSpecService, coreConfigItem service.CoreConfigItemService, driftAndDiff service.DriftAndDiffService, applyOrchestrator service.ApplyOrchestratorService, operationLog service.OperationLogService, subscriptionFilter service.SubscriptionFilterService, subscriptionSource service.SubscriptionSourceService, mcpApiKeys service.MCPApiKeyService, meshService service.AgentMeshService, i18nManager *i18n.Manager) {
 	adminHandler := handler.NewAdminHandler(configService)
 	adminPlanHandler := handler.NewAdminPlanHandler(plan, adminPlan, i18nManager)
 	adminUserHandler := handler.NewAdminUserHandler(adminUser)
@@ -397,10 +383,15 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	adminSystemHandler := handler.NewAdminSystemSettingsHandler(adminSystem, adminSystemSettings)
 	adminNoticeHandler := handler.NewAdminNoticeHandler(adminNotice)
 	adminKnowledgeHandler := handler.NewAdminKnowledgeHandler(adminKnowledge, i18nManager)
-	adminInviteHandler := handler.NewAdminInviteHandler(inviteService, i18nManager)
 	agentHostHandler := handler.NewAgentHostHandler(agentHost, i18nManager)
 	adminForwardingHandler := handler.NewAdminForwardingHandler(forwarding, i18nManager)
 	adminCDNHandler := handler.NewAdminCDNHandler(cdn, i18nManager)
+	var cdnReportHandler *handler.AdminCDNReportHandler
+	if cdn != nil {
+		cdnReportHandler = handler.NewAdminCDNReportHandler(cdn, i18nManager)
+	}
+		adminMCPKeyHandler := handler.NewAdminMCPKeyHandler(mcpApiKeys)
+	adminMeshHandler := handler.NewAdminAgentMeshHandler(meshService, i18nManager)
 	adminAgentCoreHandler := handler.NewAdminAgentCoreHandler(agentCore, i18nManager)
 	adminAgentLifecycleHandler := handler.NewAdminAgentLifecycleHandler(agentLifecycleOperation, binaryVersion, i18nManager)
 	adminAgentTrafficHandler := handler.NewAdminAgentTrafficHandler(agentTrafficLifecycle, i18nManager)
@@ -408,6 +399,7 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	adminSubscriptionHandler := handler.NewAdminSubscriptionHandler(subscriptionFilter, subscriptionSource, i18nManager)
 	adminAccessLogHandler := handler.NewAdminAccessLogHandler(accessLog)
 	adminConfigCenterSpecHandler := handler.NewAdminConfigCenterSpecHandler(inboundSpec, i18nManager)
+	adminConfigCenterCoreConfigHandler := handler.NewAdminConfigCenterCoreConfigHandler(coreConfigItem)
 	adminConfigCenterDiffHandler := handler.NewAdminConfigCenterDiffHandler(driftAndDiff, i18nManager)
 	adminConfigCenterDriftHandler := handler.NewAdminConfigCenterDriftHandler(driftAndDiff, i18nManager)
 	adminConfigCenterApplyHandler := handler.NewAdminConfigCenterApplyHandler(applyOrchestrator, i18nManager)
@@ -416,7 +408,6 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	v2.Route("/{securePath}", func(admin chi.Router) {
 		admin.Use(middleware.AdminGuard(auth, adminPath))
 		mountHandler(admin, "/config", adminHandler)
-		mountHandler(admin, "/invite", adminInviteHandler)
 		mountHandler(admin, "/plan", adminPlanHandler)
 		// Plan RESTful endpoints
 		admin.Get("/plan", adminPlanHandler.List)
@@ -520,7 +511,21 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 			cdn.Post("/cloudfront/credentials", adminCDNHandler.SetCloudFrontCredentials)
 			cdn.Get("/cloudfront/credentials", adminCDNHandler.GetCloudFrontCredentials)
 			cdn.Get("/cloudfront/distributions", adminCDNHandler.ListCloudFrontDistributions)
+
+			// Origin latency monitoring
+			if cdnReportHandler != nil {
+				cdn.Get("/origin-latency", cdnReportHandler.ListOriginLatencies)
+				cdn.Post("/origin-latency", cdnReportHandler.ReportOriginLatency)
+			}
 		})
+
+			// Mesh network management endpoints
+			admin.Route("/agent-hosts/{id}/mesh", func(mesh chi.Router) {
+				mesh.Post("/join", adminMeshHandler.Join)
+				mesh.Delete("/leave", adminMeshHandler.Leave)
+				mesh.Get("/status", adminMeshHandler.GetStatus)
+			})
+			admin.Get("/mesh/network/{networkID}", adminMeshHandler.ListNetwork)
 
 		// Forwarding rules management endpoints
 		admin.Route("/forwarding", func(fwd chi.Router) {
@@ -543,9 +548,21 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 			specs.Get("/", adminConfigCenterSpecHandler.ListSpecs)
 			specs.Post("/", adminConfigCenterSpecHandler.Create)
 			specs.Put("/{id:[0-9]+}", adminConfigCenterSpecHandler.Update)
+			specs.Delete("/{id:[0-9]+}", adminConfigCenterSpecHandler.Delete)
 			specs.Get("/{id:[0-9]+}/history", adminConfigCenterSpecHandler.GetHistory)
 			specs.Post("/import-from-applied", adminConfigCenterSpecHandler.ImportFromApplied)
+			specs.Post("/{id:[0-9]+}/bind", adminConfigCenterSpecHandler.BindSpec)
+			specs.Delete("/{id:[0-9]+}/bind", adminConfigCenterSpecHandler.UnbindSpec)
+			specs.Get("/{id:[0-9]+}/bind", adminConfigCenterSpecHandler.ListBoundHosts)
 		})
+
+			// Config center core config endpoints
+			admin.Route("/config-center/core-configs", func(coreConf chi.Router) {
+				coreConf.Get("/", adminConfigCenterCoreConfigHandler.List)
+				coreConf.Post("/", adminConfigCenterCoreConfigHandler.Create)
+				coreConf.Put("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Update)
+				coreConf.Delete("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Delete)
+			})
 
 		// Config center artifact/diff endpoints
 		admin.Get("/config-center/artifacts", adminConfigCenterDiffHandler.ListArtifacts)
@@ -562,6 +579,13 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		admin.Post("/config-center/apply-runs", adminConfigCenterApplyHandler.CreateApplyRun)
 		admin.Get("/config-center/apply-runs", adminConfigCenterApplyHandler.ListApplyRuns)
 		admin.Get("/config-center/apply-runs/{run_id}", adminConfigCenterApplyHandler.GetApplyRunDetail)
+		admin.Post("/config-center/apply-runs/{run_id}/cancel", adminConfigCenterApplyHandler.CancelApplyRun)
+
+			// MCP API key management endpoints
+			admin.Get("/mcp/keys", adminMCPKeyHandler.List)
+			admin.Post("/mcp/keys", adminMCPKeyHandler.Create)
+			admin.Post("/mcp/keys/{id}/revoke", adminMCPKeyHandler.Revoke)
+			admin.Delete("/mcp/keys/{id}", adminMCPKeyHandler.Delete)
 
 		// Operation log endpoints
 		admin.Get("/operation-logs", operationLogHandler.List)
@@ -580,8 +604,8 @@ func registerV2UserRoutes(v2 chi.Router, userService service.UserService, auth s
 	})
 }
 
-func registerV2PassportRoutes(v2 chi.Router, auth service.AuthService, verify service.VerificationService, invite service.InviteService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
-	passportHandler := handler.NewPassportHandler(auth, verify, invite, password, register, mailLink, comm, i18nMgr)
+func registerV2PassportRoutes(v2 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
+	passportHandler := handler.NewPassportHandler(auth, verify, password, register, mailLink, comm, i18nMgr)
 	v2.Route("/passport", func(passport chi.Router) {
 		mountHandler(passport, "/auth", passportHandler)
 		mountHandler(passport, "/comm", passportHandler)
@@ -605,7 +629,7 @@ func registerV1Routes(api chi.Router, services Services) {
 	api.Route("/v1", func(v1 chi.Router) {
 		registerV1ClientRoutes(v1, services.User, services.Auth, services.Subscription, services.I18n)
 		registerV1GuestRoutes(v1, services.Comm, services.Plan, services.I18n)
-		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Invite, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
+		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
 		registerV1UserRoutes(v1, services.User, services.UserKnowledge, services.UserNotice, services.UserStat, services.Auth, services.Plan, services.Server, services.UserSelection, services.ShortLink, services.Subscription, services.I18n)
 		registerV1AgentRoutes(v1, services.AgentHost, services.I18n)
 	})
@@ -637,8 +661,8 @@ func registerV1GuestRoutes(v1 chi.Router, comm service.CommService, plan service
 	})
 }
 
-func registerV1PassportRoutes(v1 chi.Router, auth service.AuthService, verify service.VerificationService, invite service.InviteService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
-	passportHandler := handler.NewPassportHandler(auth, verify, invite, password, register, mailLink, comm, i18nMgr)
+func registerV1PassportRoutes(v1 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
+	passportHandler := handler.NewPassportHandler(auth, verify, password, register, mailLink, comm, i18nMgr)
 	v1.Route("/passport", func(passport chi.Router) {
 		mountHandler(passport, "/auth", passportHandler)
 		mountHandler(passport, "/comm", passportHandler)
@@ -657,7 +681,6 @@ func registerV1UserRoutes(v1 chi.Router, userService service.UserService, knowle
 		user.Use(middleware.UserGuard(auth))
 		// 这里的 mountHandler 会同时绑定 /path 和 /path/*，避免重复写路由。
 		mountHandler(user, "/", userHandler)
-		mountHandler(user, "/invite", userHandler)
 		mountHandler(user, "/notice", userNoticeHandler)
 			// Explicitly register /notice/unread to avoid chi wildcard matching edge cases
 			user.Get("/notice/unread", userNoticeHandler.ServeHTTP)

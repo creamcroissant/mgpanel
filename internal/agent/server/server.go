@@ -49,7 +49,7 @@ func NewServer(cfg Config, protoMgr *protocol.Manager) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         cfg.Listen,
-			Handler:      mux,
+			Handler:      recoverMiddleware(mux),
 			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  60 * time.Second,
@@ -71,4 +71,17 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	slog.Info("Agent HTTP server shutting down")
 	return s.httpServer.Shutdown(ctx)
+}
+
+// recoverMiddleware 捕获 HTTP handler panic，避免进程崩溃。
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("http handler panic recovered", "error", err, "path", r.URL.Path)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }

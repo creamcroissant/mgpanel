@@ -20,7 +20,6 @@ type CommService interface {
 type GuestCommConfig struct {
 	TOSURL               string  `json:"tos_url"`
 	IsEmailVerify        int     `json:"is_email_verify"`
-	IsInviteForce        int     `json:"is_invite_force"`
 	EmailWhitelistSuffix any     `json:"email_whitelist_suffix"`
 	IsCaptcha            int     `json:"is_captcha"`
 	CaptchaType          string  `json:"captcha_type"`
@@ -54,7 +53,6 @@ func (s *commService) GuestConfig(ctx context.Context) (*GuestCommConfig, error)
 	cfg := &GuestCommConfig{
 		TOSURL:               s.settingString(ctx, "tos_url", ""),
 		IsEmailVerify:        boolToInt(s.boolSetting(ctx, "email_verify", false)),
-		IsInviteForce:        boolToInt(s.boolSetting(ctx, "invite_force", false)),
 		EmailWhitelistSuffix: s.emailWhitelistSuffix(ctx),
 		IsCaptcha:            boolToInt(s.boolSetting(ctx, "captcha_enable", false)),
 		CaptchaType:          s.settingString(ctx, "captcha_type", "recaptcha"),

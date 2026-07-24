@@ -53,6 +53,8 @@ type Queue struct {
 	handlers map[string]Handler
 	inflight map[string]Task
 
+	stopped chan struct{}
+
 	wg       sync.WaitGroup
 	sequence atomic.Int64
 }
@@ -79,6 +81,7 @@ func NewQueue(opts Options) (*Queue, error) {
 		now:         now,
 		handlers:    make(map[string]Handler),
 		inflight:    make(map[string]Task),
+		stopped:     make(chan struct{}),
 	}
 	for operationType, handler := range opts.Handlers {
 		if err := q.Register(operationType, handler); err != nil {
@@ -110,6 +113,7 @@ func (q *Queue) Start(ctx context.Context) {
 	}
 	q.ctx, q.cancel = context.WithCancel(ctx)
 	q.running = true
+	q.stopped = make(chan struct{})
 	workerCtx := q.ctx
 	workers := q.workers
 	q.mu.Unlock()
@@ -134,7 +138,15 @@ func (q *Queue) Stop() {
 	if cancel != nil {
 		cancel()
 	}
+	close(q.stopped)
 	q.wg.Wait()
+}
+
+// Stopped returns a channel that's closed when the queue is stopped.
+func (q *Queue) Stopped() <-chan struct{} {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.stopped
 }
 
 func (q *Queue) Submit(ctx context.Context, task Task) error {

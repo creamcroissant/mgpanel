@@ -200,17 +200,18 @@ func (h *AdminConfigCenterDiffHandler) GetSemanticDiff(w http.ResponseWriter, r 
 		Tag:             strings.TrimSpace(query.Get("tag")),
 	})
 	if err != nil {
-		// If no desired state exists yet, return an empty diff instead of 404.
-		// This prevents frontend null-reference crashes when opening Config Center
-		// on a fresh agent that has no specs saved.
-		if errors.Is(err, service.ErrDriftAndDiffDesiredMissing) {
-			respondJSON(w, http.StatusOK, map[string]any{
-				"data": map[string]any{"items": []any{}},
-			})
+		if errors.Is(err, service.ErrDriftAndDiffDesiredMissing) && base.desiredRevision == 0 {
+			result = &service.SemanticDiffResult{Items: []service.SemanticDiffItem{}}
+		} else {
+			h.respondDiffError(r.Context(), w, "admin.config_center.diff.semantic", err)
 			return
 		}
-		h.respondDiffError(r.Context(), w, "admin.config_center.diff.semantic", err)
-		return
+	}
+	if result == nil {
+		result = &service.SemanticDiffResult{}
+	}
+	if result.Items == nil {
+		result.Items = []service.SemanticDiffItem{}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
@@ -228,7 +229,7 @@ func (h *AdminConfigCenterDiffHandler) respondDiffError(ctx context.Context, w h
 	} else if errors.Is(err, service.ErrDriftAndDiffInvalidRequest) {
 		status = http.StatusBadRequest
 		key = "error.bad_request"
-	} else if errors.Is(err, service.ErrDriftAndDiffDesiredMissing) {
+	} else if errors.Is(err, service.ErrDriftAndDiffDesiredMissing) || errors.Is(err, service.ErrDriftAndDiffTagMissing) {
 		status = http.StatusNotFound
 		key = "error.not_found"
 	}

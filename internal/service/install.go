@@ -126,7 +126,6 @@ func (s *installService) CreateAdmin(ctx context.Context, input InstallInput) (*
 		U:                 0,
 		D:                 0,
 		TransferEnable:    0,
-		CommissionBalance: 0,
 		IsAdmin:           true,
 		Status:            1,
 		Banned:            false,

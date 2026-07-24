@@ -19,6 +19,8 @@ type Config struct {
 	Scheduler SchedulerConfig `mapstructure:"scheduler"`
 	Cores     []CoreConfig    `mapstructure:"cores"`
 	Nodes     []NodeConfig    `mapstructure:"nodes"`
+	AgentTask AgentTaskConfig `mapstructure:"agent_task"`
+	MCP       MCPConfig       `mapstructure:"mcp"`
 }
 
 // GRPCConfig 定义 Agent 通信所需的 gRPC 服务配置。
@@ -38,7 +40,8 @@ type GRPCTLSConfig struct {
 
 // SecurityConfig 定义安全相关配置。
 type SecurityConfig struct {
-	SubscribeObfuscation bool `mapstructure:"subscribe_obfuscation"`
+	SubscribeObfuscation bool     `mapstructure:"subscribe_obfuscation"`
+	CORSAllowedOrigins   []string `mapstructure:"cors_allowed_origins"`
 }
 
 // MetricsConfig 定义 Prometheus 指标配置。
@@ -154,6 +157,28 @@ type CertConfig struct {
 	CertMode   string `mapstructure:"cert_mode"`
 	CertDomain string `mapstructure:"cert_domain"`
 	Provider   string `mapstructure:"provider"`
+}
+
+// AgentTaskConfig 定义 agent 任务超时配置（server 端控制）。
+type AgentTaskConfig struct {
+	CoreOperationClaimTimeout     time.Duration `mapstructure:"core_operation_claim_timeout"`
+	LifecycleOperationClaimTimeout time.Duration `mapstructure:"lifecycle_operation_claim_timeout"`
+	ApplyRunClaimTimeout           time.Duration `mapstructure:"apply_run_claim_timeout"`
+}
+
+// MCPConfig defines MCP (Model Context Protocol) server settings.
+type MCPConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	APIKey  string `mapstructure:"api_key"`
+
+	// MaxAgentLogLines controls max cached log lines per agent host (default 50).
+	MaxAgentLogLines int `mapstructure:"max_agent_log_lines"`
+
+	// AgentLogUploadIntervalSeconds controls agent log upload interval (default 60).
+	AgentLogUploadIntervalSeconds int `mapstructure:"agent_log_upload_interval_seconds"`
+
+	// ServerLogMaxLines controls max lines returned by server_log_tail tool (default 500).
+	ServerLogMaxLines int `mapstructure:"server_log_max_lines"`
 }
 
 func (c LogConfig) SlogLevel() slog.Level {

@@ -17,7 +17,7 @@ USER_FRONTEND_DIR := web/user-vite
 GO := go
 GOFLAGS := -trimpath
 
-.PHONY: all build build-frontend build-linux build-linux-arm64 build-darwin build-darwin-arm64 build-windows build-all dev test e2e smoke deploy-cmd regression lint clean help install install-panel install-agent agent agent-linux agent-linux-arm64 agent-darwin-arm64 agent-all
+.PHONY: all build build-frontend build-linux build-linux-arm64 build-darwin build-darwin-arm64 build-windows build-all dev test e2e smoke deploy-cmd regression lint sync-check clean help install install-panel install-agent agent agent-linux agent-linux-arm64 agent-darwin-arm64 agent-all
 
 # Default target
 all: build
@@ -50,8 +50,10 @@ help:
 	@echo "  make deploy-cmd      Run deploy command closure regression"
 	@echo "  make regression      Run full regression (e2e + smoke + latest gates)"
 	@echo "  make lint            Run linters"
+	@echo "  make gen-types        Generate TypeScript types from Go structs (config center)"
+	@echo "  make sync-check      Check managed xboard2p sync diff"
 	@echo "  make clean           Clean build artifacts"
-	@echo "  make install         Install panel + agent via install.sh"
+	@echo "  make install         Install panel and print agent install guidance"
 	@echo "  make install-panel   Install panel only"
 	@echo "  make install-agent   Install agent only"
 	@echo ""
@@ -140,9 +142,8 @@ release-all: build-all agent-all
 	@echo "==> Release build complete"
 
 # Install locally
-install:
-	@echo "==> Installing XBoard (panel + agent)..."
-	sudo ./deploy/install.sh --full
+install: install-panel
+	@echo "==> Panel installed. Install agents with: sudo ./deploy/agent.sh -k <communication-key> -g <panel-host:port>"
 
 install-panel:
 	@echo "==> Installing XBoard panel..."
@@ -198,6 +199,11 @@ lint:
 	golangci-lint run ./...
 	@echo "==> Running frontend lint..."
 	cd $(USER_FRONTEND_DIR) && npm run lint || true
+
+# Check managed sync diff against xboard2p
+sync-check:
+	@echo "==> Checking managed xboard2p sync diff..."
+	./scripts/repo-diff.sh --check-managed
 
 # Clean build artifacts
 clean:
@@ -333,3 +339,9 @@ proto-clean:
 	@echo "==> Cleaning generated protobuf files..."
 	rm -rf $(PB_DIR)/agent
 	@echo "==> Proto clean complete"
+
+# Generate TypeScript types from Go structs (config center inbound types)
+gen-types:
+	@echo "==> Generating TypeScript types from Go structs..."
+	$(GO) run ./tools/gentypes/ -in internal/service/config_center_spec_validation.go,internal/template/unified.go,internal/template/types.go -out web/user-vite/src/types/_generated/inbound.ts -structs inboundSemanticSpec,XHTTPConfig,UnifiedInbound,UnifiedTransport,UnifiedTLS,UnifiedReality,UnifiedUser,UnifiedMultiplex,UnifiedBrutal,UnifiedSniffing
+	@echo "==> Type generation complete"

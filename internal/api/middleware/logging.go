@@ -5,6 +5,8 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -26,6 +28,14 @@ func DefaultLoggingConfig() LoggingConfig {
 		SkipPaths:      []string{"/health", "/healthz", "/_internal/ready"},
 		LogRequestBody: false,
 	}
+}
+
+// sensitiveQueryParams 记录日志时需遮盖的敏感查询参数
+var sensitiveQueryParams = map[string]bool{
+	"token":        true,
+	"access_token": true,
+	"api_key":      true,
+	"secret":       true,
 }
 
 // StructuredLogger 结构化日志中间件
@@ -90,9 +100,19 @@ func StructuredLogger(config LoggingConfig) func(http.Handler) http.Handler {
 				attrs = append(attrs, slog.String("user_agent", ua))
 			}
 
-			// 添加查询参数（如果有）
-			if query := r.URL.RawQuery; query != "" {
-				attrs = append(attrs, slog.String("query", query))
+			// 添加查询参数（如果有），过滤敏感参数
+			if query := r.URL.Query(); len(query) > 0 {
+				q := make(url.Values, len(query))
+				for k, v := range query {
+					if sensitiveQueryParams[strings.ToLower(k)] {
+						q[k] = []string{"[REDACTED]"}
+					} else {
+						q[k] = v
+					}
+				}
+				if encoded := q.Encode(); encoded != "" {
+					attrs = append(attrs, slog.String("query", encoded))
+				}
 			}
 
 			// 根据状态和耗时选择日志级别

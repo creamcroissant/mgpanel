@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"errors"
 	"net/http"
 	"strconv"
@@ -25,7 +26,7 @@ func NewAdminConfigCenterSpecHandler(specs service.InboundSpecService, i18nMgr *
 }
 
 type upsertInboundSpecRequest struct {
-	AgentHostID  int64           `json:"agent_host_id"`
+	AgentHostID  *int64          `json:"agent_host_id,omitempty"` // nil = 模板 spec
 	CoreType     string          `json:"core_type"`
 	Tag          string          `json:"tag"`
 	Enabled      *bool           `json:"enabled,omitempty"`
@@ -34,8 +35,12 @@ type upsertInboundSpecRequest struct {
 	ChangeNote   string          `json:"change_note,omitempty"`
 }
 
+type bindSpecRequest struct {
+	AgentHostID int64 `json:"agent_host_id"`
+}
+
 type importInboundSpecRequest struct {
-	AgentHostID       int64   `json:"agent_host_id"`
+	AgentHostID       *int64  `json:"agent_host_id,omitempty"`
 	CoreType          string  `json:"core_type"`
 	Source            *string `json:"source,omitempty"`
 	Filename          *string `json:"filename,omitempty"`
@@ -105,6 +110,14 @@ func (h *AdminConfigCenterSpecHandler) ListSpecs(w http.ResponseWriter, r *http.
 		}
 		filter.Enabled = &enabled
 	}
+	if raw := query.Get("is_template"); raw != "" {
+		isTemplate, err := strconv.ParseBool(raw)
+		if err != nil {
+			RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.list", "error.bad_request", h.i18n)
+			return
+		}
+		filter.IsTemplate = &isTemplate
+	}
 
 	items, total, err := h.specs.ListSpecs(r.Context(), filter)
 	if err != nil {
@@ -147,6 +160,7 @@ func (h *AdminConfigCenterSpecHandler) upsert(w http.ResponseWriter, r *http.Req
 		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, action, "error.bad_request", h.i18n)
 		return
 	}
+
 
 	id, revision, err := h.specs.UpsertSpec(r.Context(), service.UpsertInboundSpecRequest{
 		SpecID:       specID,
@@ -244,6 +258,116 @@ func (h *AdminConfigCenterSpecHandler) ImportFromApplied(w http.ResponseWriter, 
 	})
 }
 
+// Delete handles DELETE /api/v2/{securePath}/config-center/specs/{id}.
+func (h *AdminConfigCenterSpecHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, "admin.config_center.spec.delete") {
+		return
+	}
+
+	specID, err := parseInt64(chi.URLParam(r, "id"))
+	if err != nil || specID <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.delete", "error.bad_request", h.i18n)
+		return
+	}
+
+	if err := h.specs.DeleteSpec(r.Context(), specID); err != nil {
+		h.respondSpecError(r.Context(), w, "admin.config_center.spec.delete", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"deleted": true, "operator_id": adminID}})
+}
+
+// BindSpec handles POST /api/v2/{securePath}/config-center/specs/{id}/bind.
+func (h *AdminConfigCenterSpecHandler) BindSpec(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, "admin.config_center.spec.bind") {
+		return
+	}
+
+	specID, err := parseInt64(chi.URLParam(r, "id"))
+	if err != nil || specID <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.bind", "error.bad_request", h.i18n)
+		return
+	}
+
+	var payload bindSpecRequest
+	if err := decodeJSON(r, &payload); err != nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.bind", "error.bad_request", h.i18n)
+		return
+	}
+
+	if err := h.specs.BindSpec(r.Context(), specID, payload.AgentHostID); err != nil {
+		h.respondSpecError(r.Context(), w, "admin.config_center.spec.bind", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"bound": true, "operator_id": adminID}})
+}
+
+// UnbindSpec handles DELETE /api/v2/{securePath}/config-center/specs/{id}/bind.
+func (h *AdminConfigCenterSpecHandler) UnbindSpec(w http.ResponseWriter, r *http.Request) {
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, "admin.config_center.spec.unbind") {
+		return
+	}
+
+	specID, err := parseInt64(chi.URLParam(r, "id"))
+	if err != nil || specID <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.unbind", "error.bad_request", h.i18n)
+		return
+	}
+
+	query := r.URL.Query()
+	hostID, err := parseInt64(query.Get("agent_host_id"))
+	if err != nil || hostID <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.unbind", "error.bad_request", h.i18n)
+		return
+	}
+
+	if err := h.specs.UnbindSpec(r.Context(), specID, hostID); err != nil {
+		h.respondSpecError(r.Context(), w, "admin.config_center.spec.unbind", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"unbound": true, "operator_id": adminID}})
+}
+
+// ListBoundHosts handles GET /api/v2/{securePath}/config-center/specs/{id}/bind.
+func (h *AdminConfigCenterSpecHandler) ListBoundHosts(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+	if !h.ensureService(w, r, "admin.config_center.spec.bind.list") {
+		return
+	}
+
+	specID, err := parseInt64(chi.URLParam(r, "id"))
+	if err != nil || specID <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, "admin.config_center.spec.bind.list", "error.bad_request", h.i18n)
+		return
+	}
+
+	hostIDs, err := h.specs.ListBoundHosts(r.Context(), specID)
+	if err != nil {
+		h.respondSpecError(r.Context(), w, "admin.config_center.spec.bind.list", err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"data": hostIDs})
+}
+
+
 func (h *AdminConfigCenterSpecHandler) respondSpecError(ctx context.Context, w http.ResponseWriter, action string, err error) {
 	status := http.StatusInternalServerError
 	key := "error.internal_server_error"
@@ -263,10 +387,12 @@ func (h *AdminConfigCenterSpecHandler) respondSpecError(ctx context.Context, w h
 	var validationErr *service.InboundSpecValidationError
 	if errors.As(err, &validationErr) {
 		details["violations"] = validationErr.Violations
+		slog.Warn("inbound spec validation error", "action", action, "violations", validationErr.Violations, "error", err)
 	}
 	var conflictErr *service.InboundSpecConflictError
 	if errors.As(err, &conflictErr) {
 		details["conflict"] = conflictErr
+		slog.Warn("inbound spec conflict error", "action", action, "conflict", conflictErr, "error", err)
 	}
 
 	message := key

@@ -70,11 +70,15 @@ func main() {
 	// Handle signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
 	go func() {
-		sig := <-sigChan
-		slog.Info("Received signal, shutting down...", "signal", sig)
-		cancel()
+		select {
+		case sig := <-sigChan:
+			slog.Info("Received signal, shutting down...", "signal", sig)
+			cancel()
+		case <-ctx.Done():
+		}
 	}()
 
 	// Run

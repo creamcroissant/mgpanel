@@ -40,7 +40,7 @@ func loadServerUser(ctx context.Context, users repository.UserRepository, rawUse
 }
 
 func isServerAccessAllowed(user *repository.User) bool {
-	if user == nil || user.Banned {
+	if user == nil || user.Banned || user.Status != 1 {
 		return false
 	}
 	if user.TransferEnable <= 0 {

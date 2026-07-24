@@ -41,6 +41,9 @@ type AgentHostService interface {
 
 	GenerateConfig(ctx context.Context, agentID int64) ([]byte, error)
 	FlushMetrics(ctx context.Context) error
+
+	// GetConfigYAML returns the running configuration YAML for an agent host.
+	GetConfigYAML(ctx context.Context, id int64) (string, error)
 }
 
 // TemplateCompatibilityResult contains the result of a template compatibility check.
@@ -1022,6 +1025,14 @@ func generateAgentHostToken() (string, error) {
 		return "", fmt.Errorf("generate token: %v / 生成 token 失败: %w", err, err)
 	}
 	return hex.EncodeToString(tokenBytes), nil
+}
+
+func (s *agentHostService) GetConfigYAML(ctx context.Context, id int64) (string, error) {
+	host, err := s.agentHosts.FindByID(ctx, id)
+	if err != nil {
+		return "", fmt.Errorf("find agent host: %v / 获取探针节点失败: %w", err, err)
+	}
+	return host.ConfigYAML, nil
 }
 
 func buildPendingAgentName() string {

@@ -3,6 +3,7 @@ package initsys
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -42,6 +43,13 @@ func (g *Generic) Start(ctx context.Context, service string) error {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
+	// Reap child process to avoid zombie
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("process exited", "error", err)
+		}
+	}()
+
 	// Write PID file if configured
 	if g.PidFile != "" {
 		if err := os.WriteFile(g.PidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0600); err != nil {
@@ -77,8 +85,15 @@ func (g *Generic) Stop(ctx context.Context, service string) error {
 }
 
 func (g *Generic) Restart(ctx context.Context, service string) error {
-	_ = g.Stop(ctx, service)
-	return g.Start(ctx, service)
+	stopErr := g.Stop(ctx, service)
+	if stopErr != nil {
+		slog.Warn("service stop failed during restart", "service", service, "error", stopErr)
+	}
+	startErr := g.Start(ctx, service)
+	if startErr != nil && stopErr != nil {
+		return fmt.Errorf("restart failed: stop: %v, start: %w", stopErr, startErr)
+	}
+	return startErr
 }
 
 func (g *Generic) Reload(ctx context.Context, service string) error {

@@ -64,7 +64,6 @@ export interface AdminUser {
   is_staff: boolean;
   status: number;
   banned: boolean;
-  commission_balance: number;
   telegram_id?: number;
   created_at: number;
   updated_at: number;

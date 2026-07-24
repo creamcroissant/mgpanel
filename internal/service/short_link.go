@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -151,7 +152,9 @@ func (s *shortLinkService) Resolve(ctx context.Context, code string) (*ShortLink
 	result.RedirectTo = redirectTo
 
 	// Increment access count
-	_ = s.links.IncrementAccessCount(ctx, link.ID, now)
+	if err := s.links.IncrementAccessCount(ctx, link.ID, now); err != nil {
+		slog.Warn("failed to increment short link access count", "link_id", link.ID, "error", err)
+	}
 
 	return result, nil
 }

@@ -104,6 +104,16 @@ func (m *DNATManager) buildRuleset(rules []*DNATRule) string {
 	return b.String()
 }
 
+// AddRules appends DNAT rules using full atomic swap.
+func (m *DNATManager) AddRules(ctx context.Context, rules []*DNATRule) error {
+	return m.SwitchAtomic(ctx, rules)
+}
+
+// RemoveRules removes DNAT rules using full atomic swap.
+func (m *DNATManager) RemoveRules(ctx context.Context, rules []*DNATRule, handles map[string]int) error {
+	return m.SwitchAtomic(ctx, rules)
+}
+
 // Cleanup removes the nftables table and all its rules.
 func (m *DNATManager) Cleanup(ctx context.Context) error {
 	script := fmt.Sprintf("delete table inet %s", m.tableName)

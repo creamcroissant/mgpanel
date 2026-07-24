@@ -1,81 +1,50 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Calendar,
+  BarChart3,
+  BookOpen,
+  CreditCard,
   Database,
-  RefreshCw,
   Link as LinkIcon,
-  Users,
-  Server,
   MonitorDot,
+  RefreshCw,
+  Server,
+  Settings,
+  Shield,
   Wifi,
-  Clock,
-  Code,
+  Users,
 } from "lucide-react";
 import { fetchUserInfo } from "@/api/user";
 import { getQueueStats, getSystemStatus } from "@/api/admin";
 import { useAuth } from "@/providers/AuthProvider";
-import { Badge, Card, CardContent, CardHeader, ResponsiveGrid } from "@/components/ui";
-import StatCard from "@/components/ui/StatCard";
-import { Button } from "@/components/ui/button";
-import { Loading, ErrorBanner } from "@/components/ui";
-import { formatBytes, formatDate, formatDateTime, daysUntil, isExpired } from "@/lib/format";
-import { QUERY_KEYS } from "@/lib/constants";
+import {
+  ADMIN_HOME_ROUTE,
+  QUERY_KEYS,
+  ROUTES,
+} from "@/lib/constants";
+import { formatBytes, formatDate, daysUntil, isExpired } from "@/lib/format";
+import {
+  Badge,
+  Button,
+  CopyField,
+  ErrorBanner,
+  KeyValueGrid,
+  Loading,
+  PageShell,
+  ResourceCard,
+  ResponsiveGrid,
+  SectionCard,
+  UsageRing,
+  type KeyValueItem,
+} from "@/components/ui";
 
-function SectionHeader({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description?: ReactNode;
-  action?: ReactNode;
-}) {
+function MetricTile({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-      <div className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      </div>
-      {action && <div className="shrink-0">{action}</div>}
-    </div>
-  );
-}
-
-function DetailItem({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-md border bg-card p-3.5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <div className="truncate text-sm font-semibold text-foreground">{value}</div>
-      </div>
-    </div>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-3.5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <div className="mt-1 break-words text-xl font-semibold leading-tight text-foreground">{value}</div>
+    <div className="rounded-md border bg-muted/25 p-3">
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+      <div className="mt-1 break-words text-lg font-semibold leading-tight text-foreground">{value}</div>
     </div>
   );
 }
@@ -83,7 +52,6 @@ function MetricTile({
 export default function Dashboard() {
   const { t } = useTranslation();
   const { isAdmin } = useAuth();
-  const [copied, setCopied] = useState(false);
   const {
     data: user,
     isLoading,
@@ -112,193 +80,191 @@ export default function Dashboard() {
 
   const transferUsed = (user.u || 0) + (user.d || 0);
   const transferEnable = user.transfer_enable || 0;
+  const remainingTraffic = Math.max(transferEnable - transferUsed, 0);
   const usagePercent = transferEnable > 0 ? (transferUsed / transferEnable) * 100 : 0;
-
   const expired = user.expired_at ? isExpired(user.expired_at) : false;
   const days = user.expired_at ? daysUntil(user.expired_at) : Infinity;
+  const usageTone = usagePercent >= 90 ? "danger" : usagePercent >= 70 ? "warning" : "success";
+  const planStatus = !user.plan_id ? t("dashboard.noPlan") : expired ? t("dashboard.expired") : t("dashboard.active");
+  const planBadgeVariant = expired ? "danger" : !user.plan_id ? "secondary" : days <= 7 ? "warning" : "success";
+  const expiryText = !user.expired_at
+    ? t("dashboard.never")
+    : expired
+      ? t("dashboard.expired")
+      : days <= 7
+        ? `${days} ${t("dashboard.daysLeft")}`
+        : formatDate(user.expired_at);
 
-  const getPlanStatus = () => {
-    if (!user.plan_id) return t("dashboard.noPlan");
-    if (expired) return t("dashboard.expired");
-    return t("dashboard.active");
-  };
+  const quickActions = [
+    {
+      href: ROUTES.SERVERS,
+      icon: <Server className="h-5 w-5" />,
+      title: t("nav.servers"),
+      description: t("dashboard.openServersHint"),
+      action: t("dashboard.openServers"),
+    },
+    {
+      href: ROUTES.SUBSCRIPTION,
+      icon: <LinkIcon className="h-5 w-5" />,
+      title: t("dashboard.subscriptionWorkspace"),
+      description: t("dashboard.openSubscriptionHint"),
+      action: t("dashboard.openSubscription"),
+    },
+    {
+      href: ROUTES.TRAFFIC,
+      icon: <BarChart3 className="h-5 w-5" />,
+      title: t("nav.traffic"),
+      description: t("dashboard.openTrafficHint"),
+      action: t("dashboard.openTraffic"),
+    },
+    {
+      href: ROUTES.PLANS,
+      icon: <CreditCard className="h-5 w-5" />,
+      title: t("nav.plans"),
+      description: t("dashboard.openPlansHint"),
+      action: t("dashboard.openPlans"),
+    },
+    {
+      href: ROUTES.KNOWLEDGE,
+      icon: <BookOpen className="h-5 w-5" />,
+      title: t("nav.knowledge"),
+      description: t("dashboard.openKnowledgeHint"),
+      action: t("dashboard.openKnowledge"),
+    },
+    {
+      href: ROUTES.SETTINGS,
+      icon: <Settings className="h-5 w-5" />,
+      title: t("nav.settings"),
+      description: t("dashboard.openSettingsHint"),
+      action: t("dashboard.openSettings"),
+    },
+  ];
 
-  const getExpiryHint = () => {
-    if (!user.expired_at) return t("dashboard.never");
-    if (expired) return t("dashboard.expired");
-    if (days <= 7) return `${days} ${t("dashboard.daysLeft")}`;
-    return formatDate(user.expired_at);
-  };
-
-  const usageTone = usagePercent > 80 ? "danger" : usagePercent > 50 ? "warning" : "success";
-
-  const formatUptime = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-
-    const parts = [] as string[];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0) parts.push(`${minutes}m`);
-
-    return parts.length > 0 ? parts.join(" ") : "< 1m";
-  };
-
-  const formatStartedAt = (value?: string): string => {
-    if (!value) return "-";
-    const timestamp = Date.parse(value);
-    if (Number.isNaN(timestamp)) return value;
-    return formatDateTime(Math.floor(timestamp / 1000));
-  };
-
-  const handleCopy = async () => {
-    if (!user.subscribe_url) return;
-    try {
-      await navigator.clipboard.writeText(user.subscribe_url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
+  const usageItems: KeyValueItem[] = [
+    { label: t("dashboard.usedTraffic"), value: formatBytes(transferUsed) },
+    { label: t("dashboard.totalTraffic"), value: formatBytes(transferEnable) },
+    { label: t("dashboard.remainingTraffic"), value: formatBytes(remainingTraffic) },
+    { label: t("dashboard.currentPlan"), value: user.plan?.name || planStatus },
+    { label: t("dashboard.expiredAt"), value: expiryText },
+    { label: t("dashboard.planStatus"), value: <Badge variant={planBadgeVariant}>{planStatus}</Badge> },
+  ];
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("nav.dashboard")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("dashboard.welcome")}, {user.email}
-          </p>
-        </div>
-        <Button variant="outline" className="gap-2 self-start" onClick={() => refetch()}>
-          <RefreshCw size={16} />
-          {t("common.refresh")}
-        </Button>
-      </header>
-
-      <section className="space-y-4">
-        <ResponsiveGrid minColWidth={300} gap={16}>
-          <StatCard
-            className="shadow-none"
-            title={t("dashboard.planStatus")}
-            value={getPlanStatus()}
-            hint={getExpiryHint()}
-            icon={<Calendar className="h-5 w-5" />}
-            variant={expired ? "danger" : days <= 7 ? "warning" : "primary"}
+    <PageShell
+      data-testid="portal-hero"
+      title={t("dashboard.portalTitle")}
+      description={
+        <>
+          {t("dashboard.portalSubtitle")} <span className="font-medium text-foreground">{user.email}</span>
+        </>
+      }
+      actions={
+        <>
+          {isAdmin && (
+            <Button asChild variant="outline" className="gap-2">
+              <Link to={ADMIN_HOME_ROUTE}>
+                <Shield className="h-4 w-4" />
+                {t("dashboard.manageAdmin")}
+              </Link>
+            </Button>
+          )}
+          <Button variant="outline" className="gap-2" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+            {t("common.refresh")}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <SectionCard
+          data-testid="subscription-quick-card"
+          title={t("dashboard.subscriptionWorkspace")}
+          description={t("dashboard.subscriptionWorkspaceHint")}
+        >
+          <CopyField
+            label={t("dashboard.subscribeUrl")}
+            value={user.subscribe_url}
+            emptyLabel={t("dashboard.noSubscription")}
+            copyLabel={t("dashboard.copySubscription")}
+            copiedLabel={t("common.copied")}
+            helperText={t("dashboard.copyHint")}
+            buttonAriaLabel={t("dashboard.copySubscription")}
           />
+        </SectionCard>
 
-          <StatCard
-            className="shadow-none"
-            title={t("dashboard.dataUsage")}
-            value={`${formatBytes(transferUsed)} / ${formatBytes(transferEnable)}`}
-            hint={`${usagePercent.toFixed(1)}% ${t("common.used")}`}
-            icon={<Database className="h-5 w-5" />}
-            variant={usageTone}
-          >
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/80">
-              <div
-                className={`h-full transition-all ${
-                  usageTone === "danger" ? "bg-red-500" : usageTone === "warning" ? "bg-amber-500" : "bg-primary"
-                }`}
-                style={{ width: `${Math.min(usagePercent, 100)}%` }}
-              />
-            </div>
-          </StatCard>
+        <SectionCard
+          title={t("dashboard.usageSummary")}
+          description={t("dashboard.usageSummaryHint")}
+          className="min-w-0"
+        >
+          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-center">
+            <UsageRing
+              value={usagePercent}
+              label={t("common.used")}
+              detail={`${formatBytes(transferUsed)} / ${formatBytes(transferEnable)}`}
+              tone={usageTone}
+            />
+            <KeyValueGrid items={usageItems} className="flex-1 xl:grid-cols-2" />
+          </div>
+        </SectionCard>
+      </div>
+
+      <section data-testid="quick-action-grid" className="space-y-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">{t("dashboard.quickActions")}</h2>
+          <p className="text-sm text-muted-foreground">{t("dashboard.quickActionsHint")}</p>
+        </div>
+        <ResponsiveGrid minColWidth={260} gap={16}>
+          {quickActions.map((action) => (
+            <ResourceCard
+              key={action.href}
+              icon={action.icon}
+              title={action.title}
+              description={action.description}
+              actions={
+                <Button asChild variant="outline" size="sm">
+                  <Link to={action.href}>{action.action}</Link>
+                </Button>
+              }
+            />
+          ))}
         </ResponsiveGrid>
-
-        {user.subscribe_url && (
-          <Card className="shadow-none">
-            <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1.5">
-                <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">{t("dashboard.subscription")}</p>
-                <div className="flex items-center gap-2 text-base font-semibold tracking-tight">
-                  <LinkIcon className="h-4 w-4 text-primary" />
-                  <span>{t("dashboard.subscribeUrl")}</span>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleCopy}>
-                {copied ? t("common.copied") : t("common.copy")}
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-md border bg-muted/30 p-3 text-sm text-foreground">
-                <span className="block break-all font-mono leading-6">{user.subscribe_url}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">{t("dashboard.copyHint")}</p>
-            </CardContent>
-          </Card>
-        )}
       </section>
 
       {isAdmin && systemStatus && (
-        <section className="space-y-5 border-t pt-5 lg:pt-6">
-          <SectionHeader title={t("dashboard.systemStats")} description={t("dashboard.systemStatsHint")} />
-
-          <ResponsiveGrid minColWidth={220} gap={14}>
-            <StatCard className="shadow-none" title={t("admin.system.totalUsers")} value={systemStatus.user_count} icon={<Users className="h-5 w-5" />} variant="primary" />
-            <StatCard className="shadow-none" title={t("admin.system.totalServers")} value={systemStatus.server_count} icon={<Server className="h-5 w-5" />} variant="default" />
-            <StatCard className="shadow-none" title={t("admin.system.totalAgents")} value={systemStatus.agent_count} icon={<MonitorDot className="h-5 w-5" />} variant="warning" />
-            <StatCard className="shadow-none" title={t("admin.system.onlineAgents")} value={systemStatus.online_agent_count} icon={<Wifi className="h-5 w-5" />} variant="success" />
+        <SectionCard
+          data-testid="admin-overview"
+          title={t("dashboard.adminOverview")}
+          description={t("dashboard.adminOverviewHint")}
+        >
+          <ResponsiveGrid minColWidth={180} gap={12}>
+            <MetricTile label={t("admin.system.totalUsers")} value={systemStatus.user_count} />
+            <MetricTile label={t("admin.system.totalServers")} value={systemStatus.server_count} />
+            <MetricTile label={t("admin.system.totalAgents")} value={systemStatus.agent_count} />
+            <MetricTile label={t("admin.system.onlineAgents")} value={systemStatus.online_agent_count} />
+            <MetricTile label={t("dashboard.recentJobs")} value={queueStats?.recentJobs ?? 0} />
+            <MetricTile label={t("dashboard.failedJobs")} value={queueStats?.failedJobs ?? 0} />
           </ResponsiveGrid>
-
-          <div className="grid gap-4 xl:grid-cols-3">
-            <Card className="shadow-none xl:col-span-2">
-              <CardHeader>
-                <h3 className="text-lg font-semibold tracking-tight">{t("dashboard.systemInfo")}</h3>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DetailItem icon={<Code className="h-4 w-4" />} label={t("admin.system.version")} value={<Badge variant="secondary">{systemStatus.version || "go-dev"}</Badge>} />
-                  <DetailItem icon={<Code className="h-4 w-4" />} label={t("admin.system.goVersion")} value={<Badge variant="default">{systemStatus.go_version || "go1.25"}</Badge>} />
-                  <DetailItem icon={<Clock className="h-4 w-4" />} label={t("admin.system.uptime")} value={formatUptime(systemStatus.uptime || 0)} />
-                  <DetailItem icon={<Server className="h-4 w-4" />} label={t("dashboard.environment")} value={systemStatus.environment || "-"} />
-                  <DetailItem icon={<Server className="h-4 w-4" />} label={t("dashboard.hostname")} value={systemStatus.hostname || "-"} />
-                  <DetailItem icon={<Clock className="h-4 w-4" />} label={t("dashboard.startedAt")} value={formatStartedAt(systemStatus.started_at)} />
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <Card className="shadow-none">
-                <CardHeader>
-                  <h3 className="text-base font-semibold">{t("dashboard.logs")}</h3>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <MetricTile label={t("dashboard.logInfo")} value={systemStatus.logs?.info ?? 0} />
-                    <MetricTile label={t("dashboard.logWarning")} value={systemStatus.logs?.warning ?? 0} />
-                    <MetricTile label={t("dashboard.logError")} value={systemStatus.logs?.error ?? 0} />
-                    <MetricTile label={t("dashboard.logTotal")} value={systemStatus.logs?.total ?? 0} />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-none">
-                <CardHeader>
-                  <h3 className="text-base font-semibold">{t("dashboard.queueStats")}</h3>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <MetricTile label={t("dashboard.recentJobs")} value={queueStats?.recentJobs ?? 0} />
-                    <MetricTile label={t("dashboard.jobsPerMinute")} value={(queueStats?.jobsPerMinute ?? 0).toFixed(1)} />
-                    <MetricTile label={t("dashboard.failedJobs")} value={queueStats?.failedJobs ?? 0} />
-                    <MetricTile
-                      label={t("dashboard.maxThroughputQueue")}
-                      value={
-                        queueStats?.queueWithMaxThroughput?.name
-                          ? `${queueStats.queueWithMaxThroughput.name} (${queueStats.queueWithMaxThroughput.throughput})`
-                          : "-"
-                      }
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+              <Database className="h-4 w-4" />
+              {t("dashboard.environment")}: {systemStatus.environment || "-"}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+              <MonitorDot className="h-4 w-4" />
+              {t("admin.system.version")}: {systemStatus.version || "go-dev"}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+              <Users className="h-4 w-4" />
+              {t("dashboard.jobsPerMinute")}: {(queueStats?.jobsPerMinute ?? 0).toFixed(1)}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+              <Wifi className="h-4 w-4" />
+              {t("dashboard.maxThroughputQueue")}: {queueStats?.queueWithMaxThroughput?.name || "-"}
+            </span>
           </div>
-        </section>
+        </SectionCard>
       )}
-    </div>
+    </PageShell>
   );
 }

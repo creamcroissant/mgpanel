@@ -246,7 +246,7 @@ func (r *subscriptionFilterReasonRepo) ReplaceForSource(ctx context.Context, sou
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM subscription_filter_reasons WHERE source_type = ? AND source_id = ?`, sourceType, sourceID); err != nil {
 		return err
-	}
+	} // idempotent: no error if not found
 	now := time.Now().Unix()
 	for _, reason := range reasons {
 		if reason == nil {
@@ -321,6 +321,7 @@ func (r *subscriptionFilterReasonRepo) Count(ctx context.Context, filter reposit
 
 func (r *subscriptionFilterReasonRepo) DeleteBySource(ctx context.Context, sourceType string, sourceID int64) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM subscription_filter_reasons WHERE source_type = ? AND source_id = ?`, strings.TrimSpace(sourceType), sourceID)
+	// idempotent: no error if not found
 	return err
 }
 

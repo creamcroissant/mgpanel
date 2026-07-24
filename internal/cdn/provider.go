@@ -1,7 +1,10 @@
 // Package cdn 定义 CDN Provider 抽象层，支持多厂商 CDN 接入。
 package cdn
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // 通用错误变量
 var (
@@ -51,6 +54,15 @@ type ProviderStatus struct {
 	Enabled    bool
 }
 
+// TODO: Migrate to generics (Go 1.18+) for type-safe Site/Edge parameters.
+// Current interface{} pattern requires runtime type assertions.
+//
+// Provider is the generic CDN vendor interface. Each provider implements all methods.
+//
+// Note on type safety: methods accept interface{} parameters because the
+// concrete types for site configs, edge lists, distribution results, and
+// DNS results differ per provider implementation. Each implementation MUST
+// type-assert these parameters to the expected concrete types before use.
 // Provider 是 CDN 厂商的通用接口，每种 provider 需实现全部方法。
 type Provider interface {
 	// Name 返回 provider 名称标识。
@@ -59,20 +71,20 @@ type Provider interface {
 	// SyncDistribution 创建或同步 distribution。
 	// site   — 站点配置，类型由具体 provider 定义。
 	// edges  — 边缘节点列表，类型由具体 provider 定义。
-	SyncDistribution(site interface{}, edges interface{}) (interface{}, error)
+	SyncDistribution(ctx context.Context, site interface{}, edges interface{}) (interface{}, error)
 
 	// DeleteDistribution 删除指定 distribution。
-	DeleteDistribution(id string) error
+	DeleteDistribution(ctx context.Context, id string) error
 
 	// GetDistributionStatus 查询 distribution 状态。
-	GetDistributionStatus(id string) (interface{}, error)
+	GetDistributionStatus(ctx context.Context, id string) (interface{}, error)
 
 	// SyncDNS 同步 DNS 记录。
-	SyncDNS(domain string, targets []string, proxied bool) (interface{}, error)
+	SyncDNS(ctx context.Context, domain string, targets []string, proxied bool) (interface{}, error)
 
 	// SyncCacheRules 更新 Cache 规则。
-	SyncCacheRules(distID string, rules interface{}) error
+	SyncCacheRules(ctx context.Context, distID string, rules interface{}) error
 
 	// Invalidate 刷新 CDN 缓存。
-	Invalidate(distID string, paths []string) error
+	Invalidate(ctx context.Context, distID string, paths []string) error
 }

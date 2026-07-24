@@ -213,9 +213,30 @@ func cloneXHTTPMap(values map[string]any) map[string]any {
 		if key == "" {
 			continue
 		}
-		result[key] = value
+		result[key] = cloneXHTTPAny(value)
 	}
 	return result
+}
+
+func cloneXHTTPAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneXHTTPMap(typed)
+	case map[string]string:
+		return cloneXHTTPHeaders(typed)
+	case []any:
+		result := make([]any, len(typed))
+		for i, item := range typed {
+			result[i] = cloneXHTTPAny(item)
+		}
+		return result
+	case []string:
+		result := make([]string, len(typed))
+		copy(result, typed)
+		return result
+	default:
+		return value
+	}
 }
 
 func stringFromXHTTPAny(value any) string {

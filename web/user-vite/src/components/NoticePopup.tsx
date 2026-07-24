@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import DOMPurify from "dompurify";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui";
 import type { UserNotice } from "@/api/notice";
 
@@ -16,7 +17,7 @@ export default function NoticePopup({ notice, open, onClose }: NoticePopupProps)
     if (!notice?.content) {
       return "";
     }
-    return notice.content;
+    return DOMPurify.sanitize(notice.content);
   }, [notice]);
 
   if (!notice) {

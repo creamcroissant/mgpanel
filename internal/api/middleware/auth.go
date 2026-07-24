@@ -5,6 +5,7 @@ package middleware
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,7 +44,8 @@ func AdminGuard(auth service.AuthService, paths service.AdminPathService) func(h
 			}
 			claims, err := auth.Verify(r.Context(), token)
 			if err != nil {
-				writeUnauthorized(w, err.Error())
+				slog.Warn("auth: admin guard rejected", "error", err)
+				writeUnauthorized(w, "invalid or expired token")
 				return
 			}
 			if !claims.IsAdmin {
@@ -67,7 +69,8 @@ func UserGuard(auth service.AuthService) func(http.Handler) http.Handler {
 			token := extractBearer(r.Header.Get("Authorization"))
 			claims, err := auth.Verify(r.Context(), token)
 			if err != nil {
-				writeUnauthorized(w, err.Error())
+				slog.Warn("auth: user guard rejected", "error", err)
+				writeUnauthorized(w, "invalid or expired token")
 				return
 			}
 			ctx := requestctx.WithUserClaims(r.Context(), requestctx.UserClaims{ID: strconv.FormatInt(claims.UserID, 10), Email: claims.Email})
@@ -86,7 +89,8 @@ func ServerGuard(auth service.ServerAuthService, defaultType string) func(http.H
 			}
 			token, nodeID, nodeType, err := extractServerCredentials(r)
 			if err != nil {
-				writeBadRequest(w, err.Error())
+				slog.Warn("auth: server guard rejected", "error", err)
+				writeBadRequest(w, "invalid server credentials")
 				return
 			}
 			if nodeID == "" {
@@ -167,7 +171,7 @@ func extractBearer(header string) string {
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
 		return strings.TrimSpace(parts[1])
 	}
-	return trimmed
+	return ""
 }
 
 func writeUnauthorized(w http.ResponseWriter, message string) {

@@ -1,5 +1,4 @@
 import { passportApi } from "./client";
-import { setToken, setRefreshToken } from "@/lib/auth";
 
 export interface LoginRequest {
   email: string;
@@ -17,27 +16,16 @@ export interface LoginResponse {
 export interface RegisterRequest {
   email: string;
   password: string;
-  invite_code?: string;
   email_code?: string;
 }
 
 export async function login(data: LoginRequest): Promise<LoginResponse["data"]> {
   const response = await passportApi.post<LoginResponse>("/passport/auth/login", data);
-  const { token, refresh_token } = response.data.data;
-  setToken(token);
-  if (refresh_token) {
-    setRefreshToken(refresh_token);
-  }
   return response.data.data;
 }
 
 export async function register(data: RegisterRequest): Promise<LoginResponse["data"]> {
   const response = await passportApi.post<LoginResponse>("/passport/auth/register", data);
-  const { token, refresh_token } = response.data.data;
-  setToken(token);
-  if (refresh_token) {
-    setRefreshToken(refresh_token);
-  }
   return response.data.data;
 }
 

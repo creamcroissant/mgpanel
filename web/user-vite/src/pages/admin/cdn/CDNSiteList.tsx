@@ -12,6 +12,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  ResponsiveList,
+  ResponsiveListField,
+  ResponsiveListItem,
   Table,
   TableBody,
   TableCell,
@@ -100,6 +103,67 @@ export default function CDNSiteList() {
     deployMutation.mutate(id);
   };
 
+  const renderStatusBadge = (site: CDNSite) => (
+    <Badge
+      variant={
+        site.status === "active"
+          ? "success"
+          : site.status === "error"
+            ? "destructive"
+            : "secondary"
+      }
+    >
+      {site.status || "pending"}
+    </Badge>
+  );
+
+  const renderEnabledBadge = (site: CDNSite) =>
+    site.enabled ? (
+      <Badge variant="outline" className="text-green-600">
+        {t("admin.cdn.enabled")}
+      </Badge>
+    ) : (
+      <Badge variant="secondary">{t("admin.cdn.disabled")}</Badge>
+    );
+
+  const renderSiteActions = (site: CDNSite, layout: "desktop" | "mobile") => (
+    <div
+      className={layout === "mobile" ? "mt-4 grid grid-cols-2 gap-2" : "flex justify-end gap-1"}
+    >
+      <Button
+        variant="ghost"
+        size={layout === "mobile" ? "default" : "sm"}
+        onClick={() => handleEdit(site)}
+        data-testid={`cdn-edit-${site.id}`}
+      >
+        {t("common.edit")}
+      </Button>
+      <Button
+        variant="ghost"
+        size={layout === "mobile" ? "default" : "sm"}
+        onClick={() => handleDeploy(site.id)}
+        data-testid={`cdn-deploy-${site.id}`}
+      >
+        {t("admin.cdn.deploy")}
+      </Button>
+      <Button
+        variant="ghost"
+        size={layout === "mobile" ? "default" : "sm"}
+        className={
+          layout === "mobile"
+            ? "col-span-2 text-destructive hover:text-destructive"
+            : "text-destructive hover:text-destructive"
+        }
+        onClick={() => deleteMutation.mutate(site.id)}
+        data-testid={`cdn-delete-${site.id}`}
+        aria-label={t("admin.cdn.deleteSite")}
+      >
+        <Trash2 className={layout === "mobile" ? "mr-2 h-4 w-4" : "h-4 w-4"} />
+        {layout === "mobile" ? t("admin.cdn.deleteSite") : null}
+      </Button>
+    </div>
+  );
+
   return (
     <AdminPageShell title={t("admin.cdn.title")} data-testid="cdn-site-list-page">
       <Card>
@@ -124,78 +188,70 @@ export default function CDNSiteList() {
               <p>{t("admin.cdn.empty")}</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("admin.cdn.name")}</TableHead>
-                  <TableHead>{t("admin.cdn.domain")}</TableHead>
-                  <TableHead>{t("admin.cdn.provider")}</TableHead>
-                  <TableHead>{t("admin.cdn.deployStatus")}</TableHead>
-                  <TableHead>{t("admin.cdn.enabled")}</TableHead>
-                  <TableHead className="text-right">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("admin.cdn.name")}</TableHead>
+                      <TableHead>{t("admin.cdn.domain")}</TableHead>
+                      <TableHead>{t("admin.cdn.originType")}</TableHead>
+                      <TableHead>{t("admin.cdn.provider")}</TableHead>
+                      <TableHead>{t("admin.cdn.deployStatus")}</TableHead>
+                      <TableHead>{t("admin.cdn.enabled")}</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sites.map((site) => (
+                      <TableRow key={site.id} data-testid={`cdn-site-row-${site.id}`}>
+                        <TableCell className="font-medium">{site.name || "-"}</TableCell>
+                        <TableCell>{site.domain}</TableCell>
+                        <TableCell>{site.origin_type || "-"}</TableCell>
+                        <TableCell>{site.provider || "-"}</TableCell>
+                        <TableCell>{renderStatusBadge(site)}</TableCell>
+                        <TableCell>{renderEnabledBadge(site)}</TableCell>
+                        <TableCell className="text-right">{renderSiteActions(site, "desktop")}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <ResponsiveList label={t("admin.cdn.mobileListLabel")}>
                 {sites.map((site) => (
-                  <TableRow key={site.id} data-testid={`cdn-site-row-${site.id}`}>
-                    <TableCell className="font-medium">{site.name || "-"}</TableCell>
-                    <TableCell>{site.domain}</TableCell>
-                    <TableCell>{site.origin_type}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          site.status === "active"
-                            ? "success"
-                            : site.status === "error"
-                              ? "destructive"
-                              : "secondary"
-                        }
-                      >
-                        {site.status || "pending"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {site.enabled ? (
-                        <Badge variant="outline" className="text-green-600">
-                          {t("common.yes")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("common.no")}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(site)}
-                          data-testid={`cdn-edit-${site.id}`}
-                        >
-                          {t("common.edit")}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeploy(site.id)}
-                          data-testid={`cdn-deploy-${site.id}`}
-                        >
-                          {t("admin.cdn.deploy")}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => deleteMutation.mutate(site.id)}
-                          data-testid={`cdn-delete-${site.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                  <ResponsiveListItem key={site.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="truncate font-medium text-foreground">{site.name || site.domain}</div>
+                        <div className="break-all text-sm text-muted-foreground">{site.domain}</div>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      {renderStatusBadge(site)}
+                    </div>
+
+                    <dl className="mt-4 grid grid-cols-2 gap-3">
+                      <ResponsiveListField label={t("admin.cdn.domain")} className="col-span-2">
+                        <span className="break-all">{site.domain}</span>
+                      </ResponsiveListField>
+                      <ResponsiveListField label={t("admin.cdn.originType")}>
+                        {site.origin_type || "-"}
+                      </ResponsiveListField>
+                      <ResponsiveListField label={t("admin.cdn.deployStatus")}>
+                        {renderStatusBadge(site)}
+                      </ResponsiveListField>
+                      <ResponsiveListField label={t("admin.cdn.provider")}>
+                        {site.provider || "-"}
+                      </ResponsiveListField>
+                      <ResponsiveListField label={t("admin.cdn.enabled")}>
+                        {renderEnabledBadge(site)}
+                      </ResponsiveListField>
+                    </dl>
+
+                    {renderSiteActions(site, "mobile")}
+                  </ResponsiveListItem>
                 ))}
-              </TableBody>
-            </Table>
+              </ResponsiveList>
+            </>
           )}
         </CardContent>
       </Card>

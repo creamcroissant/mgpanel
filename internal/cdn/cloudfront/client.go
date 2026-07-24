@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -142,12 +144,16 @@ type Client struct {
 }
 
 // NewClient creates a new CloudFront API client.
-func NewClient(cred Credentials) *Client {
+func NewClient(cred Credentials) (*Client, error) {
+	s, err := newSigner(cred)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
-		signer:     newSigner(cred),
+		signer:     s,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		baseURL:    defaultBaseURL,
-	}
+	}, nil
 }
 
 // WithHTTPClient sets a custom HTTP client (useful for testing).
@@ -209,18 +215,36 @@ func (c *Client) GetDistribution(ctx context.Context, id string) (*Distribution,
 }
 
 // DeleteDistribution deletes a distribution by ID. It first fetches the
-// current ETag, then deletes with the If-Match header.
+// current ETag, then deletes with the If-Match header. Retries on ETag
+// mismatch (412 PreconditionFailed) which can occur if the distribution
+// is modified between the Get and Delete calls.
 func (c *Client) DeleteDistribution(ctx context.Context, id string) error {
-	// Fetch the distribution first to get its ETag.
-	dist, err := c.GetDistribution(ctx, id)
-	if err != nil {
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		dist, err := c.GetDistribution(ctx, id)
+		if err != nil {
+			return err
+		}
+
+		_, _, err = c.doRequest(ctx, http.MethodDelete,
+			fmt.Sprintf("/%s/distribution/%s", apiVersion, id),
+			map[string]string{"If-Match": dist.ETag}, nil)
+
+		if err == nil {
+			return nil
+		}
+
+		// Retry on ETag mismatch (412 PreconditionFailed)
+		if isETagMismatch(err) && attempt+1 < maxRetries {
+			continue
+		}
 		return err
 	}
+	return fmt.Errorf("delete distribution %s: max retries exceeded", id)
+}
 
-	_, _, err = c.doRequest(ctx, http.MethodDelete,
-		fmt.Sprintf("/%s/distribution/%s", apiVersion, id),
-		map[string]string{"If-Match": dist.ETag}, nil)
-	return err
+func isETagMismatch(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "status 412")
 }
 
 // ListDistributions lists all distributions.
@@ -236,7 +260,10 @@ func (c *Client) ListDistributions(ctx context.Context) ([]*Distribution, error)
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			break
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("parse distribution list XML: %w", err)
 		}
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "DistributionSummary" {
 			var s DistributionSummary
@@ -333,9 +360,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, extraHeader
 	}
 	defer resp.Body.Close()
 
-	raw, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB limit
 	if err != nil {
 		return nil, "", fmt.Errorf("read response: %w", err)
+	}
+	if len(raw) >= 10<<20 {
+		return nil, "", fmt.Errorf("cloudfront response too large: %d bytes", len(raw))
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

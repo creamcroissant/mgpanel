@@ -7,14 +7,24 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/creamcroissant/xboard/internal/cache"
 	"github.com/creamcroissant/xboard/internal/repository"
 )
 
 type settingRepo struct {
-	db *sql.DB
+	db    *sql.DB
+	cache cache.Store
 }
 
 func (r *settingRepo) Get(ctx context.Context, key string) (*repository.Setting, error) {
+	if r.cache != nil {
+		if cached, ok := r.cache.Get(ctx, cacheKey(key)); ok {
+			if s, ok := cached.(repository.Setting); ok {
+				return &s, nil
+			}
+		}
+	}
+
 	const query = `SELECT key, value, category, updated_at FROM settings WHERE key = ?`
 	row := r.db.QueryRowContext(ctx, query, key)
 	var s repository.Setting
@@ -24,14 +34,28 @@ func (r *settingRepo) Get(ctx context.Context, key string) (*repository.Setting,
 		}
 		return nil, err
 	}
+
+	if r.cache != nil {
+		_ = r.cache.Set(ctx, cacheKey(key), s, 0)
+	}
 	return &s, nil
+}
+
+func cacheKey(key string) string {
+	return "setting:" + key
 }
 
 func (r *settingRepo) Upsert(ctx context.Context, setting *repository.Setting) error {
 	const stmt = `INSERT INTO settings(key, value, category, updated_at) VALUES(?, ?, ?, ?)
                   ON CONFLICT(key) DO UPDATE SET value = excluded.value, category = excluded.category, updated_at = excluded.updated_at`
 	_, err := r.db.ExecContext(ctx, stmt, setting.Key, setting.Value, setting.Category, setting.UpdatedAt)
-	return err
+	if err != nil {
+		return err
+	}
+	if r.cache != nil {
+		r.cache.Delete(ctx, cacheKey(setting.Key))
+	}
+	return nil
 }
 
 func (r *settingRepo) List(ctx context.Context) ([]repository.Setting, error) {

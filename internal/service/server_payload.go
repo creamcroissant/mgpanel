@@ -182,9 +182,9 @@ func asString(value any) string {
 	switch v := value.(type) {
 	case string:
 		return v
-	case fmt.Stringer:
-		return v.String()
 	case json.Number:
+		return v.String()
+	case fmt.Stringer:
 		return v.String()
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)

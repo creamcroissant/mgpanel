@@ -21,7 +21,6 @@ type Store struct {
 	subscriptionReasons    repository.SubscriptionFilterReasonRepository
 	users                  repository.UserRepository
 	settings               repository.SettingRepository
-	invites                repository.InviteCodeRepository
 	plugins                repository.PluginRepository
 	plans                  repository.PlanRepository
 	loginLogs              repository.LoginLogRepository
@@ -48,6 +47,7 @@ type Store struct {
 	accessLogs             repository.AccessLogRepository
 	inboundSpecs           repository.InboundSpecRepository
 	inboundSpecRevisions   repository.InboundSpecRevisionRepository
+	coreConfigItems        repository.CoreConfigItemRepository
 	desiredArtifacts       repository.DesiredArtifactRepository
 	applyRuns              repository.ApplyRunRepository
 	trafficReportDedups    repository.TrafficReportDedupRepository
@@ -57,9 +57,13 @@ type Store struct {
 	cdnSites               repository.CDNSiteRepository
 	cdnEdges               repository.CDNEdgeRepository
 	cdnCacheRules          repository.CDNCacheRuleRepository
+	cdnOriginLatencies     *cdnOriginLatencyRepo
 	cfZones                repository.CloudflareZoneRepository
 	cfDNSRecords           repository.CloudflareDNSRecordRepository
 	cfDists                repository.CloudFrontDistributionRepository
+	specHostBindings       repository.SpecHostBindingRepository
+	mcpApiKeys             *mcpApiKeyRepo
+	meshPeers              *agentMeshPeerRepo
 }
 
 // NewStore constructs a SQLite-backed repository store.
@@ -76,7 +80,6 @@ func NewStore(db *sql.DB) *Store {
 		subscriptionReasons:    newSubscriptionFilterReasonRepo(db),
 		users:                  &userRepo{db: db},
 		settings:               &settingRepo{db: db},
-		invites:                &inviteRepo{db: db},
 		plugins:                &pluginRepo{db: db},
 		plans:                  &planRepo{db: db},
 		loginLogs:              &loginLogRepo{db: db},
@@ -103,6 +106,7 @@ func NewStore(db *sql.DB) *Store {
 		accessLogs:             newAccessLogRepo(db),
 		inboundSpecs:           newInboundSpecRepo(db),
 		inboundSpecRevisions:   newInboundSpecRevisionRepo(db),
+		coreConfigItems:       newCoreConfigItemRepo(db),
 		desiredArtifacts:       newDesiredArtifactRepo(db),
 		applyRuns:              newApplyRunRepo(db),
 		trafficReportDedups:    newTrafficReportDedupRepo(db),
@@ -112,9 +116,13 @@ func NewStore(db *sql.DB) *Store {
 		cdnSites:               newCDNSiteRepo(db),
 		cdnEdges:               newCDNEdgeRepo(db),
 		cdnCacheRules:          newCDNCacheRuleRepo(db),
+		cdnOriginLatencies:     newCDNOriginLatencyRepo(db),
 		cfZones:                newCloudflareZoneRepo(db),
 		cfDNSRecords:           newCloudflareDNSRecordRepo(db),
 		cfDists:                newCloudfrontDistRepo(db),
+		specHostBindings:       newSpecHostBindingRepo(db),
+			mcpApiKeys:             newMCPApiKeyRepo(db),
+		meshPeers:              NewAgentMeshPeerRepository(db).(*agentMeshPeerRepo),
 	}
 }
 
@@ -158,9 +166,6 @@ func (s *Store) Settings() repository.SettingRepository {
 	return s.settings
 }
 
-func (s *Store) InviteCodes() repository.InviteCodeRepository {
-	return s.invites
-}
 
 func (s *Store) Plugins() repository.PluginRepository {
 	return s.plugins
@@ -266,6 +271,10 @@ func (s *Store) InboundSpecRevisions() repository.InboundSpecRevisionRepository 
 	return s.inboundSpecRevisions
 }
 
+func (s *Store) CoreConfigItems() repository.CoreConfigItemRepository {
+	return s.coreConfigItems
+}
+
 func (s *Store) DesiredArtifacts() repository.DesiredArtifactRepository {
 	return s.desiredArtifacts
 }
@@ -286,6 +295,10 @@ func (s *Store) InboundIndexes() repository.InboundIndexRepository {
 	return s.inboundIndexes
 }
 
+
+func (s *Store) SpecHostBindings() repository.SpecHostBindingRepository {
+	return s.specHostBindings
+}
 func (s *Store) DriftStates() repository.DriftStateRepository {
 	return s.driftStates
 }
@@ -306,10 +319,22 @@ func (s *Store) CloudflareZones() repository.CloudflareZoneRepository {
 	return s.cfZones
 }
 
+func (s *Store) CDNOriginLatencies() repository.CDNOriginLatencyRepository {
+	return s.cdnOriginLatencies
+}
+
 func (s *Store) CloudflareDNSRecords() repository.CloudflareDNSRecordRepository {
 	return s.cfDNSRecords
 }
 
 func (s *Store) CloudFrontDistributions() repository.CloudFrontDistributionRepository {
 	return s.cfDists
+}
+
+func (s *Store) MCPApiKeys() repository.MCPApiKeyRepository {
+	return s.mcpApiKeys
+}
+
+func (s *Store) AgentMeshPeers() repository.AgentMeshPeerRepository {
+	return s.meshPeers
 }

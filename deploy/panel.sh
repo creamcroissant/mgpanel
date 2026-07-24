@@ -537,6 +537,199 @@ set_file_mode() {
     run_privileged chmod "$mode_value" "$target_path"
 }
 
+commit_prepared_dir() {
+    cpd_src_dir=$1
+    cpd_target_dir=$2
+    cpd_backup_dir=$3
+
+    cpd_parent_dir=$(dirname "$cpd_target_dir")
+    cpd_had_backup=0
+
+    if [ ! -d "$cpd_src_dir" ]; then
+        echo "Error: prepared directory not found: ${cpd_src_dir}."
+        return 1
+    fi
+
+    if [ -z "$cpd_backup_dir" ]; then
+        echo "Error: backup directory path is required for ${cpd_target_dir}."
+        return 1
+    fi
+
+    if ! ensure_dir "$cpd_parent_dir"; then
+        return 1
+    fi
+
+    if [ -e "$cpd_target_dir" ]; then
+        if ! run_privileged mv "$cpd_target_dir" "$cpd_backup_dir"; then
+            echo "Error: failed to move existing ${cpd_target_dir} to backup."
+            return 1
+        fi
+        cpd_had_backup=1
+    fi
+
+    if ! run_privileged mv "$cpd_src_dir" "$cpd_target_dir"; then
+        echo "Error: failed to move prepared directory into ${cpd_target_dir}."
+        if [ "$cpd_had_backup" = "1" ]; then
+            run_privileged rm -rf "$cpd_target_dir" >/dev/null 2>&1 || true
+            if ! run_privileged mv "$cpd_backup_dir" "$cpd_target_dir"; then
+                echo "Error: failed to restore backup directory ${cpd_backup_dir}."
+            fi
+        fi
+        return 1
+    fi
+
+    return 0
+}
+
+commit_prepared_file() {
+    cpf_src_path=$1
+    cpf_target_path=$2
+    cpf_backup_path=$3
+    cpf_mode_value=${4:-}
+
+    cpf_parent_dir=$(dirname "$cpf_target_path")
+    cpf_base_name=$(basename "$cpf_target_path")
+    cpf_next_path="${cpf_parent_dir}/.${cpf_base_name}.new.$$"
+    cpf_had_backup=0
+
+    if [ ! -f "$cpf_src_path" ]; then
+        echo "Error: prepared file not found: ${cpf_src_path}."
+        return 1
+    fi
+
+    if [ -z "$cpf_backup_path" ]; then
+        echo "Error: backup file path is required for ${cpf_target_path}."
+        return 1
+    fi
+
+    if ! ensure_dir "$cpf_parent_dir"; then
+        return 1
+    fi
+
+    rm -f "$cpf_next_path" 2>/dev/null || run_privileged rm -f "$cpf_next_path" 2>/dev/null || true
+    if ! run_privileged cp "$cpf_src_path" "$cpf_next_path"; then
+        echo "Error: failed to copy prepared file into ${cpf_next_path}."
+        run_privileged rm -f "$cpf_next_path" >/dev/null 2>&1 || true
+        return 1
+    fi
+
+    if [ -n "$cpf_mode_value" ]; then
+        if ! chmod "$cpf_mode_value" "$cpf_next_path" >/dev/null 2>&1; then
+            if ! run_privileged chmod "$cpf_mode_value" "$cpf_next_path"; then
+                echo "Error: failed to set file mode on ${cpf_next_path}."
+                run_privileged rm -f "$cpf_next_path" >/dev/null 2>&1 || true
+                return 1
+            fi
+        fi
+    fi
+
+    if [ -e "$cpf_target_path" ]; then
+        if ! run_privileged mv "$cpf_target_path" "$cpf_backup_path"; then
+            echo "Error: failed to move existing ${cpf_target_path} to backup."
+            run_privileged rm -f "$cpf_next_path" >/dev/null 2>&1 || true
+            return 1
+        fi
+        cpf_had_backup=1
+    fi
+
+    if ! run_privileged mv "$cpf_next_path" "$cpf_target_path"; then
+        echo "Error: failed to move prepared file into ${cpf_target_path}."
+        if [ "$cpf_had_backup" = "1" ]; then
+            run_privileged rm -f "$cpf_target_path" >/dev/null 2>&1 || true
+            if ! run_privileged mv "$cpf_backup_path" "$cpf_target_path"; then
+                echo "Error: failed to restore backup file ${cpf_backup_path}."
+            fi
+        fi
+        run_privileged rm -f "$cpf_next_path" >/dev/null 2>&1 || true
+        return 1
+    fi
+
+    return 0
+}
+
+restore_committed_dir() {
+    rcd_target_dir=$1
+    rcd_backup_dir=$2
+    rcd_had_backup=$3
+    rcd_label=$4
+
+    if [ "$rcd_had_backup" = "1" ]; then
+        run_privileged rm -rf "$rcd_target_dir" >/dev/null 2>&1 || true
+        if ! run_privileged mv "$rcd_backup_dir" "$rcd_target_dir"; then
+            echo "Error: failed to restore ${rcd_label} backup ${rcd_backup_dir}."
+            return 1
+        fi
+        return 0
+    fi
+
+    run_privileged rm -rf "$rcd_target_dir" >/dev/null 2>&1 || true
+    return 0
+}
+
+restore_committed_file() {
+    rcf_target_path=$1
+    rcf_backup_path=$2
+    rcf_had_backup=$3
+    rcf_label=$4
+
+    if [ "$rcf_had_backup" = "1" ]; then
+        run_privileged rm -f "$rcf_target_path" >/dev/null 2>&1 || true
+        if ! run_privileged mv "$rcf_backup_path" "$rcf_target_path"; then
+            echo "Error: failed to restore ${rcf_label} backup ${rcf_backup_path}."
+            return 1
+        fi
+        return 0
+    fi
+
+    run_privileged rm -f "$rcf_target_path" >/dev/null 2>&1 || true
+    return 0
+}
+
+rollback_panel_release_commit() {
+    rpr_failed=0
+
+    if [ "${panel_binary_committed:-0}" = "1" ]; then
+        if ! restore_committed_file "$panel_binary_target" "$panel_binary_backup" "$panel_binary_had_existing" "panel binary"; then
+            rpr_failed=1
+        fi
+        panel_binary_committed=0
+    fi
+
+    if [ "${panel_install_ui_committed:-0}" = "1" ]; then
+        if ! restore_committed_dir "$panel_install_ui_target" "$panel_install_ui_backup" "$panel_install_ui_had_existing" "install UI assets"; then
+            rpr_failed=1
+        fi
+        panel_install_ui_committed=0
+    fi
+
+    if [ "${panel_frontend_committed:-0}" = "1" ]; then
+        if ! restore_committed_dir "$panel_frontend_target" "$panel_frontend_backup" "$panel_frontend_had_existing" "frontend assets"; then
+            rpr_failed=1
+        fi
+        panel_frontend_committed=0
+    fi
+
+    if [ "$rpr_failed" = "1" ]; then
+        echo "Error: one or more panel release rollback steps failed."
+        return 1
+    fi
+    return 0
+}
+
+cleanup_panel_release_backups() {
+    if [ "${panel_binary_had_existing:-0}" = "1" ] && [ -n "${panel_binary_backup:-}" ]; then
+        run_privileged rm -f "$panel_binary_backup" >/dev/null 2>&1 || true
+    fi
+
+    if [ "${panel_install_ui_had_existing:-0}" = "1" ] && [ -n "${panel_install_ui_backup:-}" ]; then
+        run_privileged rm -rf "$panel_install_ui_backup" >/dev/null 2>&1 || true
+    fi
+
+    if [ "${panel_frontend_had_existing:-0}" = "1" ] && [ -n "${panel_frontend_backup:-}" ]; then
+        run_privileged rm -rf "$panel_frontend_backup" >/dev/null 2>&1 || true
+    fi
+}
+
 install_executable_file() {
     src_path=$1
     dst_path=$2
@@ -736,6 +929,11 @@ EOF
         return 1
     fi
 
+    if ! run_privileged "$OPENRC_SERVICE_CMD" "$service_name" start; then
+        echo "Error: failed to start OpenRC service ${service_name}."
+        return 1
+    fi
+
     echo "${service_name} OpenRC service installed."
     return 0
 }
@@ -877,7 +1075,12 @@ install_release_archive_dir() {
         return 1
     fi
 
-    run_privileged rm -rf "$target_dir"
+    if ! run_privileged rm -rf "$target_dir"; then
+        echo "Error: failed to clear target directory ${target_dir}."
+        rm -f "$archive_tmp_asset"
+        rm -rf "$archive_tmp_extract"
+        return 1
+    fi
     if ! run_privileged mv "$extracted_path" "$target_dir"; then
         echo "Error: failed to install extracted directory ${target_dir}."
         rm -f "$archive_tmp_asset"
@@ -1163,31 +1366,139 @@ if ! ensure_download_dependencies; then
     fail_stage "dependency check failed"
 fi
 
-set_stage "install panel binary"
-# Remove old dist before installing new binary so that if the frontend
-# step fails later, we don't serve mismatched HTML that references
-# missing chunks (which causes "MIME type text/html" browser errors).
-run_privileged rm -rf "$INSTALL_DIR/web/user-vite/dist" 2>/dev/null || true
-run_privileged rm -rf "$INSTALL_DIR/web/install" 2>/dev/null || true
-if ! install_binary "xboard" "./cmd/xboard/main.go"; then
-    fail_stage "panel binary installation failed"
+PREPARED_RELEASE_DIR=$(mktemp -d)
+if [ -z "$PREPARED_RELEASE_DIR" ]; then
+    fail_stage "cannot create temporary release staging directory"
 fi
+
+cleanup_prepared_release_dir() {
+    if [ -n "${PREPARED_RELEASE_DIR:-}" ]; then
+        rm -rf "$PREPARED_RELEASE_DIR"
+    fi
+}
+
+panel_install_cleanup_on_exit() {
+    cleanup_status=$?
+    if [ "$cleanup_status" -ne 0 ]; then
+        rollback_panel_release_commit || true
+    fi
+    cleanup_prepared_release_dir
+}
+
+panel_install_handle_signal() {
+    trap - 2 15
+    exit 130
+}
+
+trap panel_install_cleanup_on_exit 0
+trap panel_install_handle_signal 2 15
+
+set_stage "prepare release assets"
+prepared_binary_name="xboard"
+if [ "$OS" = "windows" ]; then
+    prepared_binary_name="xboard.exe"
+    prepared_binary_asset="xboard-${OS}-${ARCH}.exe"
+else
+    prepared_binary_asset="xboard-${OS}-${ARCH}"
+fi
+prepared_binary_path="$PREPARED_RELEASE_DIR/$prepared_binary_name"
+
+# Download all release assets in parallel (binary, frontend, install-ui)
+(
+    install_release_asset "$prepared_binary_asset" "$prepared_binary_path" || exit 1
+    set_file_mode +x "$prepared_binary_path" || exit 1
+) & BINARY_PID=$!
+
+(
+    install_release_archive_dir "$FRONTEND_RELEASE_ASSET" "$PREPARED_RELEASE_DIR/web/user-vite" "dist" "$PREPARED_RELEASE_DIR/web/user-vite/dist" || exit 1
+) & FRONTEND_PID=$!
+
+(
+    install_release_archive_dir "$INSTALL_UI_RELEASE_ASSET" "$PREPARED_RELEASE_DIR/web" "install" "$PREPARED_RELEASE_DIR/web/install" || exit 1
+) & INSTALL_PID=$!
+
+# Wait for all downloads to complete and check results
+if ! wait $BINARY_PID; then
+    cleanup_prepared_release_dir
+    fail_stage "panel binary download failed"
+fi
+if ! wait $FRONTEND_PID; then
+    cleanup_prepared_release_dir
+    fail_stage "frontend asset preparation failed"
+fi
+if ! wait $INSTALL_PID; then
+    cleanup_prepared_release_dir
+    fail_stage "install UI asset preparation failed"
+fi
+
+if [ ! -f "$PREPARED_RELEASE_DIR/web/user-vite/dist/index.html" ]; then
+    echo "Error: required index.html not found in ${FRONTEND_RELEASE_ASSET}."
+    cleanup_prepared_release_dir
+    fail_stage "frontend asset validation failed"
+fi
+if [ ! -f "$PREPARED_RELEASE_DIR/web/install/index.html" ]; then
+    echo "Error: required index.html not found in ${INSTALL_UI_RELEASE_ASSET}."
+    cleanup_prepared_release_dir
+    fail_stage "install UI asset validation failed"
+fi
+
+panel_frontend_target="$INSTALL_DIR/web/user-vite/dist"
+panel_frontend_parent=$(dirname "$panel_frontend_target")
+panel_frontend_base=$(basename "$panel_frontend_target")
+panel_frontend_backup="${panel_frontend_parent}/.${panel_frontend_base}.bak.$$"
+panel_frontend_had_existing=0
+if [ -e "$panel_frontend_target" ]; then
+    panel_frontend_had_existing=1
+fi
+panel_frontend_committed=0
+
+panel_install_ui_target="$INSTALL_DIR/web/install"
+panel_install_ui_parent=$(dirname "$panel_install_ui_target")
+panel_install_ui_base=$(basename "$panel_install_ui_target")
+panel_install_ui_backup="${panel_install_ui_parent}/.${panel_install_ui_base}.bak.$$"
+panel_install_ui_had_existing=0
+if [ -e "$panel_install_ui_target" ]; then
+    panel_install_ui_had_existing=1
+fi
+panel_install_ui_committed=0
+
+panel_binary_target="$INSTALL_DIR/$prepared_binary_name"
+panel_binary_parent=$(dirname "$panel_binary_target")
+panel_binary_base=$(basename "$panel_binary_target")
+panel_binary_backup="${panel_binary_parent}/.${panel_binary_base}.bak.$$"
+panel_binary_had_existing=0
+if [ -e "$panel_binary_target" ]; then
+    panel_binary_had_existing=1
+fi
+panel_binary_committed=0
 
 set_stage "install frontend assets"
-if ! install_release_archive_dir "$FRONTEND_RELEASE_ASSET" "$INSTALL_DIR/web/user-vite" "dist" "$INSTALL_DIR/web/user-vite/dist"; then
-    echo "Error: failed to install frontend assets from GitHub release asset."
+if ! commit_prepared_dir "$PREPARED_RELEASE_DIR/web/user-vite/dist" "$panel_frontend_target" "$panel_frontend_backup"; then
+    cleanup_prepared_release_dir
     fail_stage "frontend asset installation failed"
 fi
-if [ ! -f "$INSTALL_DIR/web/user-vite/dist/index.html" ]; then
-    echo "Error: frontend dist installed but index.html missing — rebuild may be incomplete."
-    fail_stage "frontend asset verification failed"
-fi
+panel_frontend_committed=1
+echo "Installed ${FRONTEND_RELEASE_ASSET} into $panel_frontend_target"
 
 set_stage "install setup UI assets"
-if ! install_release_archive_dir "$INSTALL_UI_RELEASE_ASSET" "$INSTALL_DIR/web" "install" "$INSTALL_DIR/web/install"; then
-    echo "Error: failed to install install UI assets from GitHub release asset."
+if ! commit_prepared_dir "$PREPARED_RELEASE_DIR/web/install" "$panel_install_ui_target" "$panel_install_ui_backup"; then
+    rollback_panel_release_commit || true
+    cleanup_prepared_release_dir
     fail_stage "install UI asset installation failed"
 fi
+panel_install_ui_committed=1
+echo "Installed ${INSTALL_UI_RELEASE_ASSET} into $panel_install_ui_target"
+
+set_stage "install panel binary"
+if ! commit_prepared_file "$prepared_binary_path" "$panel_binary_target" "$panel_binary_backup" +x; then
+    rollback_panel_release_commit || true
+    cleanup_prepared_release_dir
+    fail_stage "panel binary installation failed"
+fi
+panel_binary_committed=1
+cleanup_panel_release_backups
+cleanup_prepared_release_dir
+trap - 0 2 15
 
 set_stage "write panel config"
 if [ ! -f "$INSTALL_DIR/config.yml" ] && [ ! -f "$INSTALL_DIR/.env" ]; then
@@ -1237,6 +1548,10 @@ elif is_systemd_available; then
         if ! run_privileged systemctl enable xboard; then
             echo "Error: failed to enable xboard service."
             fail_stage "systemd service enable failed"
+        fi
+        if ! run_privileged systemctl start xboard; then
+            echo "Error: failed to start xboard service."
+            fail_stage "systemd service start failed"
         fi
         echo "xboard.service installed."
     else

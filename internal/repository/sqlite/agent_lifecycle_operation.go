@@ -164,9 +164,13 @@ func (r *agentLifecycleOperationRepo) Count(ctx context.Context, filter reposito
 	return total, err
 }
 
-func (r *agentLifecycleOperationRepo) ClaimNext(ctx context.Context, agentHostID int64, statuses []string, claimedBy string, claimedAt int64, reclaimBefore *int64, limit int) ([]*repository.AgentLifecycleOperation, error) {
+func (r *agentLifecycleOperationRepo) ClaimNext(ctx context.Context, agentHostID int64, statuses []string, operationTypes []string, claimedBy string, claimedAt int64, reclaimBefore *int64, limit int) ([]*repository.AgentLifecycleOperation, error) {
 	if limit <= 0 {
 		limit = 1
+	}
+	operationTypes = normalizeClaimableLifecycleOperationTypes(operationTypes)
+	if len(operationTypes) == 0 {
+		return nil, repository.ErrNotFound
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -184,6 +188,7 @@ func (r *agentLifecycleOperationRepo) ClaimNext(ctx context.Context, agentHostID
 		WHERE agent_host_id = ?
 	`)
 	args = append(args, agentHostID)
+	appendClaimableLifecycleOperationTypes(&query, &args, operationTypes)
 	appendClaimableLifecycleStatuses(&query, &args, statuses, reclaimBefore)
 	query.WriteString(" ORDER BY created_at ASC, id ASC LIMIT ?")
 	args = append(args, limit)
@@ -192,17 +197,14 @@ func (r *agentLifecycleOperationRepo) ClaimNext(ctx context.Context, agentHostID
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	candidates := make([]lifecycleClaimCandidate, 0, limit)
 	for rows.Next() {
 		var candidate lifecycleClaimCandidate
 		if err := rows.Scan(&candidate.id, &candidate.status, &candidate.claimedAt); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		candidates = append(candidates, candidate)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -248,6 +250,35 @@ type lifecycleClaimCandidate struct {
 	id        string
 	status    string
 	claimedAt sql.NullInt64
+}
+
+func normalizeClaimableLifecycleOperationTypes(operationTypes []string) []string {
+	seen := make(map[string]struct{}, len(operationTypes))
+	out := make([]string, 0, len(operationTypes))
+	for _, operationType := range operationTypes {
+		operationType = strings.TrimSpace(operationType)
+		if operationType == "" {
+			continue
+		}
+		if _, ok := seen[operationType]; ok {
+			continue
+		}
+		seen[operationType] = struct{}{}
+		out = append(out, operationType)
+	}
+	return out
+}
+
+func appendClaimableLifecycleOperationTypes(query *strings.Builder, args *[]any, operationTypes []string) {
+	query.WriteString(" AND operation_type IN (")
+	for idx, operationType := range operationTypes {
+		if idx > 0 {
+			query.WriteString(",")
+		}
+		query.WriteString("?")
+		*args = append(*args, operationType)
+	}
+	query.WriteString(")")
 }
 
 func appendClaimableLifecycleStatuses(query *strings.Builder, args *[]any, statuses []string, reclaimBefore *int64) {

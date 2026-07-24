@@ -235,6 +235,8 @@ func dnsRecordType(originType string) string {
 // For "cdn.example.com" it returns "example.com".
 // This is a simple heuristic; a production implementation should use the
 // Public Suffix List.
+// TODO: use github.com/weppos/publicsuffix-go/publicsuffix for proper
+// apex domain extraction instead of the simple heuristic below.
 func apexDomain(domain string) string {
 	// Find the last two dot-separated parts.
 	dotCount := 0

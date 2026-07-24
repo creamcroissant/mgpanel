@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"text/tabwriter"
@@ -25,10 +26,11 @@ func init() {
 		Use:   "overview",
 		Short: "Show overall system statistics",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runStatOverview(store)
 		},
 	}
@@ -41,10 +43,11 @@ func init() {
 		Short: "Show traffic statistics for a user",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			userID, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid user ID: %w", err)
@@ -62,10 +65,11 @@ func init() {
 		Use:   "top",
 		Short: "Show top users by traffic usage",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runStatTop(store, topLimit, topDays)
 		},
 	}
@@ -79,10 +83,11 @@ func init() {
 		Use:   "traffic",
 		Short: "Show total traffic statistics",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runStatTraffic(store, trafficDays)
 		},
 	}
@@ -204,7 +209,9 @@ func runStatUser(store *sqlite.Store, userID int64, days int) error {
 		totalUp += r.Upload
 		totalDown += r.Download
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		slog.Warn("failed to flush stat output", "error", err)
+	}
 
 	fmt.Println("----------------------------------------")
 	fmt.Printf("Period Total: ↑%s ↓%s = %s\n",
@@ -269,7 +276,9 @@ func runStatTop(store *sqlite.Store, limit, days int) error {
 			formatBytes(u.Upload+u.Download),
 		)
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		slog.Warn("failed to flush stat output", "error", err)
+	}
 
 	return nil
 }

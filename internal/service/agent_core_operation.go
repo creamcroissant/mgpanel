@@ -35,7 +35,6 @@ const (
 	coreOperationStatusRolledBack = "rolled_back"
 )
 
-const coreOperationClaimTimeout = 2 * time.Minute
 
 type CoreOperationService interface {
 	Create(ctx context.Context, req CreateCoreOperationRequest) (*repository.CoreOperation, error)

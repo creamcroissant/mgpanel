@@ -128,7 +128,13 @@ func (h *AdminCDNHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		Enabled:          req.Enabled,
 	})
 	if err != nil {
-		RespondErrorI18nAction(r.Context(), w, http.StatusInternalServerError, "admin.cdn.sites.create", "error.internal_server_error", h.i18n)
+		status := http.StatusInternalServerError
+		key := "error.internal_server_error"
+		if errors.Is(err, service.ErrCDNSiteInvalid) {
+			status = http.StatusBadRequest
+			key = "error.bad_request"
+		}
+		RespondErrorI18nAction(r.Context(), w, status, "admin.cdn.sites.create", key, h.i18n)
 		return
 	}
 
@@ -187,7 +193,10 @@ func (h *AdminCDNHandler) UpdateSite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		key := "error.internal_server_error"
-		if errors.Is(err, service.ErrNotFound) {
+		if errors.Is(err, service.ErrCDNSiteInvalid) {
+			status = http.StatusBadRequest
+			key = "error.bad_request"
+		} else if errors.Is(err, service.ErrNotFound) {
 			status = http.StatusNotFound
 			key = "error.not_found"
 		}

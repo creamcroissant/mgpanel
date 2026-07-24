@@ -19,7 +19,6 @@ import (
 type PassportHandler struct {
 	auth     service.AuthService
 	verify   service.VerificationService
-	invite   service.InviteService
 	passwd   service.PasswordService
 	register service.RegistrationService
 	mailLink service.MailLinkService
@@ -27,8 +26,8 @@ type PassportHandler struct {
 	i18n     *i18n.Manager
 }
 
-func NewPassportHandler(auth service.AuthService, verify service.VerificationService, invite service.InviteService, passwd service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18n *i18n.Manager) *PassportHandler {
-	return &PassportHandler{auth: auth, verify: verify, invite: invite, passwd: passwd, register: register, mailLink: mailLink, comm: comm, i18n: i18n}
+func NewPassportHandler(auth service.AuthService, verify service.VerificationService, passwd service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18n *i18n.Manager) *PassportHandler {
+	return &PassportHandler{auth: auth, verify: verify, passwd: passwd, register: register, mailLink: mailLink, comm: comm, i18n: i18n}
 }
 
 func (h *PassportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +54,6 @@ func (h *PassportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "/comm/sendEmailVerify") && r.Method == http.MethodPost:
 		h.handleSendEmailVerify(w, r)
 	case strings.HasPrefix(path, "/comm/pv") && r.Method == http.MethodPost:
-		h.handleInvitePV(w, r)
 	default:
 		respondNotImplemented(w, "passport", r)
 	}
@@ -83,7 +81,6 @@ type registerRequest struct {
 	Email      string `json:"email"`
 	Username   string `json:"username"`
 	Password   string `json:"password"`
-	InviteCode string `json:"invite_code"`
 	EmailCode  string `json:"email_code"`
 }
 
@@ -102,10 +99,6 @@ type emailVerifyRequest struct {
 	TurnstileToken   string `json:"turnstile_token"`
 	RecaptchaToken   string `json:"recaptcha_data"`
 	RecaptchaV3Token string `json:"recaptcha_v3_token"`
-}
-
-type invitePVRequest struct {
-	InviteCode string `json:"invite_code"`
 }
 
 func (h *PassportHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +159,6 @@ func (h *PassportHandler) handleRegister(w http.ResponseWriter, r *http.Request)
 		Email:      payload.Email,
 		Username:   payload.Username,
 		Password:   payload.Password,
-		InviteCode: payload.InviteCode,
 		EmailCode:  payload.EmailCode,
 		IP:         clientIP(r),
 	})
@@ -180,10 +172,6 @@ func (h *PassportHandler) handleRegister(w http.ResponseWriter, r *http.Request)
 			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_password", h.i18n)
 		case errors.Is(err, service.ErrInvalidVerificationCode):
 			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_verification_code", h.i18n)
-		case errors.Is(err, service.ErrInvalidInviteCode):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_invite_code", h.i18n)
-		case errors.Is(err, service.ErrInviteRequired):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invite_required", h.i18n)
 		case errors.Is(err, service.ErrEmailDomainNotAllowed):
 			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.email_domain_not_allowed", h.i18n)
 		case errors.Is(err, service.ErrIdentifierRequired):
@@ -455,20 +443,6 @@ func (h *PassportHandler) handleCommConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	respondJSON(w, http.StatusOK, cfg)
-}
-
-func (h *PassportHandler) handleInvitePV(w http.ResponseWriter, r *http.Request) {
-	if h.invite == nil {
-		RespondErrorI18n(r.Context(), w, http.StatusServiceUnavailable, "error.service_unavailable", h.i18n)
-		return
-	}
-	var payload invitePVRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.bad_request", h.i18n)
-		return
-	}
-	_ = h.invite.TrackVisit(r.Context(), payload.InviteCode)
-	respondJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }
 
 func passportActionPath(fullPath string) string {

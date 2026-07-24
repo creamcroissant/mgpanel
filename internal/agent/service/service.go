@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +26,8 @@ import (
 	"github.com/creamcroissant/xboard/internal/agent/forwarding"
 	agentgrpc "github.com/creamcroissant/xboard/internal/agent/grpc"
 	"github.com/creamcroissant/xboard/internal/agent/initsys"
+	"github.com/creamcroissant/xboard/internal/agent/loguploader"
+	"github.com/creamcroissant/xboard/internal/agent/mesh"
 	"github.com/creamcroissant/xboard/internal/agent/monitor"
 	"github.com/creamcroissant/xboard/internal/agent/protocol"
 	"github.com/creamcroissant/xboard/internal/agent/protocol/subscribe"
@@ -58,7 +62,11 @@ type Agent struct {
 	subParse        *subscribe.Parser    // Subscribe directory parser
 	capDet          *capability.Detector // Capability detector
 
-	cdnManager *cdn.Manager // CDN / Caddy manager
+	cdnManager  *cdn.Manager  // CDN / Caddy manager
+	meshManager *mesh.Manager // WireGuard mesh network manager
+	meshProber  *MeshProber   // Mesh peer latency prober
+
+	logUploader *loguploader.Uploader // Periodic log uploader
 
 	batchApplier              applyBatchRunner
 	inventoryScanner          *configcenter.AgentInventoryScanner
@@ -66,11 +74,14 @@ type Agent struct {
 	syncInFlight              atomic.Bool
 	batchSyncInFlight         atomic.Bool
 	coreOperationSyncInFlight atomic.Bool
+	stateChangeInFlight       atomic.Bool
 
 	configETag     string
 	usersETag      string
 	userEmailMu    sync.RWMutex
 	userIDByEmail  map[string]int64
+	reportMu       sync.Mutex
+	capsMu         sync.RWMutex
 	cachedCaps     *capability.DetectedCapabilities // Cached capabilities
 	capsDetectedAt int64                            // Last capability detection time
 
@@ -78,6 +89,28 @@ type Agent struct {
 	currentSyncInterval   atomic.Int32
 	currentReportInterval atomic.Int32
 	updateTickerCh        chan struct{}
+
+	serverWg sync.WaitGroup
+
+	// forwardWg waits for the forwarding sync goroutine during shutdown.
+	forwardWg sync.WaitGroup
+
+	// onStateChangeWg waits for OnStateChange goroutines during shutdown.
+	onStateChangeWg sync.WaitGroup
+
+	cdnProbeInFlight atomic.Bool
+	cdnProbeWg       sync.WaitGroup
+	watchdogWg       sync.WaitGroup
+
+	cdnProbeResults   []*agentv1.OriginLatencyEntry
+	cdnProbeResultsMu sync.Mutex
+
+	// ctx is the agent's main lifecycle context, set in Run().
+	ctx context.Context
+
+	configFilePath    string
+	configFileContent string
+	configFileMu      sync.RWMutex
 }
 
 type applyBatchRunner interface {
@@ -145,6 +178,53 @@ func New(cfg *config.Config) (*Agent, error) {
 	}
 	protoMgr := protocol.NewManager(protoCfg, initSys)
 
+	// Initialize WireGuard mesh manager
+	var meshMgr *mesh.Manager
+	if cfg.Mesh.Enabled {
+		meshDir := cfg.Mesh.ConfigDir
+		if meshDir == "" {
+			meshDir = filepath.Join(cfg.Core.CoreInstallDir, "..", "mesh")
+			meshDir = filepath.Clean(meshDir)
+		}
+		listenPort := cfg.Mesh.ListenPort
+		if listenPort <= 0 {
+			listenPort = 51820
+		}
+		wgBinary := cfg.Mesh.WgBinary
+		if wgBinary == "" {
+			wgBinary = "wg"
+		}
+		networkCIDR := cfg.Mesh.NetworkCIDR
+		if networkCIDR == "" {
+			networkCIDR = "10.144.0.0/24"
+		}
+		meshMgr = mesh.NewManager(mesh.Config{
+			ConfigDir:     meshDir,
+			InterfaceName: "wgmesh0",
+			ListenPort:    listenPort,
+			WgBinary:      wgBinary,
+			NetworkCIDR:   networkCIDR,
+		}, slog.Default())
+	}
+
+	// Initialize mesh peer latency prober
+	var meshProber *MeshProber
+	if meshMgr != nil {
+		probeInterval := time.Duration(cfg.Mesh.Probe.Interval) * time.Second
+		if probeInterval <= 0 {
+			probeInterval = 30 * time.Second
+		}
+		probeTimeout := time.Duration(cfg.Mesh.Probe.Timeout) * time.Second
+		if probeTimeout <= 0 {
+			probeTimeout = 5 * time.Second
+		}
+		windowSize := cfg.Mesh.Probe.WindowSize
+		if windowSize <= 0 {
+			windowSize = 10
+		}
+		meshProber = NewMeshProber(meshMgr, probeInterval, probeTimeout, windowSize, slog.Default())
+	}
+
 	capDet := capability.NewDetector(cfg.Core.SingBoxBinaryPath, cfg.Core.XrayBinaryPath)
 	coreMgr := core.NewManager()
 	coreMgr.Register(core.NewSingBoxCore(initSysSingBox, capDet, cfg.Protocol.ServiceName, cfg.Protocol.ConfigDir))
@@ -198,18 +278,20 @@ func New(cfg *config.Config) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		cfg:      cfg,
-		syncer:   syncer.New(cfg.Core),
-		monitor:  monitor.New(),
-		traffic:  tCollector,
-		netio:    netioCollector,
-		protoMgr: protoMgr,
-		coreMgr:  coreMgr,
-		switcher: switcher,
-		server:   srv,
-		subParse: subscribe.NewParser(cfg.Protocol.SubscribeDir),
-		capDet:   capDet,
-		updater:  agentUpdater,
+		cfg:         cfg,
+		syncer:      syncer.New(cfg.Core),
+		monitor:     monitor.New(),
+		traffic:     tCollector,
+		netio:       netioCollector,
+		protoMgr:    protoMgr,
+		coreMgr:     coreMgr,
+		switcher:    switcher,
+		server:      srv,
+		subParse:    subscribe.NewParser(cfg.Protocol.SubscribeDir),
+		capDet:      capDet,
+		updater:     agentUpdater,
+		meshProber:  meshProber,
+		meshManager: meshMgr,
 
 		userIDByEmail:  make(map[string]int64),
 		updateTickerCh: make(chan struct{}, 1),
@@ -277,16 +359,44 @@ func New(cfg *config.Config) (*Agent, error) {
 		slog.Info("CDN management enabled", "bin_path", cfg.CDN.BinPath, "config_dir", cfg.CDN.ConfigDir)
 	}
 	agent.conn = transport.NewConnectionManager(grpcClient, slog.Default())
+
+	// Initialize log uploader
+	if cfg.Log.Upload.Enabled {
+		agent.logUploader = loguploader.NewUploader(
+			agent.grpc,
+			cfg.Log.Dir,
+			loguploader.LogUploadConfig{
+				Enabled:         cfg.Log.Upload.Enabled,
+				MaxLines:        cfg.Log.Upload.MaxLines,
+				IntervalSeconds: cfg.Log.Upload.IntervalSeconds,
+				Source:          cfg.Log.Upload.Source,
+			},
+			slog.Default(),
+		)
+		agent.logUploader.Start()
+	}
+
 	agent.conn.SetOnStateChange(func(state transport.ConnectionState) {
 		slog.Info("grpc connection state changed", "state", state.String())
 		if state == transport.StateConnected {
-			// Trigger immediate sync and report when connected
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-				defer cancel()
-				agent.sync(ctx)
-				agent.report(ctx)
-			}()
+			if agent.stateChangeInFlight.CompareAndSwap(false, true) {
+				agent.onStateChangeWg.Add(1)
+				go func() {
+					defer agent.onStateChangeWg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("agent: OnStateChange goroutine panicked",
+								"panic", r,
+								"stack", string(debug.Stack()))
+						}
+						agent.stateChangeInFlight.Store(false)
+					}()
+					ctx, cancel := context.WithTimeout(agent.ctx, 1*time.Minute)
+					defer cancel()
+					agent.sync(ctx)
+					agent.report(ctx)
+				}()
+			}
 		}
 	})
 	if agent.cfg.Forwarding.Enabled {
@@ -314,10 +424,27 @@ func New(cfg *config.Config) (*Agent, error) {
 		return nil, err
 	}
 
+	if agent.commandQueue != nil {
+		if err := agent.registerRoutingTableHandler(); err != nil {
+			return nil, fmt.Errorf("register routing table handler: %w", err)
+		}
+	}
+
+	if err := agent.registerResetLinksHandler(); err != nil {
+		return nil, fmt.Errorf("register reset links handler: %w", err)
+	}
+	if err := agent.registerReportConfigHandler(); err != nil {
+		return nil, fmt.Errorf("register report config handler: %w", err)
+	}
+
+	// ctx will be set in Run() with the agent lifecycle context
+
 	return agent, nil
 }
 
 func (a *Agent) Run(ctx context.Context) {
+	a.ctx = ctx
+
 	// Determine mode
 	mode := "agent-host"
 
@@ -334,7 +461,9 @@ func (a *Agent) Run(ctx context.Context) {
 
 	// Start Agent gRPC server if enabled
 	if a.grpcServer != nil {
+		a.serverWg.Add(1)
 		go func() {
+			defer a.serverWg.Done()
 			if err := a.grpcServer.Start(); err != nil {
 				slog.Error("Agent gRPC server error", "error", err)
 			}
@@ -344,7 +473,9 @@ func (a *Agent) Run(ctx context.Context) {
 
 	// Start HTTP server if enabled
 	if a.server != nil {
+		a.serverWg.Add(1)
 		go func() {
+			defer a.serverWg.Done()
 			if err := a.server.Start(); err != nil {
 				slog.Error("HTTP server error", "error", err)
 			}
@@ -354,7 +485,11 @@ func (a *Agent) Run(ctx context.Context) {
 
 	// Start forwarding sync if enabled
 	if a.forward != nil {
-		go a.forward.Run(ctx)
+		a.forwardWg.Add(1)
+		go func() {
+			defer a.forwardWg.Done()
+			a.forward.Run(ctx)
+		}()
 	}
 
 	// Start access log collector
@@ -367,6 +502,18 @@ func (a *Agent) Run(ctx context.Context) {
 		if err := a.cdnManager.Start(ctx); err != nil {
 			slog.Warn("failed to start caddy", "error", err)
 		}
+	}
+
+	// Start WireGuard mesh interface
+	if a.meshManager != nil {
+		if err := a.meshManager.Start(ctx); err != nil {
+			slog.Warn("mesh: failed to start WireGuard interface", "error", err)
+		}
+	}
+
+	// Start mesh peer latency prober
+	if a.meshProber != nil {
+		a.meshProber.Start(ctx)
 	}
 
 	if a.commandQueue != nil {
@@ -385,21 +532,34 @@ func (a *Agent) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			if a.logUploader != nil {
+				a.logUploader.Stop()
+			}
 			slog.Info("Agent stopping...")
+			if a.grpcServer != nil {
+				a.grpcServer.Stop()
+			}
 			if a.server != nil {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				a.server.Shutdown(shutdownCtx)
 				cancel()
 			}
+			a.serverWg.Wait()
 			// passive gRPC server retired
+			a.forwardWg.Wait()
+			a.onStateChangeWg.Wait()
+			a.cdnProbeWg.Wait()
+			// Stop commandQueue first so watchdog goroutines can exit immediately
+			// via the Stopped() channel instead of waiting for the 2-minute timer.
 			if a.commandQueue != nil {
 				a.commandQueue.Stop()
 			}
-			if a.grpc != nil {
-				a.grpc.Close()
-			}
+			a.watchdogWg.Wait()
 			if a.access != nil {
 				a.access.Stop()
+			}
+			if a.grpc != nil {
+				a.grpc.Close()
 			}
 			if a.cdnManager != nil {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -411,6 +571,18 @@ func (a *Agent) Run(ctx context.Context) {
 				_ = a.switcher.Shutdown(shutdownCtx)
 				cancel()
 			}
+			// Stop mesh services
+			if a.meshProber != nil {
+				a.meshProber.Stop()
+			}
+			// Stop WireGuard mesh interface
+			if a.meshManager != nil {
+				stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				if err := a.meshManager.Stop(stopCtx); err != nil {
+					slog.Warn("mesh: failed to stop WireGuard interface", "error", err)
+				}
+				stopCancel()
+			}
 			return
 		case <-a.updateTickerCh:
 			syncInterval := a.currentSyncInterval.Load()
@@ -421,6 +593,15 @@ func (a *Agent) Run(ctx context.Context) {
 		case <-syncTicker.C:
 			a.sync(ctx)
 		case <-reportTicker.C:
+			// Launch CDN origin probe asynchronously — don't block status report
+			if a.cdnProbeInFlight.CompareAndSwap(false, true) {
+				a.cdnProbeWg.Add(1)
+				go func() {
+					defer a.cdnProbeWg.Done()
+					defer a.cdnProbeInFlight.Store(false)
+					a.probeAndReportOriginLatency(ctx)
+				}()
+			}
 			a.report(ctx)
 		}
 	}
@@ -448,6 +629,16 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 	a.syncApplyBatch(ctx)
 	a.syncCoreOperations(ctx)
 	a.syncAgentCommands(ctx)
+
+	// Sync mesh configuration if mesh is enabled
+	if a.meshManager != nil {
+		a.syncMeshConfig(ctx)
+	}
+
+	// Update mesh probe targets and sync latencies
+	if a.meshProber != nil {
+		a.meshProber.UpdateTargets(ctx)
+	}
 
 	// NodeID kept for compatibility; gRPC identifies agent host by token
 	nodeID := int32(a.cfg.Panel.NodeID)
@@ -494,9 +685,7 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 }
 
 func (a *Agent) report(ctx context.Context) {
-	a.rollbackExpiredUpdateIfNeeded()
-
-	// 1. Collect node-level traffic delta first
+	// Collect I/O data outside lock
 	var trafficUpload, trafficDownload uint64
 	if a.netio != nil {
 		delta, err := a.netio.CollectDelta(ctx)
@@ -508,7 +697,7 @@ func (a *Agent) report(ctx context.Context) {
 		}
 	}
 
-	// 2. System Status (with traffic included)
+	// System Status (I/O outside lock)
 	stat, err := a.monitor.Collect()
 	if err != nil {
 		slog.Error("Failed to collect system stats", "error", err)
@@ -519,6 +708,13 @@ func (a *Agent) report(ctx context.Context) {
 	stat.TrafficUpload = trafficUpload
 	stat.TrafficDownload = trafficDownload
 
+	// Collect capabilities (may execute external binary, I/O outside lock)
+	caps := a.getCapabilities(ctx)
+
+	a.reportMu.Lock()
+	a.rollbackExpiredUpdateIfNeeded()
+	a.reportMu.Unlock()
+
 	if a.conn != nil {
 		state := a.conn.CheckConnection(ctx)
 		if state != transport.StateConnected {
@@ -526,15 +722,19 @@ func (a *Agent) report(ctx context.Context) {
 			return
 		}
 	}
-	a.reportGRPC(ctx, stat)
+	a.reportGRPC(ctx, stat, caps)
 
-	// 3. User-level Traffic (from traffic collector, e.g., xray_api)
+	// User-level Traffic (from traffic collector, e.g., xray_api)
 	a.reportUserTraffic(ctx)
 }
 
-func (a *Agent) reportGRPC(ctx context.Context, stat api.StatusPayload) {
-	// Get capabilities (refresh every hour)
-	caps := a.getCapabilities(ctx)
+func (a *Agent) reportGRPC(ctx context.Context, stat api.StatusPayload, caps *capability.DetectedCapabilities) {
+	// Collect CDN origin latency probe results
+	a.cdnProbeResultsMu.Lock()
+	originLatencies := make([]*agentv1.OriginLatencyEntry, len(a.cdnProbeResults))
+	copy(originLatencies, a.cdnProbeResults)
+	a.cdnProbeResults = a.cdnProbeResults[:0] // Clear slice after copying
+	a.cdnProbeResultsMu.Unlock()
 
 	// Build protobuf status report
 	statusReport := &agentv1.StatusReport{
@@ -556,18 +756,27 @@ func (a *Agent) reportGRPC(ctx context.Context, stat api.StatusPayload) {
 			TcpCount:        int32(stat.TcpCount),
 			UdpCount:        int32(stat.UdpCount),
 			// Core capabilities
-			CoreVersion:  caps.CoreVersion,
-			Capabilities: caps.Capabilities,
-			BuildTags:    caps.BuildTags,
+			CoreVersion:     caps.CoreVersion,
+			Capabilities:    caps.Capabilities,
+			BuildTags:       caps.BuildTags,
+			AgentVersion:    a.cfg.Update.CurrentVersion,
+			CurrentCoreType: caps.CoreType,
+			BootId:          readBootID(),
+			AllCores:        buildAllCoresProto(caps.AllCores),
 		},
 		Network: &agentv1.NetworkMetrics{
-			UploadBytes:   stat.NetIO.Up,
-			DownloadBytes: stat.NetIO.Down,
-			UploadDelta:   stat.TrafficUpload,
-			DownloadDelta: stat.TrafficDownload,
+			UploadBytes:           stat.NetIO.Up,
+			DownloadBytes:         stat.NetIO.Down,
+			UploadDelta:           stat.TrafficUpload,
+			DownloadDelta:         stat.TrafficDownload,
+			RawUploadTotalBytes:   a.collectRawUpload(ctx),
+			RawDownloadTotalBytes: a.collectRawDownload(ctx),
+			RawCountersPresent:    a.netio != nil,
 		},
-		CommandQueue: a.commandQueueStatsProto(),
-		UpdateStatus: a.updateStatusProto(),
+		CommandQueue:      a.commandQueueStatsProto(),
+		UpdateStatus:      a.updateStatusProto(),
+		OriginLatencies:   originLatencies,
+		MeshPeerLatencies: a.meshPeerLatenciesProto(),
 	}
 
 	// Add core instances
@@ -792,15 +1001,48 @@ func (a *Agent) syncApplyBatch(ctx context.Context) {
 
 	currentRevision := a.getApplyRevision()
 	task := command.Task{ID: fmt.Sprintf("config-apply-%d", currentRevision), OperationType: agentCommandActionConfigApply}
+
+	done := make(chan struct{})
+
+	var (
+		casReleased atomic.Bool
+		releaseCAS  = func() {
+			if casReleased.CompareAndSwap(false, true) {
+				a.endBatchSync()
+			}
+		}
+	)
+
 	err := a.commandQueue.SubmitWithHandler(ctx, task, func(ctx context.Context, task command.Task, reporter command.Reporter) command.Result {
-		defer a.endBatchSync()
+		defer releaseCAS()
+		defer close(done)
 		_ = reporter.Report(ctx, command.Event{EventType: command.EventTypeProgress, Status: command.StatusInProgress, Phase: "applying", Level: command.LevelInfo, Message: "config apply sync started"})
 		return a.runApplyBatch(ctx, currentRevision)
 	})
 	if err != nil {
-		a.endBatchSync()
+		releaseCAS()
+		close(done)
 		slog.Warn("config apply rejected by command queue", "current_revision", currentRevision, "error", err)
+		return
 	}
+
+	// Watchdog: release CAS if queue stops or times out
+	a.watchdogWg.Add(1)
+	go func() {
+		watchdogTimer := time.NewTimer(2 * time.Minute)
+		defer a.watchdogWg.Done()
+		defer watchdogTimer.Stop()
+		select {
+		case <-done:
+			// handler completed normally, CAS already released
+		case <-a.commandQueue.Stopped():
+			slog.Warn("command queue stopped during batch sync, releasing CAS")
+			releaseCAS()
+		case <-watchdogTimer.C:
+			slog.Warn("batch sync watchdog timeout, releasing CAS")
+			releaseCAS()
+		}
+	}()
 }
 
 func (a *Agent) syncApplyBatchDirect(ctx context.Context) {
@@ -996,6 +1238,9 @@ func (a *Agent) determineListenPort() []int {
 // getCapabilities returns cached or fresh capabilities
 // Capabilities are cached for 1 hour to avoid excessive command executions
 func (a *Agent) getCapabilities(ctx context.Context) *capability.DetectedCapabilities {
+	a.capsMu.Lock()
+	defer a.capsMu.Unlock()
+
 	now := time.Now().Unix()
 	cacheExpiry := int64(3600) // 1 hour
 
@@ -1005,16 +1250,7 @@ func (a *Agent) getCapabilities(ctx context.Context) *capability.DetectedCapabil
 	}
 
 	// Detect fresh capabilities
-	caps, err := a.capDet.Detect(ctx)
-	if err != nil {
-		slog.Warn("Failed to detect capabilities", "error", err)
-		// Return empty capabilities on error
-		return &capability.DetectedCapabilities{
-			CoreType:     "unknown",
-			Capabilities: []string{},
-			BuildTags:    []string{},
-		}
-	}
+	caps := a.capDet.Detect(ctx)
 
 	// Cache the result
 	a.cachedCaps = caps
@@ -1062,4 +1298,60 @@ func (a *Agent) applyUsers(ctx context.Context, users []*agentv1.UserInfo) error
 		}
 		return nil
 	}
+}
+
+func readBootID() string {
+	data, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func (a *Agent) collectRawUpload(ctx context.Context) *agentv1.MetricUInt64Value {
+	if a.netio == nil {
+		return nil
+	}
+	sent, _, err := a.netio.CollectCumulative(ctx)
+	if err != nil {
+		return nil
+	}
+	return &agentv1.MetricUInt64Value{Value: sent}
+}
+
+func (a *Agent) collectRawDownload(ctx context.Context) *agentv1.MetricUInt64Value {
+	if a.netio == nil {
+		return nil
+	}
+	_, recv, err := a.netio.CollectCumulative(ctx)
+	if err != nil {
+		return nil
+	}
+	return &agentv1.MetricUInt64Value{Value: recv}
+}
+
+// meshPeerLatenciesProto returns the current mesh peer latency probe results
+// as protobuf OriginLatencyEntry slice for the status report.
+func (a *Agent) meshPeerLatenciesProto() []*agentv1.OriginLatencyEntry {
+	if a.meshProber == nil {
+		return nil
+	}
+	return a.meshProber.SyncLatencies()
+}
+
+// buildAllCoresProto converts capability.DetectedCoreInfo to agentv1.CoreInfo for gRPC status reporting.
+func buildAllCoresProto(cores []capability.DetectedCoreInfo) []*agentv1.CoreInfo {
+	if len(cores) == 0 {
+		return nil
+	}
+	out := make([]*agentv1.CoreInfo, 0, len(cores))
+	for _, c := range cores {
+		out = append(out, &agentv1.CoreInfo{
+			Type:         c.Type,
+			Version:      c.Version,
+			Installed:    c.Version != "",
+			Capabilities: c.Capabilities,
+		})
+	}
+	return out
 }

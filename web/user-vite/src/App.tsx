@@ -11,6 +11,7 @@ const Register = lazy(() => import("@/pages/auth/Register"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const Install = lazy(() => import("@/pages/install"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Subscription = lazy(() => import("@/pages/subscription"));
 const Servers = lazy(() => import("@/pages/servers"));
 const Plans = lazy(() => import("@/pages/plans"));
 const TrafficStats = lazy(() => import("@/pages/traffic"));
@@ -29,6 +30,7 @@ const AdminForwarding = lazy(() => import("@/pages/admin/forwarding"));
 const AdminAccessLogs = lazy(() => import("@/pages/admin/access-logs"));
 const AdminConfigCenter = lazy(() => import("@/pages/admin/config-center"));
 const AdminCDN = lazy(() => import("@/pages/admin/cdn"));
+const AdminMCPKeys = lazy(() => import("@/pages/admin/mcp-keys"));
 
 const adminAuthAliases = [
   { adminPath: ADMIN_AUTH_ROUTES.LOGIN, defaultPath: ROUTES.LOGIN, component: Login },
@@ -133,6 +135,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route index element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+        <Route path={ROUTES.SUBSCRIPTION} element={<Subscription />} />
         <Route path={ROUTES.SERVERS} element={<Servers />} />
         <Route path={ROUTES.PLANS} element={<Plans />} />
         <Route path={ROUTES.TRAFFIC} element={<TrafficStats />} />
@@ -149,6 +152,7 @@ export default function App() {
         <Route path={ADMIN_ROUTES.KNOWLEDGE} element={<AdminKnowledge />} />
         <Route path={ADMIN_ROUTES.SYSTEM} element={<AdminSystem />} />
         <Route path={ADMIN_ROUTES.FORWARDING} element={<AdminForwarding />} />
+        <Route path={ADMIN_ROUTES.MCP_KEYS} element={<AdminMCPKeys />} />
         <Route path={ADMIN_ROUTES.ACCESS_LOGS} element={<AdminAccessLogs />} />
         <Route path={ADMIN_ROUTES.CDN} element={<AdminCDN />} />
         <Route path={ADMIN_ROUTES.CONFIG_CENTER} element={<AdminConfigCenter />} />

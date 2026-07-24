@@ -20,25 +20,41 @@ type userRepo struct {
 
 func (r *userRepo) FindByID(ctx context.Context, id int64) (*repository.User, error) {
 	// 按 ID 查询用户。
-	row := r.db.QueryRowContext(ctx, userSelectBy("id"), id)
+	query, err := userSelectBy("id")
+	if err != nil {
+		return nil, err
+	}
+	row := r.db.QueryRowContext(ctx, query, id)
 	return scanUser(row)
 }
 
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*repository.User, error) {
 	// 按邮箱查询用户。
-	row := r.db.QueryRowContext(ctx, userSelectBy("email"), email)
+	query, err := userSelectBy("email")
+	if err != nil {
+		return nil, err
+	}
+	row := r.db.QueryRowContext(ctx, query, email)
 	return scanUser(row)
 }
 
 func (r *userRepo) FindByUsername(ctx context.Context, username string) (*repository.User, error) {
 	// 按用户名查询用户。
-	row := r.db.QueryRowContext(ctx, userSelectBy("username"), username)
+	query, err := userSelectBy("username")
+	if err != nil {
+		return nil, err
+	}
+	row := r.db.QueryRowContext(ctx, query, username)
 	return scanUser(row)
 }
 
 func (r *userRepo) FindByToken(ctx context.Context, token string) (*repository.User, error) {
 	// 按订阅 token 查询用户。
-	row := r.db.QueryRowContext(ctx, userSelectBy("token"), token)
+	query, err := userSelectBy("token")
+	if err != nil {
+		return nil, err
+	}
+	row := r.db.QueryRowContext(ctx, query, token)
 	return scanUser(row)
 }
 
@@ -62,20 +78,17 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 		transfer_enable,
 		speed_limit,
 		device_limit,
-		commission_balance,
 		is_admin,
 		status,
 		banned,
 		traffic_exceeded,
 		telegram_id,
-		invite_user_id,
-		invite_limit,
 		last_login_at,
 		remarks,
 		tags,
 		created_at,
 		updated_at)
-		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	              ON CONFLICT(id) DO UPDATE SET
 	                uuid = excluded.uuid,
 	                is_admin = excluded.is_admin,
@@ -94,13 +107,10 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 	                transfer_enable = excluded.transfer_enable,
 	                speed_limit = excluded.speed_limit,
 	                device_limit = excluded.device_limit,
-	                commission_balance = excluded.commission_balance,
 	                status = excluded.status,
 	                banned = excluded.banned,
 	                traffic_exceeded = excluded.traffic_exceeded,
 					telegram_id = excluded.telegram_id,
-	                invite_user_id = excluded.invite_user_id,
-	                invite_limit = excluded.invite_limit,
 	                last_login_at = excluded.last_login_at,
 					remarks = excluded.remarks,
 					tags = excluded.tags,
@@ -134,14 +144,11 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 		user.TransferEnable,
 		nullableInt(user.SpeedLimit),
 		nullableInt(user.DeviceLimit),
-		user.CommissionBalance,
 		boolToInt(user.IsAdmin),
 		user.Status,
 		boolToInt(user.Banned),
 		boolToInt(user.TrafficExceeded),
 		user.TelegramID,
-		user.InviteUserID,
-		user.InviteLimit,
 		user.LastLoginAt,
 		user.Remarks,
 		tags,
@@ -170,18 +177,15 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 		transfer_enable,
 		speed_limit,
 		device_limit,
-		commission_balance,
 		is_admin,
 		status,
 		banned,
-		invite_user_id,
-		invite_limit,
 		last_login_at,
 		remarks,
 		tags,
 		created_at,
 		updated_at)
-		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	now := time.Now().Unix()
 	user.CreatedAt = now
 	user.UpdatedAt = now
@@ -207,12 +211,9 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 		user.TransferEnable,
 		nullableInt(user.SpeedLimit),
 		nullableInt(user.DeviceLimit),
-		user.CommissionBalance,
 		boolToInt(user.IsAdmin),
 		user.Status,
 		boolToInt(user.Banned),
-		user.InviteUserID,
-		user.InviteLimit,
 		user.LastLoginAt,
 		user.Remarks,
 		tags,
@@ -251,11 +252,13 @@ func (r *userRepo) AdjustBalance(ctx context.Context, userID int64, deltaCents i
 	if err != nil {
 		return false, err
 	}
-	affected, _ := res.RowsAffected()
+	affected, err := res.RowsAffected(); if err != nil { return false, err }
 	return affected > 0, nil
 }
 
 func (r *userRepo) IncrementTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error {
+	// NOTE: no RowsAffected check — incrementing traffic is fire-and-forget;
+	// a missing user row is a no-op and not treated as error.
 	_, err := r.db.ExecContext(ctx, `UPDATE users SET u = u + ?, d = d + ? WHERE id = ?`, uploadDelta, downloadDelta, userID)
 	return err
 }
@@ -365,13 +368,11 @@ func (r *userRepo) PlanCounts(ctx context.Context, planIDs []int64, nowUnix int6
 		}
 		result[planID] = repository.PlanUserCount{Total: total, Active: active}
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 func (r *userRepo) Search(ctx context.Context, filter repository.UserSearchFilter) ([]*repository.User, error) {
-	baseQuery := `SELECT id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id,
-		group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, commission_balance, is_admin, status,
-		banned, traffic_exceeded, invite_user_id, invite_limit, last_login_at, remarks, tags, created_at, updated_at FROM users`
+	baseQuery := `SELECT id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at FROM users`
 	var conds []string
 	var args []any
 
@@ -482,13 +483,10 @@ func scanUser(row userScanner) (*repository.User, error) {
 		&u.TransferEnable,
 		&speedLimit,
 		&deviceLimit,
-		&u.CommissionBalance,
 		&u.IsAdmin,
 		&u.Status,
 		&u.Banned,
 		&trafficExceeded,
-		&u.InviteUserID,
-		&u.InviteLimit,
 		&lastLogin,
 		&remarks,
 		&tags,
@@ -520,16 +518,26 @@ func scanUser(row userScanner) (*repository.User, error) {
 	return &user, nil
 }
 
-func userSelectBy(field string) string {
-	const cols = `id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id,
-		group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, commission_balance, is_admin, status,
-		banned, traffic_exceeded, invite_user_id, invite_limit, last_login_at, remarks, tags, created_at, updated_at`
-	return fmt.Sprintf("SELECT %s FROM users WHERE %s = ?", cols, field)
+var userSelectByMap = map[string]string{
+	"id":       "id",
+	"email":    "email",
+	"username": "username",
+	"token":    "token",
 }
 
-const userSelectColumns = `id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, commission_balance, is_admin, status, banned, traffic_exceeded, invite_user_id, invite_limit, last_login_at, remarks, tags, created_at, updated_at`
+func userSelectBy(field string) (string, error) {
+	col, ok := userSelectByMap[field]
+	if !ok {
+		return "", fmt.Errorf("invalid user select field: %s", field)
+	}
+	const cols = `id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at`
+	return fmt.Sprintf("SELECT %s FROM users WHERE %s = ?", cols, col), nil
+}
+
 
 // SetTrafficExceeded updates the traffic_exceeded flag for a user.
+// NOTE: no RowsAffected check — this is a best-effort flag; a missing user
+// row is silently ignored.
 func (r *userRepo) SetTrafficExceeded(ctx context.Context, userID int64, exceeded bool) error {
 	val := 0
 	if exceeded {

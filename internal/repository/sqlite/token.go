@@ -116,6 +116,7 @@ func (r *tokenRepo) DeleteByRefreshToken(ctx context.Context, refreshToken strin
 		return nil
 	}
 	_, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE refresh_token = ?`, trimmed)
+	// idempotent: no error if not found
 	return err
 }
 
@@ -127,5 +128,6 @@ func (r *tokenRepo) DeleteByUser(ctx context.Context, userID int64) error {
 		return nil
 	}
 	_, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE user_id = ?`, userID)
+	// idempotent: no error if not found
 	return err
 }

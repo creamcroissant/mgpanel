@@ -184,17 +184,22 @@ func (r *coreOperationRepo) ClaimNext(ctx context.Context, agentHostID int64, st
 
 	updatedAt := time.Now().Unix()
 	startedAt := claimedAt
-	var previousClaimedAtArg any
+	var updateQuery string
+	var updateArgs []any
 	if previousClaimedAt.Valid {
-		previousClaimedAtArg = previousClaimedAt.Int64
+		updateQuery = `
+			UPDATE core_operations
+			SET status = ?, claimed_by = ?, claimed_at = ?, started_at = ?, updated_at = ?
+			WHERE id = ? AND status = ? AND claimed_at = ?`
+		updateArgs = []any{"claimed", claimedBy, claimedAt, startedAt, updatedAt, operationID, previousStatus, previousClaimedAt.Int64}
+	} else {
+		updateQuery = `
+			UPDATE core_operations
+			SET status = ?, claimed_by = ?, claimed_at = ?, started_at = ?, updated_at = ?
+			WHERE id = ? AND status = ? AND claimed_at IS NULL`
+		updateArgs = []any{"claimed", claimedBy, claimedAt, startedAt, updatedAt, operationID, previousStatus}
 	}
-	result, err := tx.ExecContext(ctx, `
-		UPDATE core_operations
-		SET status = ?, claimed_by = ?, claimed_at = ?, started_at = ?, updated_at = ?
-		WHERE id = ? AND (
-			status = ? OR (status = ? AND claimed_at IS NOT NULL AND claimed_at = ?)
-		)
-	`, "claimed", claimedBy, claimedAt, startedAt, updatedAt, operationID, previousStatus, "claimed", previousClaimedAtArg)
+	result, err := tx.ExecContext(ctx, updateQuery, updateArgs...)
 	if err != nil {
 		return nil, err
 	}

@@ -31,10 +31,11 @@ type StatUserTopFilter struct {
 
 // InboundSpecFilter constrains inbound spec listing queries.
 type InboundSpecFilter struct {
-	AgentHostID *int64
+	AgentHostID *int64  // nil = no host filter
 	CoreType    *string
 	Tag         *string
 	Enabled     *bool
+	IsTemplate  *bool   // true = only templates (agent_host_id IS NULL), false = only host-specific, nil = all
 	Limit       int
 	Offset      int
 }
@@ -180,6 +181,18 @@ type DriftStateFilter struct {
 	DriftType   *string
 	Tag         *string
 	Filename    *string
+	Limit       int
+	Offset      int
+}
+
+// CoreConfigItemFilter constrains core config item listing queries.
+type CoreConfigItemFilter struct {
+	AgentHostID *int64
+	CoreType    *string
+	ConfigType  *string
+	Tag         *string
+	Enabled     *bool
+	IsTemplate  *bool
 	Limit       int
 	Offset      int
 }

@@ -41,6 +41,9 @@ type AgentHandler struct {
 	lifecycleOperations service.AgentLifecycleOperationService
 	trafficLifecycle    service.AgentTrafficLifecycleService
 	binaryVersions      service.BinaryVersionService
+	cdnService          service.CDNService
+	meshService         service.AgentMeshService
+	agentLogCache       *service.AgentLogCache
 	logger              *slog.Logger
 	timeNow             func() time.Time
 }
@@ -58,6 +61,7 @@ func NewAgentHandler(
 	settingsService service.AdminSystemSettingsService,
 	inventoryIngest service.InventoryIngestService,
 	applyOrchestrator service.ApplyOrchestratorService,
+	agentLogCache *service.AgentLogCache,
 	logger *slog.Logger,
 ) *AgentHandler {
 	return NewAgentHandlerWithCoreServices(
@@ -78,6 +82,9 @@ func NewAgentHandler(
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
+		agentLogCache,
 		logger,
 	)
 }
@@ -101,6 +108,9 @@ func NewAgentHandlerWithCoreServices(
 	lifecycleOperations service.AgentLifecycleOperationService,
 	trafficLifecycle service.AgentTrafficLifecycleService,
 	binaryVersions service.BinaryVersionService,
+	cdnService service.CDNService,
+	meshService service.AgentMeshService,
+	agentLogCache *service.AgentLogCache,
 	logger *slog.Logger,
 ) *AgentHandler {
 	return &AgentHandler{
@@ -121,6 +131,9 @@ func NewAgentHandlerWithCoreServices(
 		lifecycleOperations: lifecycleOperations,
 		trafficLifecycle:    trafficLifecycle,
 		binaryVersions:      binaryVersions,
+		cdnService:          cdnService,
+		meshService:         meshService,
+		agentLogCache:       agentLogCache,
 		logger:              logger,
 		timeNow:             time.Now,
 	}
@@ -193,13 +206,39 @@ func (h *AgentHandler) ReportStatus(ctx context.Context, req *agentv1.StatusRepo
 
 	h.ingestInventoryReport(ctx, agentHost, req.GetTimestamp(), req.Inventory, req.InboundIndex, "unary")
 
+	if req.MeshPeerLatencies != nil && h.meshService != nil {
+		for _, entry := range req.MeshPeerLatencies {
+			if entry == nil {
+				continue
+			}
+			h.meshService.ReportPeerLatency(ctx, agentHost.ID, entry.Domain, entry.LatencyMs, entry.PacketLoss, int(entry.TotalProbes))
+		}
+	}
+
+	if req.OriginLatencies != nil && h.cdnService != nil {
+		for _, entry := range req.OriginLatencies {
+			if entry == nil {
+				continue
+			}
+			if err := h.cdnService.ReportOriginLatency(ctx, entry.SiteId, entry.Stack, entry.Domain, int64(entry.LatencyMs)); err != nil {
+				h.logger.Error("failed to report origin latency", "site_id", entry.SiteId, "domain", entry.Domain, "error", err)
+			}
+		}
+	}
+
 	var syncInterval, reportInterval int
 	if h.settingsService != nil {
 		if val, err := h.settingsService.Get(ctx, "server_pull_interval"); err == nil && val != "" {
-			syncInterval, _ = strconv.Atoi(val)
+			syncInterval, err = strconv.Atoi(val)
+			if err != nil {
+				slog.Debug("handler: parse sync interval failed", "value", val, "error", err)
+			}
 		}
 		if val, err := h.settingsService.Get(ctx, "server_push_interval"); err == nil && val != "" {
-			reportInterval, _ = strconv.Atoi(val)
+			reportInterval, err = strconv.Atoi(val)
+			if err != nil {
+				slog.Debug("handler: parse report interval failed", "value", val, "error", err)
+			}
 		}
 	}
 	return &agentv1.StatusResponse{Success: true, Message: "status updated", SyncIntervalSeconds: int32(syncInterval), ReportIntervalSeconds: int32(reportInterval)}, nil
@@ -409,7 +448,72 @@ func (h *AgentHandler) ReportCoreOperation(ctx context.Context, req *agentv1.Rep
 	if err := h.coreOperations.ReportResult(ctx, service.ReportCoreOperationResultRequest{AgentHostID: agentHost.ID, OperationID: req.GetOperationId(), Status: req.GetStatus(), ResultPayload: append(json.RawMessage(nil), req.GetResultPayload()...), ErrorMessage: req.GetErrorMessage(), FinishedAt: req.GetFinishedAt()}); err != nil {
 		return nil, mapCoreOperationGRPCError(err)
 	}
+	h.updateBinaryVersionStateFromCoreOperation(ctx, agentHost.ID, req)
 	return &agentv1.ReportCoreOperationResponse{Success: true, Message: "core operation accepted"}, nil
+}
+
+func (h *AgentHandler) updateBinaryVersionStateFromCoreOperation(ctx context.Context, agentHostID int64, req *agentv1.ReportCoreOperationRequest) {
+	if h == nil || h.binaryVersions == nil || h.coreOperations == nil || req == nil {
+		return
+	}
+	if strings.TrimSpace(req.GetStatus()) != "completed" {
+		return
+	}
+	operationID := strings.TrimSpace(req.GetOperationId())
+	if operationID == "" {
+		return
+	}
+	logger := h.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	operation, err := h.coreOperations.Get(ctx, operationID)
+	if err != nil {
+		logger.Warn("failed to load completed core operation for version update", "agent_host_id", agentHostID, "operation_id", operationID, "error", err)
+		return
+	}
+	if operation == nil || strings.TrimSpace(operation.OperationType) != "install" {
+		return
+	}
+
+	var payload agentv1.InstallCorePayload
+	if len(operation.RequestPayload) > 0 {
+		if err := json.Unmarshal(operation.RequestPayload, &payload); err != nil {
+			logger.Warn("failed to decode core install payload for version update", "agent_host_id", agentHostID, "operation_id", operationID, "error", err)
+			return
+		}
+	}
+
+	var result agentv1.InstallCoreResponse
+	if len(req.GetResultPayload()) > 0 {
+		if err := json.Unmarshal(req.GetResultPayload(), &result); err != nil {
+			logger.Warn("failed to decode core install result for version update", "agent_host_id", agentHostID, "operation_id", operationID, "error", err)
+			return
+		}
+	}
+
+	coreType := strings.TrimSpace(result.GetCoreType())
+	if coreType == "" {
+		coreType = strings.TrimSpace(operation.CoreType)
+	}
+	if coreType == "" {
+		return
+	}
+	action := strings.ToLower(strings.TrimSpace(payload.GetAction()))
+	installed := action != "uninstall"
+	version := strings.TrimSpace(result.GetVersion())
+	if !installed {
+		version = ""
+	} else if version == "" {
+		return
+	}
+
+	if err := h.binaryVersions.UpdateLocalVersions(ctx, service.UpdateLocalVersionsRequest{
+		AgentHostID: agentHostID,
+		CoreStates:  []service.CoreVersionReport{{Component: coreType, Version: version, Installed: &installed}},
+	}); err != nil {
+		logger.Warn("failed to update binary version state from core operation", "agent_host_id", agentHostID, "operation_id", operationID, "core_type", coreType, "error", err)
+	}
 }
 
 func (h *AgentHandler) GetAgentCommands(ctx context.Context, req *agentv1.GetAgentCommandsRequest) (*agentv1.GetAgentCommandsResponse, error) {
@@ -638,11 +742,6 @@ func (h *AgentHandler) StatusStream(stream grpc.BidiStreamingServer[agentv1.Stat
 		return status.Error(codes.Unauthenticated, "no agent host in context")
 	}
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
 		report, err := stream.Recv()
 		if err != nil {
 			return err
@@ -681,6 +780,26 @@ func (h *AgentHandler) StatusStream(stream grpc.BidiStreamingServer[agentv1.Stat
 			}
 		}
 		h.ingestInventoryReport(ctx, agentHost, report.GetTimestamp(), report.Inventory, report.InboundIndex, "stream")
+
+		if report.MeshPeerLatencies != nil && h.meshService != nil {
+			for _, entry := range report.MeshPeerLatencies {
+				if entry == nil {
+					continue
+				}
+				h.meshService.ReportPeerLatency(ctx, agentHost.ID, entry.Domain, entry.LatencyMs, entry.PacketLoss, int(entry.TotalProbes))
+			}
+		}
+
+		if report.OriginLatencies != nil && h.cdnService != nil {
+			for _, entry := range report.OriginLatencies {
+				if entry == nil {
+					continue
+				}
+				if err := h.cdnService.ReportOriginLatency(ctx, entry.SiteId, entry.Stack, entry.Domain, int64(entry.LatencyMs)); err != nil {
+					h.logger.Error("failed to report origin latency from stream", "site_id", entry.SiteId, "domain", entry.Domain, "error", err)
+				}
+			}
+		}
 	}
 }
 
@@ -689,10 +808,30 @@ func (h *AgentHandler) updateBinaryVersionState(ctx context.Context, agentHostID
 		return
 	}
 	system := report.System
-	if system.GetAgentVersion() == "" && system.GetCurrentCoreType() == "" && system.GetCoreVersion() == "" {
+	if system.GetAgentVersion() == "" && system.GetCurrentCoreType() == "" && system.GetCoreVersion() == "" && len(system.GetAllCores()) == 0 {
 		return
 	}
-	if err := h.binaryVersions.UpdateLocalVersions(ctx, service.UpdateLocalVersionsRequest{AgentHostID: agentHostID, AgentVersion: system.GetAgentVersion(), CurrentCoreType: system.GetCurrentCoreType(), CoreVersion: system.GetCoreVersion(), Capabilities: system.GetCapabilities(), BuildTags: system.GetBuildTags()}); err != nil {
+
+	coreStates := make([]service.CoreVersionReport, 0, len(system.GetAllCores()))
+	for _, core := range system.GetAllCores() {
+		if core.GetType() != "" && core.GetVersion() != "" {
+			coreStates = append(coreStates, service.CoreVersionReport{
+				Component:    core.GetType(),
+				Version:      core.GetVersion(),
+				Capabilities: core.GetCapabilities(),
+			})
+		}
+	}
+
+	if err := h.binaryVersions.UpdateLocalVersions(ctx, service.UpdateLocalVersionsRequest{
+		AgentHostID:     agentHostID,
+		AgentVersion:    system.GetAgentVersion(),
+		CurrentCoreType: system.GetCurrentCoreType(),
+		CoreVersion:     system.GetCoreVersion(),
+		Capabilities:    system.GetCapabilities(),
+		BuildTags:       system.GetBuildTags(),
+		CoreStates:      coreStates,
+	}); err != nil {
 		h.logger.Warn("failed to update binary version state", "source", source, "agent_host_id", agentHostID, "error", err)
 	}
 }
@@ -772,6 +911,40 @@ func buildAgentHostMetricsReport(report *agentv1.StatusReport) service.AgentHost
 		}
 	}
 	return metrics
+}
+
+
+// ReportAgentLogs receives agent log uploads and caches them in memory.
+func (h *AgentHandler) ReportAgentLogs(ctx context.Context, req *agentv1.ReportAgentLogsRequest) (*agentv1.ReportAgentLogsResponse, error) {
+	if h.agentLogCache == nil {
+		return &agentv1.ReportAgentLogsResponse{Success: false, Accepted: 0, Message: "log cache not configured"}, nil
+	}
+	agentHost, ok := interceptor.GetAgentHostFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "no agent host in context")
+	}
+	if req == nil || len(req.Entries) == 0 {
+		return &agentv1.ReportAgentLogsResponse{Success: true, Accepted: 0}, nil
+	}
+
+	lines := make([]service.AgentLogLine, 0, len(req.Entries))
+	for _, e := range req.Entries {
+		if e == nil {
+			continue
+		}
+		msg := strings.TrimSpace(e.Message)
+		if msg == "" {
+			continue
+		}
+		lines = append(lines, service.AgentLogLine{
+			Timestamp: e.Timestamp,
+			Level:     strings.TrimSpace(strings.ToLower(e.Level)),
+			Message:   msg,
+			Source:    strings.TrimSpace(strings.ToLower(e.Source)),
+		})
+	}
+	h.agentLogCache.Push(ctx, agentHost.ID, lines)
+	return &agentv1.ReportAgentLogsResponse{Success: true, Accepted: int32(len(lines))}, nil
 }
 
 func mapOperationLogGRPCError(err error) error {

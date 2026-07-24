@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,10 +129,14 @@ func init() {
 
 			if backupCompress {
 				if err := compressFile(tempFile, target); err != nil {
-					os.Remove(tempFile)
+					if rmErr := os.Remove(tempFile); rmErr != nil {
+						slog.Warn("failed to remove temp backup file", "error", rmErr)
+					}
 					return err
 				}
-				os.Remove(tempFile)
+				if err := os.Remove(tempFile); err != nil {
+					slog.Warn("failed to remove temp backup file", "error", err)
+				}
 			}
 
 			fmt.Printf("Backup created at %s\n", target)
@@ -177,11 +182,11 @@ func init() {
 
 			if isGzip {
 				tempSource := dbPath + ".restoring"
+				defer os.Remove(tempSource)
 				if err := decompressFile(backupPath, tempSource); err != nil {
 					return fmt.Errorf("decompress failed: %w", err)
 				}
 				sourceFile = tempSource
-				defer os.Remove(tempSource)
 			}
 
 			if err := copyFile(sourceFile, dbPath); err != nil {
@@ -203,10 +208,11 @@ func init() {
 		Use:   "list",
 		Short: "List users",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runUserList(store)
 		},
 	})
@@ -220,10 +226,11 @@ func init() {
 			if createUserEmail == "" || createUserPassword == "" {
 				return fmt.Errorf("email and password are required")
 			}
-			store, cfg, err := getStore()
+			store, cfg, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runUserCreate(store, cfg, createUserEmail, createUserPassword, createUserAdmin)
 		},
 	}
@@ -240,10 +247,11 @@ func init() {
 			if resetUserEmail == "" || resetUserPassword == "" {
 				return fmt.Errorf("email and password are required")
 			}
-			store, cfg, err := getStore()
+			store, cfg, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runUserResetPassword(store, cfg, resetUserEmail, resetUserPassword)
 		},
 	}
@@ -256,10 +264,11 @@ func init() {
 		Short: "Disable a user",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runUserStatus(store, args[0], 0)
 		},
 	})
@@ -269,10 +278,11 @@ func init() {
 		Short: "Enable a user",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runUserStatus(store, args[0], 1)
 		},
 	})
@@ -288,10 +298,11 @@ func init() {
 		Short: "Get configuration value",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runConfigGet(store, args[0])
 		},
 	})
@@ -300,10 +311,11 @@ func init() {
 		Short: "Set configuration value",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			return runConfigSet(store, args[0], args[1])
 		},
 	})
@@ -330,10 +342,11 @@ func init() {
 		Short: "Run a job manually",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store, _, err := getStore()
+			store, _, cleanup, err := getStore()
 			if err != nil {
 				return err
 			}
+			defer cleanup()
 			jobs := getJobs(store)
 			name := args[0]
 			j, ok := jobs[name]
@@ -341,7 +354,9 @@ func init() {
 				return fmt.Errorf("unknown job %q", name)
 			}
 			fmt.Printf("Running job %s...\n", name)
-			if err := j.Run(context.Background()); err != nil {
+			runCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := j.Run(runCtx); err != nil {
 				return fmt.Errorf("job run failed: %w", err)
 			}
 			fmt.Println("Job completed successfully.")
@@ -365,24 +380,21 @@ func init() {
 
 // Helper functions
 
-func getStore() (*sqlite.Store, *config.Config, error) {
+func getStore() (*sqlite.Store, *config.Config, func(), error) {
 	cfg, err := config.LoadWithOptions(config.LoadOptions{ConfigPath: configPath})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	resolvedDBPath, err := bootstrap.ResolveSQLitePath(cfg.DB.Path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	cfg.DB.Path = resolvedDBPath
 	db, err := bootstrap.OpenSQLite(cfg.DB.Path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	// db.Close() handled by caller? No, for CLI tools usually we keep open until exit.
-	// But here we return store which holds db.
-	// Ideally we should close db.
-	return sqlite.NewStore(db), cfg, nil
+	return sqlite.NewStore(db), cfg, func() { db.Close() }, nil
 }
 
 func runUserList(store *sqlite.Store) error {
@@ -397,7 +409,9 @@ func runUserList(store *sqlite.Store) error {
 	for _, u := range users {
 		fmt.Fprintf(w, "%d\t%s\t%v\t%d\n", u.ID, u.Email, u.IsAdmin, u.Status)
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		slog.Warn("flush output failed", "error", err)
+	}
 	return nil
 }
 
@@ -542,12 +556,12 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
 		return err
 	}
-	return nil
+	return out.Close()
 }
 
 func compressFile(src, dst string) error {
@@ -561,13 +575,22 @@ func compressFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
 	gw := gzip.NewWriter(out)
-	defer gw.Close()
 
 	if _, err := io.Copy(gw, in); err != nil {
+		gw.Close()
+		out.Close()
 		return err
+	}
+
+	if err := gw.Close(); err != nil {
+		out.Close()
+		return fmt.Errorf("close gzip writer: %w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close output file: %w", err)
 	}
 	return nil
 }
@@ -583,16 +606,21 @@ func decompressFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer gr.Close()
 
 	out, err := os.Create(dst)
 	if err != nil {
+		gr.Close()
 		return err
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, gr); err != nil {
+		gr.Close()
+		out.Close()
 		return err
 	}
-	return nil
+	if err := gr.Close(); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }

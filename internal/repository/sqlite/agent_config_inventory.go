@@ -127,7 +127,7 @@ func (r *agentConfigInventoryRepo) DeleteStaleByHostCoreBefore(ctx context.Conte
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM agent_config_inventory
 		WHERE agent_host_id = ? AND core_type = ? AND last_seen_at < ?
-	`, agentHostID, coreType, beforeLastSeenAt)
+	`, agentHostID, coreType, beforeLastSeenAt) // idempotent: no error if not found
 	return err
 }
 

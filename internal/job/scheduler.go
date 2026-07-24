@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -80,6 +81,18 @@ func (s *Scheduler) Stop() context.Context {
 // wrap 包装任务，提供超时与统一日志。
 func (s *Scheduler) wrap(runnable Runnable) func() {
 	return func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("job panicked",
+					"job", runnable.Name(),
+					"panic", r,
+					"stack", string(debug.Stack()))
+			}
+		}()
+		// Use context.Background() as the parent for job execution contexts.
+		// robfig/cron's shutdown context only completes after all jobs finish,
+		// so using it would prevent jobs from responding to Scheduler.Stop().
+		// Individual jobs should implement their own timeout via context.WithTimeout.
 		ctx, cancel := context.WithTimeout(context.Background(), defaultJobTimeout)
 		defer cancel()
 		start := time.Now()

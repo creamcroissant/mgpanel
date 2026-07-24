@@ -36,12 +36,14 @@ type AdminApiErrorPayload = {
   message?: string;
   action?: string;
   details?: unknown;
+  error_str?: string;
 };
 
 export class AdminApiError extends Error {
   status?: number;
   action?: string;
   details?: unknown;
+  error_str?: string;
 
   constructor(
     message: string,
@@ -49,6 +51,7 @@ export class AdminApiError extends Error {
       status?: number;
       action?: string;
       details?: unknown;
+  error_str?: string;
     } = {}
   ) {
     super(message);
@@ -56,6 +59,7 @@ export class AdminApiError extends Error {
     this.status = options.status;
     this.action = options.action;
     this.details = options.details;
+    this.error_str = options.error_str;
     Object.setPrototypeOf(this, AdminApiError.prototype);
   }
 }
@@ -107,6 +111,7 @@ adminApi.interceptors.response.use(
         status,
         action: payload?.action,
         details: payload?.details,
+        error_str: payload?.error_str,
       })
     );
   }

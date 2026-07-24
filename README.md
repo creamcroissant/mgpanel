@@ -16,6 +16,8 @@ XBoard is a Go-based panel + agent system for subscription and traffic managemen
 - **SQLite + Embedded Migration**: Out-of-the-box embedded database with automatic Goose-style migrations on startup.
 - **Built-in Scheduler**: Traffic aggregation, telemetry sampling, and notification jobs run in-process.
 - **Embedded Frontends**: Admin/User SPA assets are bundled in the backend binary by default.
+- **MCP Server (LLM 运维)**: Built-in JSON-RPC 2.0 + SSE endpoint for LLM tool calling — query status, read logs, manage keys, all through standardized MCP protocol.
+- **Agent Log Upload**: Agents tail and upload local logs via existing gRPC connection (in-memory cache, no DB pressure).
 - **Scripted Deployment**: Panel/agent install, bootstrap, and uninstall flows are provided by `deploy/*.sh` scripts.
 
 ## 📁 Directory
@@ -237,6 +239,12 @@ Base URL: `/api`
 - `GET /_internal/ready`
 - `GET /metrics` (optional token protection)
 
+### MCP (Model Context Protocol) — LLM 运维接入
+- `POST /mcp/message` — JSON-RPC 2.0 tool calls (Bearer auth)
+- `GET /mcp/events` — SSE event stream
+- 17+ tools: `system_status`, `agent_list`, `agent_logs_fetch`, `server_log_tail`, `operation_logs_list`, `user_list`, `plan_list`, `cdn_site_list`, `mesh_network`, `config_artifacts`, etc.
+- API Key management via admin UI (`/{securePath}/mcp-keys`)
+
 ### Install endpoints
 - `GET /api/install/status`
 - `POST /api/install/`
@@ -281,14 +289,16 @@ See `config.example.yml` for structure and `coding.md` for details.
 | E2E (full) | `./scripts/e2e-test.sh` |
 | E2E (deploy-cmd) | `E2E_MODE=deploy-cmd PLAYWRIGHT_ARGS='tests/02-admin-agents.spec.ts' ./scripts/e2e-test.sh` |
 
-## 📊 Feature Status (2026-01)
+## 📊 Feature Status (2026-07)
 
-- ✅ Admin: Config / Plan / User / Server / Stat / Notice / Knowledge / Forwarding / System Settings.
+- ✅ Admin: Config / Plan / User / Server / Stat / Notice / Knowledge / Forwarding / System Settings / **MCP API Keys**.
 - ✅ Admin Frontend: Vite/React (shadcn/ui), embedded in binary.
 - ✅ User: Subscription, Traffic Log, Node List, Announcement, Knowledge Base, Profile Settings.
 - ✅ User Frontend: Dashboard, Servers, Plans, Traffic, Knowledge, Settings (Vite/React/shadcn/ui).
 - ✅ Server: Heartbeat, telemetry, traffic reporting, core switching (Sing-box/Xray).
 - ✅ Background Jobs: Traffic Aggregation, Node Sampling, Notification Queue, Traffic Reset.
+- ✅ **MCP Server**: LLM operational access via standard MCP protocol (JSON-RPC 2.0 + SSE), 17+ read-only tools, DB-backed API key management.
+- ✅ **Agent Log Upload**: Automatic local log tailing and upload via gRPC, in-memory FIFO cache (50 lines/agent default, configurable), accessible via MCP `agent_logs_fetch` tool.
 - ✅ Security: Rate Limiting, Captcha, IP-based Restrictions, Input Validation.
 - ⚠️ Some endpoints are still under iterative migration; behavior is defined by current implementation.
 

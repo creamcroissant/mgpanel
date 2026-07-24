@@ -227,10 +227,10 @@ func (b *GeneralBuilder) buildVlessURI(node Node) string {
 		applyVLESSXHTTPQuery(q, node.Settings)
 	}
 
-	// CDN 域名替换：仅对 xhttp 协议生效
+	// CDN 域名替换：仅对 xhttp 协议生效。只替换连接目标和传输层 host/path，
+	// TLS/Reality SNI 保留原节点配置，避免证书或 Reality serverName 校验失败。
 	if b.cdn != nil && network == "xhttp" {
 		u.Host = fmt.Sprintf("%s:%d", b.cdn.Domain, 443)
-		q.Set("sni", b.cdn.Domain)
 		if b.cdn.Host != "" {
 			q.Set("host", b.cdn.Host)
 		} else {

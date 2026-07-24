@@ -127,12 +127,12 @@ const mapSwitchLog = (log: SwitchLogPayload): AgentCoreSwitchLog => ({
 
 export async function listAgentCores(agentHostId: number): Promise<AgentCoreInfo[]> {
   const response = await adminApi.get<{ data: CoreInfoPayload[] }>(`/agent-hosts/${agentHostId}/cores`);
-  return response.data.data.map(mapCoreInfo);
+  return (response.data.data ?? []).map(mapCoreInfo);
 }
 
 export async function listAgentCoreInstances(agentHostId: number): Promise<AgentCoreInstance[]> {
   const response = await adminApi.get<{ data: CoreInstancePayload[] }>(`/agent-hosts/${agentHostId}/core-instances`);
-  return response.data.data.map(mapCoreInstance);
+  return (response.data.data ?? []).map(mapCoreInstance);
 }
 
 export async function listAgentCoreOperations(

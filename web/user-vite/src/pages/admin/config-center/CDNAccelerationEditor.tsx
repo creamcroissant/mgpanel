@@ -27,6 +27,15 @@ const PROTOCOL_OPTIONS: { value: "https" | "http"; label: string }[] = [
   { value: "http", label: "HTTP" },
 ];
 
+const FIELD_IDS = {
+  provider: "config-center-cdn-provider-trigger",
+  providerLabel: "config-center-cdn-provider-label",
+  domain: "config-center-cdn-domain-input",
+  originPath: "config-center-cdn-origin-path-input",
+  originProtocol: "config-center-cdn-origin-protocol-trigger",
+  originProtocolLabel: "config-center-cdn-origin-protocol-label",
+};
+
 export function CDNAccelerationEditor({
   isXHTTPSelected,
   cdnConfig,
@@ -59,6 +68,7 @@ export function CDNAccelerationEditor({
         <Switch
           checked={enabled}
           onCheckedChange={handleToggle}
+          aria-label="Toggle CDN acceleration"
           data-testid="config-center-cdn-toggle"
         />
       </div>
@@ -67,14 +77,20 @@ export function CDNAccelerationEditor({
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Provider</label>
+              <label id={FIELD_IDS.providerLabel} htmlFor={FIELD_IDS.provider} className="text-sm font-medium">
+                Provider
+              </label>
               <Select
                 value={cdnConfig.provider}
                 onValueChange={(value: string) =>
                   onConfigChange({ ...cdnConfig, provider: value as CDNProvider })
                 }
               >
-                <SelectTrigger data-testid="config-center-cdn-provider">
+                <SelectTrigger
+                  id={FIELD_IDS.provider}
+                  aria-labelledby={FIELD_IDS.providerLabel}
+                  data-testid="config-center-cdn-provider"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -87,8 +103,11 @@ export function CDNAccelerationEditor({
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">CDN Domain</label>
+              <label htmlFor={FIELD_IDS.domain} className="text-sm font-medium">
+                CDN Domain
+              </label>
               <Input
+                id={FIELD_IDS.domain}
                 data-testid="config-center-cdn-domain"
                 value={cdnConfig.domain}
                 onChange={(e) =>
@@ -98,8 +117,11 @@ export function CDNAccelerationEditor({
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Origin Path</label>
+              <label htmlFor={FIELD_IDS.originPath} className="text-sm font-medium">
+                Origin Path
+              </label>
               <Input
+                id={FIELD_IDS.originPath}
                 data-testid="config-center-cdn-origin-path"
                 value={cdnConfig.originPath}
                 onChange={(e) =>
@@ -109,14 +131,20 @@ export function CDNAccelerationEditor({
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Origin Protocol</label>
+              <label id={FIELD_IDS.originProtocolLabel} htmlFor={FIELD_IDS.originProtocol} className="text-sm font-medium">
+                Origin Protocol
+              </label>
               <Select
                 value={cdnConfig.originProtocol}
                 onValueChange={(value: string) =>
                   onConfigChange({ ...cdnConfig, originProtocol: value as "https" | "http" })
                 }
               >
-                <SelectTrigger data-testid="config-center-cdn-origin-protocol">
+                <SelectTrigger
+                  id={FIELD_IDS.originProtocol}
+                  aria-labelledby={FIELD_IDS.originProtocolLabel}
+                  data-testid="config-center-cdn-origin-protocol"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -145,6 +173,7 @@ export function CDNAccelerationEditor({
                     edges: Math.max(1, cdnConfig.edges - 1),
                   })
                 }
+                aria-label="Decrease edge count"
                 data-testid="config-center-cdn-edges-dec"
               >
                 -
@@ -159,6 +188,7 @@ export function CDNAccelerationEditor({
                     edges: cdnConfig.edges + 1,
                   })
                 }
+                aria-label="Increase edge count"
                 data-testid="config-center-cdn-edges-inc"
               >
                 +

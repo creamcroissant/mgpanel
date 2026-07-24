@@ -41,6 +41,7 @@ func (r *xrayArtifactRenderer) Render(
 		"tls":       {},
 		"transport": {},
 		"multiplex": {},
+		"sniffing": {},
 	})...)
 
 	section, sectionWarnings, err := artifactExtractCoreSection(spec, r.CoreType(), coreSpecific, "xray")
@@ -49,7 +50,17 @@ func (r *xrayArtifactRenderer) Render(
 	}
 	warnings = append(warnings, sectionWarnings...)
 
-	inbound, err := buildUnifiedInboundFromSemantic(spec.Tag, semantic)
+	if !isProtocolSupportedByCore(semantic.Protocol, r.CoreType()) {
+		return nil, nil, &ArtifactUnsupportedFieldError{
+			CoreType: r.CoreType(),
+			SpecID:   spec.ID,
+			Tag:      spec.Tag,
+			Field:    "protocol",
+			Message:  fmt.Sprintf("protocol %q is not supported by %s / 协议 %q 不被 %s 支持", semantic.Protocol, r.CoreType(), semantic.Protocol, r.CoreType()),
+		}
+	}
+
+	inbound, err := buildUnifiedInboundFromSemantic(spec.Tag, semantic, semanticObject)
 	if err != nil {
 		return nil, nil, err
 	}

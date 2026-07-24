@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Download, MoreHorizontal, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { listAgentBinaryVersions, refreshAgentBinaryVersion } from "@/api/admin";
+import { listAgentBinaryVersions, refreshAgentBinaryVersion, installAgentCore } from "@/api/admin";
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -13,13 +13,20 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   EmptyState,
   Loading,
 } from "@/components/ui";
-import type { BinaryVersionComponent, BinaryVersionState, BinaryVersionStatus } from "@/types";
+import { useState } from "react";
+import type { AgentCoreOperation, BinaryVersionComponent, BinaryVersionState, BinaryVersionStatus } from "@/types";
 
 interface BinaryVersionStatusPanelProps {
   agentHostId: number;
+  onCoreOperationSubmitted?: (operation: AgentCoreOperation) => void;
 }
 
 const COMPONENTS: BinaryVersionComponent[] = ["agent", "sing-box", "xray"];
@@ -55,9 +62,10 @@ function buildRows(states: BinaryVersionState[]): BinaryVersionState[] {
   );
 }
 
-export function BinaryVersionStatusPanel({ agentHostId }: BinaryVersionStatusPanelProps) {
+export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted }: BinaryVersionStatusPanelProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const versionsQuery = useQuery({
     queryKey: [...QUERY_KEYS.ADMIN_AGENT_BINARY_VERSIONS, agentHostId],
@@ -72,6 +80,22 @@ export function BinaryVersionStatusPanel({ agentHostId }: BinaryVersionStatusPan
     },
     onError: (error: Error) => {
       toast.error(t("admin.cores.versionRefreshError"), { description: error.message });
+    },
+  });
+
+  const installMutation = useMutation({
+    mutationFn: (args: { coreType: string; action: string }) =>
+      installAgentCore(agentHostId, { core_type: args.coreType, action: args.action, activate: true }),
+    onSuccess: (operation) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "agents"] });
+      if (onCoreOperationSubmitted) {
+        onCoreOperationSubmitted(operation);
+        return;
+      }
+      toast.success(t("admin.cores.operationSubmitted"));
+    },
+    onError: (error: Error) => {
+      toast.error(t("admin.cores.operationError"), { description: error.message });
     },
   });
 
@@ -145,16 +169,58 @@ export function BinaryVersionStatusPanel({ agentHostId }: BinaryVersionStatusPan
                       {state.last_check_error}
                     </div>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-3"
-                    onClick={() => refreshMutation.mutate(state.component)}
-                    disabled={isRefreshing}
-                  >
-                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                    {isRefreshing ? t("common.loading") : t("admin.cores.versionRefresh")}
-                  </Button>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => refreshMutation.mutate(state.component)}
+                      disabled={isRefreshing}
+                    >
+                      <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                      {isRefreshing ? t("common.loading") : t("admin.cores.versionRefresh")}
+                    </Button>
+                    <DropdownMenu open={openMenu === state.component} onOpenChange={(open) => setOpenMenu(open ? state.component : null)}>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline" className="px-2">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-36">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenMenu(null);
+                            installMutation.mutate({ coreType: state.component, action: "install" });
+                          }}
+                          disabled={installMutation.isPending}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          {t("admin.cores.coreInstall")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenMenu(null);
+                            installMutation.mutate({ coreType: state.component, action: "upgrade" });
+                          }}
+                          disabled={installMutation.isPending}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          {t("admin.cores.coreUpgrade")}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setOpenMenu(null);
+                            installMutation.mutate({ coreType: state.component, action: "uninstall" });
+                          }}
+                          disabled={installMutation.isPending}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {t("admin.cores.coreUninstall")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               );
             })}

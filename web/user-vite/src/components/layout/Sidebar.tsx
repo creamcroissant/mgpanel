@@ -1,7 +1,15 @@
-import { NavLink } from "react-router-dom";
+import { useCallback, useEffect, useRef } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { X, ChevronLeft } from "lucide-react";
-import { ADMIN_NAV_ITEMS, USER_NAV_ITEMS, type NavigationItemMeta } from "@/lib/constants";
+import { X, ChevronLeft, Home, Shield } from "lucide-react";
+import {
+  ADMIN_HOME_ROUTE,
+  ADMIN_NAV_GROUPS,
+  USER_HOME_ROUTE,
+  USER_NAV_ITEMS,
+  isAdminPath,
+  type NavigationItemMeta,
+} from "@/lib/constants";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   Button,
@@ -75,12 +83,98 @@ export default function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation();
   const { isAdmin } = useAuth();
+  const location = useLocation();
+  const isAdminRoute = isAdminPath(location.pathname);
+  const portalSwitchItem: NavigationItemMeta | null = isAdmin
+    ? {
+        to: isAdminRoute ? USER_HOME_ROUTE : ADMIN_HOME_ROUTE,
+        labelKey: isAdminRoute ? "nav.backToUser" : "nav.adminPortal",
+        icon: isAdminRoute ? Home : Shield,
+        sidebar: true,
+      }
+    : null;
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  const closeMobileDrawer = useCallback(() => {
+    const target = restoreFocusRef.current;
+    onClose();
+    window.setTimeout(() => target?.focus(), 0);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileDrawer();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const sidebar = sidebarRef.current;
+      if (!sidebar) {
+        return;
+      }
+
+      const focusable = Array.from(
+        sidebar.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null || element === document.activeElement);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (!sidebar.contains(active) || active === first)) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, closeMobileDrawer]);
 
   return (
     <TooltipProvider>
-      {isOpen && <div className="fixed inset-0 z-40 bg-black/45 lg:hidden" onClick={onClose} />}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/45 lg:hidden"
+          aria-hidden="true"
+          onClick={closeMobileDrawer}
+        />
+      )}
 
       <aside
+        ref={sidebarRef}
+        role={isOpen ? "dialog" : undefined}
+        aria-modal={isOpen ? "true" : undefined}
+        aria-label={isOpen ? "Navigation" : undefined}
         className={cn(
           "fixed left-0 top-0 z-50 h-dvh overflow-x-hidden border-r bg-card",
           "w-[var(--sidebar-width-expanded)] transform transition-[width,transform] duration-300 ease-in-out",
@@ -132,10 +226,11 @@ export default function Sidebar({
               )}
             >
               <Button
+                ref={closeButtonRef}
                 variant="ghost"
                 size="icon"
                 className="shrink-0 lg:hidden"
-                onClick={onClose}
+                onClick={closeMobileDrawer}
                 aria-label={t("common.close")}
               >
                 <X size={18} />
@@ -158,30 +253,60 @@ export default function Sidebar({
               isCollapsed ? "items-center px-0 py-4" : "p-4"
             )}
           >
-            <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
-              {USER_NAV_ITEMS.filter((item) => item.sidebar).map((item) => (
-                <li key={item.to} className={cn(isCollapsed && "flex w-full justify-center")}>
-                  <NavItem item={item} label={t(item.labelKey)} isCollapsed={isCollapsed} onClick={onClose} />
-                </li>
-              ))}
-            </ul>
+            {!isAdminRoute && (
+              <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
+                {USER_NAV_ITEMS.filter((item) => item.sidebar).map((item) => (
+                  <li key={item.to} className={cn(isCollapsed && "flex w-full justify-center")}>
+                    <NavItem item={item} label={t(item.labelKey)} isCollapsed={isCollapsed} onClick={onClose} />
+                  </li>
+                ))}
+              </ul>
+            )}
 
-            {!isAdmin && <div className="min-h-4 flex-1" />}
-
-            {isAdmin && (
-              <div className={cn("mt-auto", isCollapsed ? "w-full pt-3" : "pt-5")}>
-                <div className={cn("border-t border-border/70", isCollapsed ? "mx-auto mb-3 w-10" : "mb-5")} />
+            {isAdmin && isAdminRoute && (
+              <div className={cn("w-full", isCollapsed && "flex flex-col items-center")}>
                 {!isCollapsed && (
                   <p className="mb-2 max-h-6 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground opacity-100 transition-all duration-300 ease-in-out">
                     {t("admin.nav.title")}
                   </p>
                 )}
-                <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
-                  {ADMIN_NAV_ITEMS.filter((item) => item.sidebar).map((item) => (
-                    <li key={item.to} className={cn(isCollapsed && "flex w-full justify-center")}>
-                      <NavItem item={item} label={t(item.labelKey)} isCollapsed={isCollapsed} onClick={onClose} />
-                    </li>
+                <div className={cn("space-y-4", isCollapsed && "flex w-full flex-col items-center space-y-3")}>
+                  {ADMIN_NAV_GROUPS.map((group, groupIndex) => (
+                    <div key={group.labelKey} className={cn("w-full", isCollapsed && "flex flex-col items-center")}>
+                      {isCollapsed ? (
+                        groupIndex > 0 && <div className="mb-3 h-px w-10 bg-border/70" aria-hidden="true" />
+                      ) : (
+                        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                          {t(group.labelKey)}
+                        </p>
+                      )}
+                      <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
+                        {group.items.filter((item) => item.sidebar).map((item) => (
+                          <li key={item.to} className={cn(isCollapsed && "flex w-full justify-center")}>
+                            <NavItem item={item} label={t(item.labelKey)} isCollapsed={isCollapsed} onClick={onClose} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            <div className="min-h-4 flex-1" />
+
+            {portalSwitchItem && (
+              <div className={cn("w-full", isCollapsed ? "pt-3" : "pt-5")}>
+                <div className={cn("border-t border-border/70", isCollapsed ? "mx-auto mb-3 w-10" : "mb-5")} />
+                <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
+                  <li className={cn(isCollapsed && "flex w-full justify-center")}>
+                    <NavItem
+                      item={portalSwitchItem}
+                      label={t(portalSwitchItem.labelKey)}
+                      isCollapsed={isCollapsed}
+                      onClick={onClose}
+                    />
+                  </li>
                 </ul>
               </div>
             )}

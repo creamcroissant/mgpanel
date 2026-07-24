@@ -57,6 +57,7 @@ type singBoxInbound struct {
 	TLS        *singBoxTLS       `json:"tls"`
 	Transport  *singBoxTransport `json:"transport"`
 	Multiplex  *singBoxMultiplex `json:"multiplex"`
+	Sniff      *singBoxSniff     `json:"sniff"`
 
 	Method   string `json:"method"`
 	Password string `json:"password"`
@@ -109,15 +110,25 @@ type singBoxTransport struct {
 }
 
 type singBoxMultiplex struct {
-	Enabled bool           `json:"enabled"`
-	Padding bool           `json:"padding"`
-	Brutal  *singBoxBrutal `json:"brutal"`
+	Enabled   bool            `json:"enabled"`
+	Protocol  string          `json:"protocol"`
+	MaxStreams int            `json:"max_streams"`
+	Padding   bool            `json:"padding"`
+	Brutal    *singBoxBrutal `json:"brutal"`
 }
 
 type singBoxBrutal struct {
 	Enabled  bool `json:"enabled"`
 	UpMbps   int  `json:"up_mbps"`
 	DownMbps int  `json:"down_mbps"`
+}
+
+type singBoxSniff struct {
+	Enabled        bool     `json:"enabled"`
+	DestOverride   []string `json:"dest_override"`
+	MetadataOnly   bool     `json:"metadata_only"`
+	DomainsExcluded []string `json:"domains_excluded"`
+	RouteOnly      bool     `json:"route_only"`
 }
 
 func buildSingBoxInbound(inbound UnifiedInbound) map[string]any {
@@ -243,6 +254,53 @@ func buildSingBoxInbound(inbound UnifiedInbound) map[string]any {
 		if value, ok := inbound.Options["ignore_client_bandwidth"]; ok {
 			result["ignore_client_bandwidth"] = value
 		}
+	}
+
+	if inbound.Multiplex != nil && inbound.Multiplex.Enabled {
+		mux := map[string]any{
+			"enabled": true,
+		}
+		if inbound.Multiplex.Protocol != "" {
+			mux["protocol"] = inbound.Multiplex.Protocol
+		}
+		if inbound.Multiplex.MaxStreams > 0 {
+			mux["max_streams"] = inbound.Multiplex.MaxStreams
+		}
+		if inbound.Multiplex.Padding {
+			mux["padding"] = true
+		}
+		if inbound.Multiplex.Brutal != nil && inbound.Multiplex.Brutal.Enabled {
+			brutal := map[string]any{
+				"enabled": true,
+			}
+			if inbound.Multiplex.Brutal.UpMbps > 0 {
+				brutal["up_mbps"] = inbound.Multiplex.Brutal.UpMbps
+			}
+			if inbound.Multiplex.Brutal.DownMbps > 0 {
+				brutal["down_mbps"] = inbound.Multiplex.Brutal.DownMbps
+			}
+			mux["brutal"] = brutal
+		}
+		result["multiplex"] = mux
+	}
+
+	if inbound.Sniffing != nil && inbound.Sniffing.Enabled {
+		sniffing := map[string]any{
+			"enabled": true,
+		}
+		if len(inbound.Sniffing.DestOverride) > 0 {
+			sniffing["dest_override"] = inbound.Sniffing.DestOverride
+		}
+		if inbound.Sniffing.MetadataOnly {
+			sniffing["metadata_only"] = true
+		}
+		if len(inbound.Sniffing.DomainsExcluded) > 0 {
+			sniffing["domains_excluded"] = inbound.Sniffing.DomainsExcluded
+		}
+		if inbound.Sniffing.RouteOnly {
+			sniffing["route_only"] = true
+		}
+		result["sniff"] = sniffing
 	}
 
 	return result
@@ -374,6 +432,33 @@ func parseSingBoxInbound(inbound singBoxInbound) UnifiedInbound {
 	}
 	if len(options) > 0 {
 		result.Options = options
+	}
+
+	if inbound.Multiplex != nil && inbound.Multiplex.Enabled {
+		m := &UnifiedMultiplex{
+			Enabled: true,
+			Protocol: inbound.Multiplex.Protocol,
+			MaxStreams: inbound.Multiplex.MaxStreams,
+			Padding: inbound.Multiplex.Padding,
+		}
+		if inbound.Multiplex.Brutal != nil {
+			m.Brutal = &UnifiedBrutal{
+				Enabled: inbound.Multiplex.Brutal.Enabled,
+				UpMbps: inbound.Multiplex.Brutal.UpMbps,
+				DownMbps: inbound.Multiplex.Brutal.DownMbps,
+			}
+		}
+		result.Multiplex = m
+	}
+
+	if inbound.Sniff != nil {
+		result.Sniffing = &UnifiedSniffing{
+			Enabled: inbound.Sniff.Enabled,
+			DestOverride: inbound.Sniff.DestOverride,
+			MetadataOnly: inbound.Sniff.MetadataOnly,
+			DomainsExcluded: inbound.Sniff.DomainsExcluded,
+			RouteOnly: inbound.Sniff.RouteOnly,
+		}
 	}
 
 	return result

@@ -582,3 +582,33 @@ export async function getProviderStatus(
   );
   return response.data.data;
 }
+
+// ================================================================
+// 8. Latency probe
+// ================================================================
+
+export interface ProbeReportItem {
+  label: string;
+  target: string;
+  province: string;
+  isp: string;
+  avg_latency_ms: number;
+  packet_loss: number;
+  total_probes: number;
+}
+
+export interface ProbeReportResponse {
+  enabled: boolean;
+  isp_summary: Record<string, number>;
+  results: ProbeReportItem[];
+}
+
+/**
+ * Fetch latency probe report.
+ */
+export async function fetchProbeReport(): Promise<ProbeReportResponse> {
+  const response = await adminApi.get<{ data: ProbeReportResponse }>(
+    "/cdn/probe-report"
+  );
+  return response.data.data;
+}

@@ -145,6 +145,7 @@ func (h *AgentHostHandler) ReportStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
 }
@@ -168,6 +169,7 @@ func (h *AgentHostHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
 }
@@ -220,7 +222,7 @@ func (h *AgentHostHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Host: req.Host,
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "required") {
+		if errors.Is(err, service.ErrRequiredField) {
 			RespondErrorI18nAction(ctx, w, http.StatusBadRequest, "agent_host.create", "error.missing_fields", h.i18n)
 			return
 		}
@@ -380,7 +382,7 @@ func (h *AgentHostHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, service.ErrNotFound) {
 			status = http.StatusNotFound
 			key = "error.not_found"
-		} else if strings.Contains(err.Error(), "required") {
+		} else if errors.Is(err, service.ErrRequiredField) {
 			status = http.StatusBadRequest
 			key = "error.missing_fields"
 		}

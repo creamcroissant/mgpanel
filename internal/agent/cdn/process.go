@@ -62,6 +62,20 @@ func (p *CaddyProcess) Start(ctx context.Context) error {
 	p.running = true
 	p.mu.Unlock()
 
+	// Reap the child process in the background to prevent zombies.
+	go func() {
+		err := cmd.Wait()
+		p.mu.Lock()
+		p.running = false
+		p.cmd = nil
+		p.mu.Unlock()
+		if err != nil {
+			slog.Warn("caddy process exited", "error", err)
+		} else {
+			slog.Info("caddy process exited cleanly")
+		}
+	}()
+
 	// Wait for admin API to become reachable.
 	if err := p.waitReady(ctx); err != nil {
 		p.stopProcess(syscall.SIGTERM)
@@ -76,14 +90,17 @@ func (p *CaddyProcess) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops caddy via admin POST /stop.  If the admin call fails,
-// it falls back to SIGTERM on the process.
+// it falls back to SIGTERM on the process.  It does NOT call cmd.Wait()
+// directly — the reap goroutine from Start() handles that.  Instead it polls
+// p.running until the reap goroutine clears it, with a timeout that escalates
+// to SIGKILL.
 func (p *CaddyProcess) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	if !p.running {
 		p.mu.Unlock()
 		return nil
 	}
-	cmd := p.cmd
+	proc := p.cmd.Process
 	p.mu.Unlock()
 
 	// Try graceful shutdown via admin API.
@@ -91,29 +108,60 @@ func (p *CaddyProcess) Stop(ctx context.Context) error {
 		slog.Warn("caddy admin /stop failed, falling back to SIGTERM", "error", err)
 	}
 
-	// Wait for process exit with a timeout to avoid hanging indefinitely.
-	done := make(chan struct{})
-	go func() {
-		_ = cmd.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		_ = cmd.Process.Signal(syscall.SIGTERM)
+	// Poll p.running — the reap goroutine from Start() will clear it.
+	timeout := 15 * time.Second
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+	for time.Now().Before(deadline) {
+		p.mu.Lock()
+		running := p.running
+		p.mu.Unlock()
+		if !running {
+			return nil
+		}
 		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			_ = cmd.Process.Kill()
-			<-done
+		case <-ctx.Done():
+			goto forceKill
+		case <-time.After(pollInterval):
 		}
 	}
 
+	// Timeout — send SIGTERM as last resort, then force kill
+	slog.Warn("caddy stop timeout, escalating to SIGTERM")
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		slog.Warn("caddy SIGTERM failed, sending SIGKILL", "error", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		goto forceKill
+	case <-time.After(1 * time.Second):
+	}
 	p.mu.Lock()
-	p.running = false
-	p.cmd = nil
+	if !p.running {
+		p.mu.Unlock()
+		return nil
+	}
 	p.mu.Unlock()
+
+forceKill:
+	slog.Warn("caddy stop: sending SIGKILL")
+	if err := proc.Kill(); err != nil {
+		return fmt.Errorf("caddy force kill: %w", err)
+	}
+	// Give reap goroutine time to process the signal
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("caddy force kill cancelled: %w", ctx.Err())
+	case <-time.After(500 * time.Millisecond):
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.running {
+		p.running = false
+		p.cmd = nil
+		return fmt.Errorf("caddy process still running after SIGKILL")
+	}
 	return nil
 }
 
@@ -136,6 +184,7 @@ func (p *CaddyProcess) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("health check: %w", err)
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("health check: unexpected status %d", resp.StatusCode)

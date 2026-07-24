@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	corecdn "github.com/creamcroissant/xboard/internal/cdn"
 )
 
 // CDNSiteConfig represents a CDN site configuration for Caddyfile generation.
@@ -33,7 +35,10 @@ func (b *CaddyfileBuilder) BuildSites(sites []*CDNSiteConfig) ([]byte, error) {
 	var l7Sites []*CDNSiteConfig
 	var l7Domains []string
 	for _, s := range sites {
-		if s.OriginType == "xhttp_l4" {
+		if err := validateCaddySite(s); err != nil {
+			return nil, err
+		}
+		if corecdn.NormalizeCaddyOriginType(s.OriginType) == "xhttp_l4" {
 			continue
 		}
 		l7Sites = append(l7Sites, s)
@@ -77,7 +82,10 @@ func (b *CaddyfileBuilder) BuildSites(sites []*CDNSiteConfig) ([]byte, error) {
 // If the site is an L4 (xhttp_l4) type the Caddyfile is returned unchanged.
 // Returns an error if the site domain already exists.
 func (b *CaddyfileBuilder) AddSite(existing []byte, site *CDNSiteConfig) ([]byte, error) {
-	if site.OriginType == "xhttp_l4" {
+	if err := validateCaddySite(site); err != nil {
+		return nil, err
+	}
+	if corecdn.NormalizeCaddyOriginType(site.OriginType) == "xhttp_l4" {
 		// L4 proxy sites don't need a Caddyfile entry — catch-all L4 already covers them.
 		return existing, nil
 	}
@@ -93,6 +101,11 @@ func (b *CaddyfileBuilder) AddSite(existing []byte, site *CDNSiteConfig) ([]byte
 	result := make([]byte, len(existing)+siteBlock.Len())
 	copy(result, existing)
 	copy(result[len(existing):], siteBlock.Bytes())
+
+	// Add L4 SNI exclusion for non-L4 sites so the @proxy block stays in sync.
+	if corecdn.NormalizeCaddyOriginType(site.OriginType) != "xhttp_l4" {
+		result = addL4Exclusion(result, site.Domain)
+	}
 
 	return result, nil
 }
@@ -110,11 +123,18 @@ func (b *CaddyfileBuilder) RemoveSite(existing []byte, domain string) ([]byte, e
 // Helpers: site block generation
 // ---------------------------------------------------------------------------
 
+func validateCaddySite(site *CDNSiteConfig) error {
+	if site == nil {
+		return fmt.Errorf("cdn site is nil")
+	}
+	return corecdn.ValidateCaddySiteConfig(site.Domain, site.OriginType, site.OriginURL)
+}
+
 func writeSiteBlock(buf *bytes.Buffer, site *CDNSiteConfig) {
 	buf.WriteString(fmt.Sprintf("%s {\n", site.Domain))
 	buf.WriteString(tlsDirective(site))
 
-	switch site.OriginType {
+	switch corecdn.NormalizeCaddyOriginType(site.OriginType) {
 	case "static_files":
 		rootPath := site.OriginURL
 		if rootPath == "" {
@@ -134,6 +154,11 @@ func writeSiteBlock(buf *bytes.Buffer, site *CDNSiteConfig) {
 		if originURL != "" {
 			buf.WriteString("        header_up X-Forwarded-For {remote_host}\n")
 		}
+		if site.SSLMode == "full" {
+			buf.WriteString("        transport http {\n")
+			buf.WriteString("            tls_insecure_skip_verify\n")
+			buf.WriteString("        }\n")
+		}
 		buf.WriteString("    }\n")
 		buf.WriteString(cacheBlock(site.CacheTTL))
 		buf.WriteString("    header {\n")
@@ -148,6 +173,14 @@ func tlsDirective(site *CDNSiteConfig) string {
 	switch site.SSLMode {
 	case "none":
 		return ""
+	case "off":
+		return ""
+	case "flexible":
+		return "" // flexible encryption = no TLS to origin
+	case "full":
+		return "    tls\n"
+	case "full_strict":
+		return "    tls\n"
 	case "custom":
 		return "    tls\n"
 	default: // auto_acme
@@ -306,4 +339,31 @@ func removeL4Exclusion(data []byte, domain string) []byte {
 		out.Write([]byte("\n"))
 	}
 	return bytes.TrimSuffix(out.Bytes(), []byte("\n"))
+}
+
+// addL4Exclusion adds a "not tls sni <domain>" exclusion line to the @proxy
+// block.  If the exclusion already exists the data is returned unchanged.
+func addL4Exclusion(data []byte, domain string) []byte {
+	marker := []byte(fmt.Sprintf("not tls sni %s", domain))
+	if bytes.Contains(data, marker) {
+		return data
+	}
+
+	blockMarker := []byte("            @proxy {")
+	idx := bytes.Index(data, blockMarker)
+	if idx < 0 {
+		return data
+	}
+	// Find the end of the opening line.
+	lineEnd := bytes.IndexByte(data[idx:], '\n')
+	if lineEnd < 0 {
+		return data
+	}
+	exclusion := fmt.Sprintf("                not tls sni %s\n", domain)
+	insertPos := idx + lineEnd + 1
+	result := make([]byte, 0, len(data)+len(exclusion))
+	result = append(result, data[:insertPos]...)
+	result = append(result, []byte(exclusion)...)
+	result = append(result, data[insertPos:]...)
+	return result
 }

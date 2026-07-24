@@ -39,13 +39,17 @@ func (j *SendEmailJob) Run(ctx context.Context) error {
 	if len(emails) == 0 {
 		return nil
 	}
-	for _, req := range emails {
+	for i, req := range emails {
 		if err := j.Notifier.SendEmail(ctx, req); err != nil {
 			if errors.Is(err, notifier.ErrNotImplemented) {
 				j.Logger.Warn("notification email not delivered", "reason", err)
 				continue
 			}
 			j.Queue.RequeueEmail(req)
+			// Requeue remaining items to prevent data loss
+			for _, remaining := range emails[i+1:] {
+				j.Queue.RequeueEmail(remaining)
+			}
 			return err
 		}
 	}
@@ -80,13 +84,17 @@ func (j *SendTelegramJob) Run(ctx context.Context) error {
 	if len(msgs) == 0 {
 		return nil
 	}
-	for _, req := range msgs {
+	for i, req := range msgs {
 		if err := j.Notifier.SendTelegram(ctx, req); err != nil {
 			if errors.Is(err, notifier.ErrNotImplemented) {
 				j.Logger.Warn("telegram notification not delivered", "reason", err)
 				continue
 			}
 			j.Queue.RequeueTelegram(req)
+			// Requeue remaining items to prevent data loss
+			for _, remaining := range msgs[i+1:] {
+				j.Queue.RequeueTelegram(remaining)
+			}
 			return err
 		}
 	}

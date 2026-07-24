@@ -41,10 +41,6 @@ var (
 	ErrIdentifierRequired = errors.New("service: email or username required / 需要邮箱或用户名")
 	// ErrRegistrationClosed indicates registering is disabled.
 	ErrRegistrationClosed = errors.New("service: registration closed / 注册已关闭")
-	// ErrInviteRequired indicates an invite code is required.
-	ErrInviteRequired = errors.New("service: invite required / 需要邀请码")
-	// ErrInvalidInviteCode indicates provided invite code invalid or used.
-	ErrInvalidInviteCode = errors.New("service: invalid invite code / 邀请码无效")
 	// ErrEmailExists indicates email already registered.
 	ErrEmailExists = errors.New("service: email already exists / 邮箱已存在")
 	// ErrUsernameExists indicates username already registered.
@@ -69,4 +65,15 @@ var (
 	ErrNotImplemented = errors.New("service: not implemented / 功能未实现")
 	// ErrAlreadyInitialized indicates the install wizard should not run again.
 	ErrAlreadyInitialized = errors.New("service: already initialized / 已完成初始化")
+	// ErrTokenRevoked indicates a refresh token has already been rotated (reuse detected).
+	ErrTokenRevoked = errors.New("service: token revoked / 令牌已被吊销")
 )
+
+// ErrLanguageRequired indicates the language field is required but missing.
+var ErrLanguageRequired = errors.New("language is required")
+
+// ErrRequiredField indicates a required field is missing.
+var ErrRequiredField = errors.New("required field missing")
+
+// ErrFieldsMissing indicates required fields are missing.
+var ErrFieldsMissing = errors.New("required fields missing")

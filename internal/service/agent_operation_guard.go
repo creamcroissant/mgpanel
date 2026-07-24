@@ -251,12 +251,18 @@ func isActiveApplyRunBlocker(run *repository.ApplyRun, agentHostID int64) bool {
 	}
 	switch strings.TrimSpace(run.Status) {
 	case applyRunStatusPending, applyRunStatusApplying:
+		startTime := run.CreatedAt
+		if startTime == 0 {
+			startTime = run.StartedAt
+		}
+		if startTime > 0 && startTime <= time.Now().Unix()-int64(applyRunClaimTimeout/time.Second) {
+			return false
+		}
 		return true
 	default:
 		return false
 	}
 }
-
 func isActiveAgentLifecycleOperationBlocker(op *repository.AgentLifecycleOperation, agentHostID int64, now int64) bool {
 	if op == nil || op.AgentHostID != agentHostID || !isDestructiveAgentLifecycleOperationType(op.OperationType) {
 		return false

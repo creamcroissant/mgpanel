@@ -72,9 +72,7 @@ func (f *ConntrackFlusher) runConntrack(ctx context.Context, family, protocol st
 	if err != nil {
 		return f.wrapConntrackError(err, output, stderr.String())
 	}
-	if len(output) > 0 {
-		return f.wrapConntrackError(err, output, stderr.String())
-	}
+	// conntrack -D 成功时 stdout 可能有已删除条目的文本，这不算是错误
 	return nil
 }
 

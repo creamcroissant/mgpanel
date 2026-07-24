@@ -39,7 +39,9 @@ func NewManager(client *transport.GRPCClient, executor *NFTablesExecutor, interv
 		available: true,
 	}
 
-	if err := executor.CheckAvailability(context.Background()); err != nil {
+	availCtx, availCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer availCancel()
+	if err := executor.CheckAvailability(availCtx); err != nil {
 		m.available = false
 		logger.Error("nftables not available, forwarding disabled", "error", err)
 	}

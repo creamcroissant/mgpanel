@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/creamcroissant/xboard/internal/agent/config"
+	corecdn "github.com/creamcroissant/xboard/internal/cdn"
 )
 
 // Manager manages CDN sites and the Caddy reverse-proxy process.
@@ -84,6 +86,21 @@ func (m *Manager) Start(ctx context.Context) error {
 		return fmt.Errorf("manager init: %w", err)
 	}
 
+	// Scan sites/ directory to restore in-memory site map on restart.
+	sitesDir := filepath.Join(m.configDir, "sites")
+	if entries, err := os.ReadDir(sitesDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".caddy") {
+				continue
+			}
+			domain := strings.TrimSuffix(entry.Name(), ".caddy")
+			m.mu.Lock()
+			m.sites[domain] = &CDNSiteConfig{Domain: domain}
+			m.mu.Unlock()
+		}
+		slog.Info("restored sites from disk", "count", len(m.sites))
+	}
+
 	mainFile := filepath.Join(m.configDir, "Caddyfile")
 	if _, err := os.Stat(mainFile); os.IsNotExist(err) {
 		empty, buildErr := m.builder.BuildSites(nil)
@@ -115,6 +132,10 @@ func (m *Manager) DeploySite(ctx context.Context, site *CDNSiteConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if err := validateCaddySite(site); err != nil {
+		return err
+	}
+
 	// Write individual site fragment.
 	siteFile := filepath.Join(m.configDir, "sites", site.Domain+".caddy")
 	if err := os.WriteFile(siteFile, m.buildSiteBlock(site), 0o644); err != nil {
@@ -141,6 +162,10 @@ func (m *Manager) DeploySite(ctx context.Context, site *CDNSiteConfig) error {
 func (m *Manager) RemoveSite(ctx context.Context, domain string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if err := corecdn.ValidateCaddySiteDomain(domain); err != nil {
+		return err
+	}
 
 	// Delete the individual site file (if it exists).
 	siteFile := filepath.Join(m.configDir, "sites", domain+".caddy")

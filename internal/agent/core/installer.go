@@ -1,14 +1,20 @@
 package core
 
 import (
-	"bytes"
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -19,35 +25,56 @@ import (
 	agentv1 "github.com/creamcroissant/xboard/pkg/pb/agent/v1"
 )
 
-const installCommandTimeout = 15 * time.Minute
+const (
+	installCommandTimeout = 15 * time.Minute
+	downloadTimeout       = 10 * time.Minute
+	apiTimeout            = 30 * time.Second
+	downloadRetries       = 3
+	githubAPICacheTTL     = 5 * time.Minute
+	githubAPIBaseURL      = "https://api.github.com"
+
+	FlavorOfficial     = "official"
+	FlavorWithV2rayAPI = "with-v2ray-api"
+)
+
+type GitHubReleaseAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+	Digest             string `json:"digest,omitempty"`
+}
+
+type GitHubReleaseResponse struct {
+	TagName string               `json:"tag_name"`
+	Assets  []GitHubReleaseAsset `json:"assets"`
+}
 
 type InstallerConfig struct {
-	ScriptPath        string
-	SingBoxBinaryPath string
-	XrayBinaryPath    string
-	ServiceName       string
+	ScriptPath         string
+	SingBoxBinaryPath  string
+	XrayBinaryPath     string
+	ServiceName        string
+	SingBoxReleaseRepo string
+	XrayReleaseRepo    string
+	ReleaseBaseURL     string
+	CoreInstallDir     string
 }
 
 type Installer struct {
-	cfg      InstallerConfig
-	initSys  initsys.InitSystem
-	detector *capability.Detector
-	logger   *slog.Logger
-
-	mu    sync.Mutex
-	locks map[CoreType]*sync.Mutex
+	cfg            InstallerConfig
+	initSys        initsys.InitSystem
+	detector       *capability.Detector
+	logger         *slog.Logger
+	client         *http.Client
+	downloadClient *http.Client
+	mu             sync.Mutex
+	locks          map[CoreType]*sync.Mutex
+	releaseCache   map[string]*cachedRelease
+	cacheMu        sync.RWMutex
 }
 
-type installScriptResult struct {
-	Success          bool   `json:"success"`
-	CoreType         string `json:"core_type"`
-	Action           string `json:"action"`
-	RequestedRef     string `json:"requested_ref"`
-	ResolvedTag      string `json:"resolved_tag"`
-	Message          string `json:"message"`
-	BinaryPath       string `json:"binary_path"`
-	StableBinaryPath string `json:"stable_binary_path"`
-	Changed          *bool  `json:"changed,omitempty"`
+type cachedRelease struct {
+	resp    *GitHubReleaseResponse
+	expires time.Time
 }
 
 func NewInstaller(cfg InstallerConfig, initSys initsys.InitSystem, logger *slog.Logger) *Installer {
@@ -58,11 +85,14 @@ func NewInstaller(cfg InstallerConfig, initSys initsys.InitSystem, logger *slog.
 		logger = slog.Default()
 	}
 	return &Installer{
-		cfg:      cfg,
-		initSys:  initSys,
-		detector: capability.NewDetector(strings.TrimSpace(cfg.SingBoxBinaryPath), strings.TrimSpace(cfg.XrayBinaryPath)),
-		logger:   logger,
-		locks:    make(map[CoreType]*sync.Mutex),
+		cfg:            cfg,
+		initSys:        initSys,
+		detector:       capability.NewDetector(strings.TrimSpace(cfg.SingBoxBinaryPath), strings.TrimSpace(cfg.XrayBinaryPath)),
+		logger:         logger,
+		client:         &http.Client{Timeout: apiTimeout},
+		downloadClient: &http.Client{Timeout: downloadTimeout},
+		locks:          make(map[CoreType]*sync.Mutex),
+		releaseCache:   make(map[string]*cachedRelease),
 	}
 }
 
@@ -70,7 +100,6 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	if req == nil {
 		return nil, fmt.Errorf("empty install request")
 	}
-
 	coreType, err := normalizeInstallCoreType(req.CoreType)
 	if err != nil {
 		return nil, err
@@ -82,12 +111,8 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	version := strings.TrimSpace(req.Version)
 	channel := strings.TrimSpace(req.Channel)
 	flavor := strings.TrimSpace(req.Flavor)
-	scriptPath := strings.TrimSpace(i.cfg.ScriptPath)
-	if scriptPath == "" {
-		return nil, fmt.Errorf("install script path is empty")
-	}
-	if _, err := os.Stat(scriptPath); err != nil {
-		return nil, fmt.Errorf("stat install script: %w", err)
+	if flavor == "" {
+		flavor = FlavorOfficial
 	}
 
 	lock := i.lockForCore(coreType)
@@ -95,37 +120,455 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	defer lock.Unlock()
 
 	previousVersion, previousErr := i.detectVersion(ctx, coreType)
-	args := buildInstallCommandArgs(coreType, action, version, channel, flavor)
-	scriptResult, err := i.runScript(ctx, scriptPath, args)
+	_, _, stablePath, _ := i.resolveCoreAsset(coreType, flavor)
+
+	if action == "uninstall" {
+		i.logger.Info("uninstalling core", "type", coreType)
+		if err := os.Remove(stablePath); err != nil && !os.IsNotExist(err) {
+			i.logger.Warn("remove stable symlink", "path", stablePath, "error", err)
+		}
+		coreDir := filepath.Join(i.cfg.CoreInstallDir, string(coreType))
+		if err := os.RemoveAll(coreDir); err != nil {
+			i.logger.Warn("remove core dir", "path", coreDir, "error", err)
+			return nil, fmt.Errorf("uninstall remove core dir: %w", err)
+		}
+		return &agentv1.InstallCoreResponse{
+			Success: true, Changed: true, CoreType: string(coreType),
+			Version: "", PreviousVersion: previousVersion,
+			Message: fmt.Sprintf("Uninstalled %s", string(coreType)),
+		}, nil
+	}
+
+	repo, binaryName, stablePath, err := i.resolveCoreAsset(coreType, flavor)
+	if err != nil {
+		return nil, err
+	}
+	resolvedTag, downloadURL, sha256Hex, assetName, err := i.resolveRelease(ctx, repo, version, channel, coreType, flavor, binaryName)
 	if err != nil {
 		return nil, err
 	}
 
-	currentVersion, currentErr := i.detectVersion(ctx, coreType)
-	changed := installChanged(previousVersion, currentVersion, previousErr, currentErr, action, version)
-	if err := currentErr; err != nil {
-		return nil, fmt.Errorf("detect installed core version: %w", err)
-	}
+	i.logger.Info("installing core", "type", coreType, "repo", repo, "tag", resolvedTag, "asset", assetName)
 
-	resp := &agentv1.InstallCoreResponse{
-		Success:         true,
-		Changed:         changed,
-		Message:         "core install completed",
-		CoreType:        string(coreType),
-		Version:         currentVersion,
-		PreviousVersion: previousVersion,
-	}
-	applyScriptResult(resp, coreType, scriptResult)
+	versionDir := filepath.Join(i.cfg.CoreInstallDir, string(coreType), resolvedTag)
+	targetPath := filepath.Join(versionDir, binaryName)
 
-	if req.Activate {
-		activated, activateErr := i.activateCore(ctx, coreType)
-		resp.Activated = activated
-		if activateErr != nil {
-			return i.handleActivationFailure(ctx, resp, coreType, previousVersion, previousErr, currentVersion, flavor, activateErr), nil
+	if action == "ensure" {
+		if _, err := os.Stat(targetPath); err == nil {
+			if err := i.ensureSymlink(targetPath, stablePath); err != nil {
+				i.logger.Warn("failed to update symlink during ensure", "error", err)
+			}
+			cv, detectErr := i.detectVersion(ctx, coreType)
+			if detectErr != nil {
+				i.logger.Warn("failed to detect version after ensure", "error", detectErr)
+			}
+			return &agentv1.InstallCoreResponse{
+				Success: true, Changed: false, CoreType: string(coreType),
+				Version: cv, PreviousVersion: previousVersion,
+				Message: fmt.Sprintf("Core %s already installed at %s", string(coreType), resolvedTag),
+			}, nil
 		}
 	}
 
+	workdir, err := os.MkdirTemp("", "xboard-core-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(workdir)
+
+	archivePath := filepath.Join(workdir, assetName)
+	if err := i.downloadFile(ctx, downloadURL, archivePath); err != nil {
+		return nil, fmt.Errorf("download %s: %w", assetName, err)
+	}
+	if sha256Hex != "" {
+		if err := i.verifyChecksum(archivePath, sha256Hex); err != nil {
+			return nil, fmt.Errorf("checksum: %w", err)
+		}
+	}
+
+	binaryPath, err := i.extractBinary(archivePath, workdir, binaryName)
+	if err != nil {
+		return nil, fmt.Errorf("extract: %w", err)
+	}
+	if err := os.MkdirAll(versionDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create version dir: %w", err)
+	}
+	if err := copyFile(binaryPath, targetPath, 0o755); err != nil {
+		return nil, fmt.Errorf("copy: %w", err)
+	}
+	if err := i.ensureSymlink(targetPath, stablePath); err != nil {
+		return nil, fmt.Errorf("create symlink: %w", err)
+	}
+
+	cv, currentErr := i.detectVersion(ctx, coreType)
+	if currentErr != nil {
+		return nil, fmt.Errorf("detect version: %w", currentErr)
+	}
+	resp := &agentv1.InstallCoreResponse{
+		Success:  true,
+		Changed:  installChanged(previousVersion, cv, previousErr, nil, action, version),
+		Message:  fmt.Sprintf("Installed %s %s", string(coreType), resolvedTag),
+		CoreType: string(coreType), Version: cv, PreviousVersion: previousVersion,
+	}
+	if req.Activate {
+		ok, aErr := i.activateCore(ctx, coreType)
+		resp.Activated = ok
+		if aErr != nil {
+			return i.handleActivationFailure(ctx, resp, coreType, previousVersion, previousErr, cv, flavor, aErr), nil
+		}
+	}
 	return resp, nil
+}
+
+func (i *Installer) resolveCoreAsset(coreType CoreType, flavor string) (repo, binaryName, stablePath string, err error) {
+	switch coreType {
+	case CoreTypeSingBox:
+		repo = i.cfg.SingBoxReleaseRepo
+		if repo == "" {
+			return "", "", "", fmt.Errorf("sing-box release repo not configured")
+		}
+		binaryName = "sing-box"
+		stablePath = strings.TrimSpace(i.cfg.SingBoxBinaryPath)
+		if stablePath == "" {
+			stablePath = "/opt/xboard/agent/bin/sing-box"
+		}
+	case CoreTypeXray:
+		repo = i.cfg.XrayReleaseRepo
+		if repo == "" {
+			return "", "", "", fmt.Errorf("xray release repo not configured")
+		}
+		binaryName = "xray"
+		stablePath = strings.TrimSpace(i.cfg.XrayBinaryPath)
+		if stablePath == "" {
+			stablePath = "/opt/xboard/agent/bin/xray"
+		}
+	default:
+		return "", "", "", fmt.Errorf("unsupported core type")
+	}
+	return
+}
+
+func (i *Installer) buildAssetName(coreType CoreType, flavor, tag, binaryName string) string {
+	norm := strings.TrimPrefix(tag, "v")
+	switch coreType {
+	case CoreTypeSingBox:
+		if flavor == FlavorWithV2rayAPI {
+			return fmt.Sprintf("sing-box-linux-%s", runtime.GOARCH)
+		}
+		return fmt.Sprintf("sing-box-%s-linux-%s.tar.gz", norm, runtime.GOARCH)
+	case CoreTypeXray:
+		return fmt.Sprintf("Xray-linux-%s.zip", archToXrayToken(runtime.GOARCH))
+	}
+	return binaryName
+}
+
+func (i *Installer) resolveRelease(ctx context.Context, repo, version, channel string, coreType CoreType, flavor string, binaryName string) (resolvedTag, downloadURL, sha256Hex, assetName string, err error) {
+	apiURL := i.buildReleaseAPIURL(repo, version, channel)
+	i.cacheMu.RLock()
+	var cachedResp *GitHubReleaseResponse
+	if cached, ok := i.releaseCache[apiURL]; ok && time.Now().Before(cached.expires) {
+		cachedResp = cached.resp
+	}
+	i.cacheMu.RUnlock()
+
+	if cachedResp != nil {
+		a := i.buildAssetName(coreType, flavor, cachedResp.TagName, binaryName)
+		dl, sh := findAssetURL(cachedResp.Assets, a)
+		return cachedResp.TagName, dl, sh, a, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("create release request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "xboard-agent/1.0")
+	resp, netErr := i.client.Do(req)
+	if netErr != nil {
+		return "", "", "", "", fmt.Errorf("fetch: %w", netErr)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		return "", "", "", "", fmt.Errorf("GitHub API rate limited (HTTP %d)", resp.StatusCode)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("read release response: %w", err)
+	}
+	var release GitHubReleaseResponse
+	if err := json.Unmarshal(body, &release); err != nil {
+		return "", "", "", "", fmt.Errorf("failed to parse release info: %w", err)
+	}
+	if release.TagName == "" {
+		return "", "", "", "", fmt.Errorf("empty tag_name")
+	}
+
+	resolvedTag = release.TagName
+	assetName = i.buildAssetName(coreType, flavor, resolvedTag, binaryName)
+	downloadURL, sha256Hex = findAssetURL(release.Assets, assetName)
+	if downloadURL == "" {
+		return "", "", "", "", fmt.Errorf("asset %q not found in %s (%s)", assetName, resolvedTag, repo)
+	}
+
+	i.cacheMu.Lock()
+	i.releaseCache[apiURL] = &cachedRelease{resp: &release, expires: time.Now().Add(githubAPICacheTTL)}
+	i.cacheMu.Unlock()
+	return
+}
+
+func (i *Installer) buildReleaseAPIURL(repo, version, channel string) string {
+	if version != "" {
+		normalized := version
+		if !strings.HasPrefix(normalized, "v") {
+			normalized = "v" + normalized
+		}
+		return fmt.Sprintf("%s/repos/%s/releases/tags/%s", githubAPIBaseURL, repo, normalized)
+	}
+	return fmt.Sprintf("%s/repos/%s/releases/latest", githubAPIBaseURL, repo)
+}
+
+func findAssetURL(assets []GitHubReleaseAsset, assetName string) (string, string) {
+	for _, a := range assets {
+		if a.Name == assetName {
+			return a.BrowserDownloadURL, a.Digest
+		}
+	}
+	return "", ""
+}
+
+func (i *Installer) verifyChecksum(path, expectedHex string) error {
+	expectedHex = strings.TrimPrefix(strings.TrimSpace(expectedHex), "sha256:")
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("checksum read: %w", err)
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if actual != expectedHex {
+		return fmt.Errorf("expected %s, got %s", expectedHex, actual)
+	}
+	return nil
+}
+
+func (i *Installer) downloadFile(ctx context.Context, url, path string) error {
+	// Detach from caller context so gRPC deadline doesn't kill the download;
+	// the downloadClient's own 10-minute timeout provides the safety net.
+	dlCtx := context.WithoutCancel(ctx)
+
+	var lastErr error
+	for attempt := 0; attempt < downloadRetries; attempt++ {
+		if attempt > 0 {
+			i.logger.Info("retrying download", "url", url, "attempt", attempt+1, "max", downloadRetries)
+			select {
+			case <-time.After(time.Duration(attempt) * 5 * time.Second):
+			case <-dlCtx.Done():
+				return dlCtx.Err()
+			}
+		}
+
+		lastErr = i.downloadOnce(dlCtx, url, path)
+		if lastErr == nil {
+			return nil
+		}
+		i.logger.Warn("download failed, will retry", "url", url, "attempt", attempt+1, "error", lastErr)
+		// Clean up partial file on failure
+		os.Remove(path)
+	}
+	return fmt.Errorf("download failed after %d retries: %w", downloadRetries, lastErr)
+}
+
+func (i *Installer) downloadOnce(ctx context.Context, url, path string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("create download request: %w", err)
+	}
+	req.Header.Set("User-Agent", "xboard-agent/1.0")
+	resp, err := i.downloadClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	out, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create download file: %w", err)
+	}
+	defer out.Close()
+	written, err := io.Copy(out, io.LimitReader(resp.Body, 200<<20))
+	if err != nil {
+		return fmt.Errorf("download failed: %w", err)
+	}
+	if written == 0 {
+		return fmt.Errorf("empty download")
+	}
+	return nil
+}
+
+func (i *Installer) extractBinary(archivePath, workdir, binaryName string) (string, error) {
+	switch {
+	case strings.HasSuffix(archivePath, ".tar.gz"), strings.HasSuffix(archivePath, ".tgz"):
+		ed := filepath.Join(workdir, "extracted")
+		os.MkdirAll(ed, 0o755)
+		if err := untarGz(archivePath, ed); err != nil {
+			return "", err
+		}
+		return walkBinary(ed, binaryName)
+	case strings.HasSuffix(archivePath, ".zip"):
+		ed := filepath.Join(workdir, "extracted")
+		os.MkdirAll(ed, 0o755)
+		if err := unzip(archivePath, ed); err != nil {
+			return "", err
+		}
+		return walkBinary(ed, binaryName)
+	default:
+		dest := filepath.Join(workdir, binaryName)
+		return dest, copyFile(archivePath, dest, 0o755)
+	}
+}
+
+func (i *Installer) ensureSymlink(target, stable string) error {
+	os.MkdirAll(filepath.Dir(stable), 0o755)
+	os.Remove(stable)
+	if err := os.Symlink(target, stable); err != nil {
+		return copyFile(target, stable, 0o755)
+	}
+	return nil
+}
+
+func untarGz(src, dest string) error {
+	f, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open archive: %w", err)
+	}
+	defer f.Close()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		tgt := filepath.Join(dest, filepath.Clean(h.Name))
+		switch h.Typeflag {
+		case tar.TypeDir:
+			os.MkdirAll(tgt, os.FileMode(h.Mode))
+		case tar.TypeReg:
+			os.MkdirAll(filepath.Dir(tgt), 0o755)
+			out, err := os.OpenFile(tgt, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(h.Mode))
+			if err != nil {
+				return fmt.Errorf("create extracted file %s: %w", h.Name, err)
+			}
+			_, err = io.Copy(out, tr)
+			closeErr := out.Close()
+			if err != nil {
+				return fmt.Errorf("write extracted file %s: %w", h.Name, err)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("close extracted file %s: %w", h.Name, closeErr)
+			}
+		}
+	}
+	return nil
+}
+
+func unzip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		tgt := filepath.Join(dest, filepath.Clean(f.Name))
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(tgt, 0o755)
+			continue
+		}
+		os.MkdirAll(filepath.Dir(tgt), 0o755)
+		rc, err := f.Open()
+		if err != nil {
+			return fmt.Errorf("open zip entry %s: %w", f.Name, err)
+		}
+
+		out, err := os.OpenFile(tgt, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		if err != nil {
+			rc.Close()
+			return fmt.Errorf("create extracted file %s: %w", f.Name, err)
+		}
+
+		_, err = io.Copy(out, rc)
+		closeErr := out.Close()
+		rc.Close()
+		if err != nil {
+			return fmt.Errorf("write extracted file %s: %w", f.Name, err)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close extracted file %s: %w", f.Name, closeErr)
+		}
+	}
+	return nil
+}
+
+func walkBinary(root, name string) (string, error) {
+	var found string
+	filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && info.Name() == name {
+			found = p
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if found == "" {
+		return "", fmt.Errorf("binary %q not found", name)
+	}
+	return found, nil
+}
+
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("create target dir: %w", err)
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	in.Close() // no defer: ensure close before returning
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
+}
+
+func archToXrayToken(arch string) string {
+	switch arch {
+	case "amd64":
+		return "64"
+	case "arm64":
+		return "arm64-v8a"
+	}
+	return arch
 }
 
 func (i *Installer) handleActivationFailure(ctx context.Context, resp *agentv1.InstallCoreResponse, coreType CoreType, previousVersion string, previousErr error, currentVersion, flavor string, activateErr error) *agentv1.InstallCoreResponse {
@@ -133,35 +576,23 @@ func (i *Installer) handleActivationFailure(ctx context.Context, resp *agentv1.I
 	resp.Error = activateErr.Error()
 	resp.Message = "core install completed but activation failed"
 	resp.Activated = false
-	i.logger.Error("failed to activate installed core", "core_type", string(coreType), "error", activateErr)
-
 	if previousErr != nil || previousVersion == "" || currentVersion == "" || previousVersion == currentVersion {
 		return resp
 	}
 	if err := i.rollbackCore(ctx, coreType, previousVersion, flavor); err != nil {
-		resp.Error = fmt.Sprintf("%s; rollback failed: %v", activateErr.Error(), err)
-		resp.Message = "core install activation failed and rollback failed"
-		i.logger.Error("failed to roll back installed core", "core_type", string(coreType), "target_version", previousVersion, "error", err)
+		resp.Error = fmt.Sprintf("%s; rollback: %v", activateErr.Error(), err)
 		return resp
 	}
 	if _, err := i.activateCore(ctx, coreType); err != nil {
-		resp.Error = fmt.Sprintf("%s; rollback activation failed: %v", activateErr.Error(), err)
-		resp.Message = "core install activation failed and rollback failed"
-		i.logger.Error("failed to reactivate previous core version", "core_type", string(coreType), "target_version", previousVersion, "error", err)
+		resp.Error = fmt.Sprintf("%s; rollback activate: %v", activateErr.Error(), err)
 		return resp
 	}
-	rolledBackVersion, err := i.detectVersion(ctx, coreType)
-	if err != nil {
-		resp.Error = fmt.Sprintf("%s; rollback verification failed: %v", activateErr.Error(), err)
-		resp.Message = "core install activation failed and rollback verification failed"
-		i.logger.Error("failed to verify rolled back core version", "core_type", string(coreType), "target_version", previousVersion, "error", err)
-		return resp
+	if rv, err := i.detectVersion(ctx, coreType); err == nil {
+		resp.RolledBack = true
+		resp.Version = rv
+		resp.PreviousVersion = currentVersion
+		resp.Message = "core install activation failed and previous version restored"
 	}
-
-	resp.RolledBack = true
-	resp.Version = rolledBackVersion
-	resp.PreviousVersion = currentVersion
-	resp.Message = "core install activation failed and previous version restored"
 	return resp
 }
 
@@ -182,118 +613,17 @@ func normalizeInstallCoreType(raw string) (CoreType, error) {
 		return CoreTypeSingBox, nil
 	case string(CoreTypeXray):
 		return CoreTypeXray, nil
-	default:
-		return "", fmt.Errorf("unsupported core_type %q", strings.TrimSpace(raw))
 	}
+	return "", fmt.Errorf("unsupported core_type")
 }
 
 func normalizeInstallAction(raw string) (string, error) {
-	action := strings.TrimSpace(strings.ToLower(raw))
-	switch action {
-	case "install", "upgrade", "ensure":
-		return action, nil
-	default:
-		return "", fmt.Errorf("unsupported action %q", strings.TrimSpace(raw))
+	act := strings.TrimSpace(strings.ToLower(raw))
+	switch act {
+	case "install", "upgrade", "ensure", "uninstall":
+		return act, nil
 	}
-}
-
-func buildInstallCommandArgs(coreType CoreType, action, version, channel, flavor string) []string {
-	args := []string{
-		"--core-action", action,
-		"--core-type", string(coreType),
-	}
-	if version != "" {
-		args = append(args, "--core-version", version)
-	}
-	if channel != "" {
-		args = append(args, "--core-channel", channel)
-	}
-	if flavor != "" {
-		args = append(args, "--core-flavor", flavor)
-	}
-	return args
-}
-
-func (i *Installer) runScript(ctx context.Context, scriptPath string, args []string) (*installScriptResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, installCommandTimeout)
-	defer cancel()
-
-	cmdArgs := append([]string{scriptPath}, args...)
-	cmd := exec.CommandContext(ctx, "/bin/sh", cmdArgs...)
-	cmd.Env = append(os.Environ(), "XBOARD_AGENT_CORE_OUTPUT=json")
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-
-	i.logger.Info("running core install script", "script_path", scriptPath, "args", args)
-	if err := cmd.Run(); err != nil {
-		sanitized := protocol.SanitizeCommandOutput(output.Bytes())
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("core install command timed out: %s", sanitized)
-		}
-		if sanitized == "" {
-			return nil, fmt.Errorf("core install command failed: %w", err)
-		}
-		return nil, fmt.Errorf("core install command failed: %w, output: %s", err, sanitized)
-	}
-
-	parsed, parseErr := parseInstallScriptOutput(output.Bytes())
-	if parseErr == nil && parsed != nil {
-		attrs := []any{
-			"core_type", parsed.CoreType,
-			"action", parsed.Action,
-			"resolved_tag", parsed.ResolvedTag,
-			"message", parsed.Message,
-		}
-		if parsed.Changed != nil {
-			attrs = append(attrs, "changed", *parsed.Changed)
-		}
-		i.logger.Info("core install script completed", attrs...)
-		return parsed, nil
-	}
-
-	if sanitized := protocol.SanitizeCommandOutput(output.Bytes()); sanitized != "" {
-		i.logger.Info("core install script completed", "output", sanitized)
-	}
-	return nil, nil
-}
-
-func parseInstallScriptOutput(output []byte) (*installScriptResult, error) {
-	text := strings.TrimSpace(string(output))
-	if text == "" {
-		return nil, nil
-	}
-	lines := strings.Split(text, "\n")
-	for idx := len(lines) - 1; idx >= 0; idx-- {
-		candidate := strings.TrimSpace(lines[idx])
-		if candidate == "" {
-			continue
-		}
-		var result installScriptResult
-		if err := json.Unmarshal([]byte(candidate), &result); err != nil {
-			continue
-		}
-		if !result.Success {
-			return nil, fmt.Errorf("install script reported unsuccessful result")
-		}
-		return &result, nil
-	}
-	return nil, fmt.Errorf("no structured install result found")
-}
-
-func applyScriptResult(resp *agentv1.InstallCoreResponse, coreType CoreType, result *installScriptResult) {
-	if resp == nil || result == nil {
-		return
-	}
-	if result.CoreType != "" && result.CoreType == string(coreType) {
-		resp.CoreType = result.CoreType
-	}
-	if result.Message != "" {
-		resp.Message = result.Message
-	}
-	if result.Changed != nil {
-		resp.Changed = *result.Changed
-	}
+	return "", fmt.Errorf("unsupported action")
 }
 
 func (i *Installer) detectVersion(ctx context.Context, coreType CoreType) (string, error) {
@@ -310,19 +640,15 @@ func (i *Installer) detectVersion(ctx context.Context, coreType CoreType) (strin
 			return "", err
 		}
 		return strings.TrimSpace(caps.CoreVersion), nil
-	default:
-		return "", fmt.Errorf("unsupported core type %q", coreType)
 	}
+	return "", fmt.Errorf("unsupported core type")
 }
 
 func installChanged(previousVersion, currentVersion string, previousErr, currentErr error, action, requestedVersion string) bool {
 	if currentErr != nil {
 		return false
 	}
-	if previousErr != nil {
-		return true
-	}
-	if currentVersion != previousVersion {
+	if previousErr != nil || currentVersion != previousVersion {
 		return true
 	}
 	if requestedVersion != "" && requestedVersion != currentVersion {
@@ -332,31 +658,40 @@ func installChanged(previousVersion, currentVersion string, previousErr, current
 }
 
 func (i *Installer) rollbackCore(ctx context.Context, coreType CoreType, version, flavor string) error {
-	args := buildInstallCommandArgs(coreType, "ensure", strings.TrimSpace(version), "", strings.TrimSpace(flavor))
-	if _, err := i.runScript(ctx, strings.TrimSpace(i.cfg.ScriptPath), args); err != nil {
-		return fmt.Errorf("restore previous core version: %w", err)
+	_, binaryName, stablePath, err := i.resolveCoreAsset(coreType, flavor)
+	if err != nil {
+		return err
 	}
+	versionDir := filepath.Join(i.cfg.CoreInstallDir, string(coreType), version)
+	targetPath := filepath.Join(versionDir, binaryName)
+	if _, err := os.Stat(targetPath); err != nil {
+		return fmt.Errorf("rollback target %s not found: %w", targetPath, err)
+	}
+	if err := i.ensureSymlink(targetPath, stablePath); err != nil {
+		return fmt.Errorf("rollback symlink: %w", err)
+	}
+	i.logger.Info("core rollback completed", "type", coreType, "version", version)
 	return nil
 }
 
 func (i *Installer) activateCore(ctx context.Context, coreType CoreType) (bool, error) {
-	service := strings.TrimSpace(i.cfg.ServiceName)
-	if service == "" {
+	svc := strings.TrimSpace(i.cfg.ServiceName)
+	if svc == "" {
 		switch coreType {
 		case CoreTypeSingBox:
-			service = "sing-box"
+			svc = "sing-box"
 		case CoreTypeXray:
-			service = "xray"
+			svc = "xray"
 		}
 	}
-	if service == "" {
-		return false, fmt.Errorf("service name is empty")
+	if svc == "" {
+		return false, fmt.Errorf("service name empty")
 	}
-
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if err := i.initSys.Restart(ctx, service); err != nil {
-		return false, fmt.Errorf("activate installed core: %w", err)
-	}
-	return true, nil
+	return true, i.initSys.Restart(ctx, svc)
+}
+
+func sanitizeCommandOutput(b []byte) string {
+	return protocol.SanitizeCommandOutput(b)
 }

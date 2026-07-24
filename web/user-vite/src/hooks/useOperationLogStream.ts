@@ -76,7 +76,6 @@ export function useOperationLogStream({
   enabled = true,
   limit = 100,
   initialAfterId = 0,
-  reconnectDelayMs = 3000,
   maxEntries,
 }: UseOperationLogStreamOptions): UseOperationLogStreamResult {
   const [logs, setLogs] = useState<OperationLogEntry[]>([]);
@@ -94,8 +93,13 @@ export function useOperationLogStream({
 
     let active = true;
     let reconnectTimer: number | undefined;
+    let reconnectAttempt = 0;
     let lastID = initialAfterId;
     const abortController = new AbortController();
+
+    const getReconnectDelay = (attempt: number) => {
+      return Math.min(30000, Math.pow(2, attempt) * 3000);
+    };
 
     setLogs([]);
     setConnected(false);
@@ -167,10 +171,12 @@ export function useOperationLogStream({
 
         setConnected(true);
         setError(null);
+        reconnectAttempt = 0;
         await readStream(response);
         if (active && !abortController.signal.aborted) {
           setConnected(false);
-          reconnectTimer = window.setTimeout(connect, reconnectDelayMs);
+          reconnectAttempt++;
+          reconnectTimer = window.setTimeout(connect, getReconnectDelay(reconnectAttempt));
         }
       } catch (streamError) {
         if (!active || abortController.signal.aborted) {
@@ -178,7 +184,8 @@ export function useOperationLogStream({
         }
         setConnected(false);
         setError(toErrorMessage(streamError));
-        reconnectTimer = window.setTimeout(connect, reconnectDelayMs);
+        reconnectAttempt++;
+        reconnectTimer = window.setTimeout(connect, getReconnectDelay(reconnectAttempt));
       }
     };
 
@@ -191,7 +198,7 @@ export function useOperationLogStream({
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [agentHostId, enabled, initialAfterId, level, limit, maxEntries, reconnectDelayMs, scope, targetId]);
+  }, [agentHostId, enabled, initialAfterId, level, limit, maxEntries, scope, targetId]);
 
   return { logs, connected, error, lastEventId };
 }

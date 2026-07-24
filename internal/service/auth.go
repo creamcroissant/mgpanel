@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/creamcroissant/xboard/internal/auth/token"
@@ -64,6 +66,7 @@ type authService struct {
 	rate          *security.RateLimiter
 	audit         security.Recorder
 	loginFailures cache.Store
+	usedTokens    sync.Map // recently rotated refresh tokens (reuse detection)
 }
 
 const (
@@ -353,6 +356,10 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (*LoginR
 	if trimmed == "" {
 		return nil, ErrInvalidRefreshToken
 	}
+	// Atomic reuse detection: only the first caller wins
+	if _, loaded := s.usedTokens.LoadOrStore(trimmed, true); loaded {
+		return nil, ErrTokenRevoked
+	}
 	record, err := s.tokens.FindByRefreshToken(ctx, trimmed)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -361,12 +368,16 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (*LoginR
 		return nil, err
 	}
 	if record.Revoked || record.RefreshExpiresAt <= time.Now().Unix() {
-		_ = s.tokens.DeleteByRefreshToken(ctx, trimmed)
+		if err := s.tokens.DeleteByRefreshToken(ctx, trimmed); err != nil {
+			slog.Warn("delete refresh token failed (revoked/expired)", "error", err)
+		}
 		return nil, ErrInvalidRefreshToken
 	}
 	user, err := s.users.FindByID(ctx, record.UserID)
 	if err != nil {
-		_ = s.tokens.DeleteByRefreshToken(ctx, trimmed)
+		if err := s.tokens.DeleteByRefreshToken(ctx, trimmed); err != nil {
+			slog.Warn("delete refresh token failed (user lookup)", "error", err)
+		}
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrInvalidRefreshToken
 		}
@@ -375,7 +386,9 @@ func (s *authService) Refresh(ctx context.Context, refreshToken string) (*LoginR
 	if user.Status != 1 || user.Banned {
 		return nil, ErrAccountDisabled
 	}
-	_ = s.tokens.DeleteByRefreshToken(ctx, trimmed)
+	if err := s.tokens.DeleteByRefreshToken(ctx, trimmed); err != nil {
+		slog.Warn("delete refresh token failed (rotation cleanup)", "error", err)
+	}
 	identifier := preferredIdentifier(user)
 	meta := &LoginInput{Identifier: identifier, IP: record.IP, UserAgent: record.UserAgent}
 	result, err := s.issueTokens(ctx, user, meta)

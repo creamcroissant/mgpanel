@@ -176,6 +176,7 @@ func terminateProcess(ctx context.Context, pid int) error {
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
+		proc.Signal(syscall.SIGKILL)
 		return ctx.Err()
 	case <-timer.C:
 	}

@@ -64,7 +64,8 @@ export default function CDNSiteForm({
         setFormData(defaultFormData);
       }
     }
-  }, [open, editingSite]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingSite?.id]);
 
   const handleDialogChange = (open: boolean) => {
     if (!open) {

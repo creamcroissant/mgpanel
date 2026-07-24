@@ -98,7 +98,7 @@ func (j *StatUserJob) Run(ctx context.Context) error {
 	for key, delta := range pending {
 		if delta.Upload == 0 && delta.Download == 0 {
 			skipped++
-			delete(pending, key)
+
 			continue
 		}
 		records = append(records, repository.StatUserRecord{
@@ -112,7 +112,7 @@ func (j *StatUserJob) Run(ctx context.Context) error {
 			CreatedAt:   nowUnix,
 			UpdatedAt:   nowUnix,
 		})
-		delete(pending, key)
+
 	}
 
 	if len(records) == 0 {

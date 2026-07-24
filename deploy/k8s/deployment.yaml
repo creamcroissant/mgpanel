@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xboard
+  labels:
+    app: xboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xboard
+  template:
+    metadata:
+      labels:
+        app: xboard
+    spec:
+      containers:
+      - name: xboard
+        image: xboard:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: xboard-config
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: xboard-pvc

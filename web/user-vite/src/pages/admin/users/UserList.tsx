@@ -23,6 +23,9 @@ import {
   Input,
   Loading,
   Pagination,
+  ResponsiveList,
+  ResponsiveListField,
+  ResponsiveListItem,
   Table,
   TableBody,
   TableCell,
@@ -96,6 +99,50 @@ export default function UserList() {
     createMutation.mutate(newUser);
   };
 
+  const renderUserStatus = (user: AdminUser) => (
+    <Badge
+      variant={
+        user.banned
+          ? "danger"
+          : user.status === 1
+            ? "success"
+            : "default"
+      }
+    >
+      {user.banned
+        ? t("admin.users.banned")
+        : user.status === 1
+          ? t("admin.users.active")
+          : t("admin.users.inactive")}
+    </Badge>
+  );
+
+  const renderUserActions = (user: AdminUser) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={t("common.actions")}>
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          className="gap-2"
+          onSelect={() => banMutation.mutate({ id: user.id, banned: !user.banned })}
+        >
+          <Ban className="h-4 w-4" />
+          {user.banned ? t("admin.users.unban") : t("admin.users.ban")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="gap-2 text-destructive focus:text-destructive"
+          onSelect={() => deleteMutation.mutate(user.id)}
+        >
+          <Trash2 className="h-4 w-4" />
+          {t("common.delete")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const toolbar = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <div className="relative w-full sm:w-64">
@@ -132,7 +179,7 @@ export default function UserList() {
   } else if (!isLoading) {
     content = (
       <div className="space-y-4">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block">
           <Table aria-label={t("admin.users.title")}>
             <TableHeader>
               <TableRow>
@@ -171,54 +218,55 @@ export default function UserList() {
                       {formatBytes(user.u + user.d)} / {formatBytes(user.transfer_enable)}
                     </TableCell>
                     <TableCell>{formatDate(user.expired_at)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          user.banned
-                            ? "danger"
-                            : user.status === 1
-                              ? "success"
-                              : "default"
-                        }
-                      >
-                        {user.banned
-                          ? t("admin.users.banned")
-                          : user.status === 1
-                            ? t("admin.users.active")
-                            : t("admin.users.inactive")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label={t("common.actions")}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="gap-2"
-                            onSelect={() => banMutation.mutate({ id: user.id, banned: !user.banned })}
-                          >
-                            <Ban className="h-4 w-4" />
-                            {user.banned ? t("admin.users.unban") : t("admin.users.ban")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="gap-2 text-destructive focus:text-destructive"
-                            onSelect={() => deleteMutation.mutate(user.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            {t("common.delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    <TableCell>{renderUserStatus(user)}</TableCell>
+                    <TableCell>{renderUserActions(user)}</TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
         </div>
+
+        {users.length === 0 ? (
+          <div className="md:hidden rounded-md border bg-card shadow-none">
+            <EmptyState
+              title={t("admin.users.empty")}
+              description={t("admin.users.searchPlaceholder")}
+              size="sm"
+            />
+          </div>
+        ) : (
+          <ResponsiveList label={t("admin.users.mobileListLabel")}>
+            {users.map((user) => (
+              <ResponsiveListItem key={user.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <div className="truncate font-medium text-foreground">
+                      {user.email || user.username || "-"}
+                    </div>
+                    {user.is_admin && <Badge variant="warning">{t("admin.users.admin")}</Badge>}
+                  </div>
+                  {renderUserActions(user)}
+                </div>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3">
+                  <ResponsiveListField label={t("admin.users.plan")}>
+                    {user.plan_name || "-"}
+                  </ResponsiveListField>
+                  <ResponsiveListField label={t("admin.users.status")}>
+                    {renderUserStatus(user)}
+                  </ResponsiveListField>
+                  <ResponsiveListField label={t("admin.users.traffic")} className="col-span-2">
+                    {formatBytes(user.u + user.d)} / {formatBytes(user.transfer_enable)}
+                  </ResponsiveListField>
+                  <ResponsiveListField label={t("admin.users.expiredAt")}>
+                    {formatDate(user.expired_at)}
+                  </ResponsiveListField>
+                </dl>
+              </ResponsiveListItem>
+            ))}
+          </ResponsiveList>
+        )}
 
         {totalPages > 1 && (
           <div className="flex justify-center">

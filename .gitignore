@@ -35,6 +35,7 @@ test_data/*.db
 test_data/*.db-shm
 test_data/*.db-wal
 test_data/*_results/
+test_data/e2e_runs/
 test-results/
 web/user-vite/test-results/
 web/user-vite/playwright-report/
@@ -54,6 +55,8 @@ frontend.svg
 
 # Documentation (generated locally)
 CLAUDE.md
+coding.md
+coding_old.md
 tmp.md
 
 # Config files (keep examples)
@@ -80,6 +83,7 @@ core-switch-*.json
 
 # Test Tools (downloaded binaries)
 tools/
+!internal/mcp/tools/
 
 # Test Data Outputs
 test_data/singbox_conf/

@@ -28,7 +28,7 @@ export type ConfigCenterDriftStatus = "drift" | "recovered";
 
 export interface ConfigCenterSpec {
   id: number;
-  agent_host_id: number;
+  agent_host_id: number | null;
   core_type: ConfigCenterCoreType;
   tag: string;
   enabled: boolean;
@@ -56,6 +56,7 @@ export interface ListConfigCenterSpecsParams {
   core_type?: ConfigCenterCoreType;
   tag?: string;
   enabled?: boolean;
+  is_template?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -76,7 +77,7 @@ export interface ConfigCenterSpecHistoryResponse {
 }
 
 export interface UpsertConfigCenterSpecRequest {
-  agent_host_id: number;
+  agent_host_id?: number;
   core_type: ConfigCenterCoreType;
   tag: string;
   enabled?: boolean;
@@ -275,6 +276,8 @@ export interface ConfigCenterAppliedSnapshot {
   inbound_indexes: ConfigCenterInboundIndex[];
 }
 
+export type ConfigCenterSnapshot = ConfigCenterAppliedSnapshot;
+
 export interface ListConfigCenterDriftStatesParams {
   agent_host_id: number;
   core_type: ConfigCenterCoreType;
@@ -315,4 +318,51 @@ export interface ConfigCenterDriftState {
 export interface ConfigCenterDriftStateListResponse {
   data: ConfigCenterDriftState[];
   total: number;
+}
+
+export interface BindSpecRequest {
+  agent_host_id: number;
+}
+
+export type CoreConfigType = "outbound" | "routing" | "dns" | "core_settings";
+
+export interface CoreConfigItem {
+  id: number;
+  agent_host_id: number | null;
+  core_type: ConfigCenterCoreType;
+  config_type: CoreConfigType;
+  tag: string;
+  enabled: boolean;
+  config_data: unknown;
+  desired_revision: number;
+  created_by: number;
+  updated_by: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListCoreConfigItemsParams {
+  agent_host_id?: number;
+  core_type?: ConfigCenterCoreType;
+  config_type?: CoreConfigType;
+  tag?: string;
+  enabled?: boolean;
+  is_template?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface UpsertCoreConfigItemRequest {
+  agent_host_id?: number;
+  core_type: ConfigCenterCoreType;
+  config_type: CoreConfigType;
+  tag: string;
+  enabled?: boolean;
+  config_data: unknown;
+  change_note?: string;
+}
+
+export interface UpsertCoreConfigItemResult {
+  id: number;
+  revision: number;
 }

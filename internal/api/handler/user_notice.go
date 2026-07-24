@@ -49,13 +49,11 @@ func (h *UserNoticeHandler) handleUnread(w http.ResponseWriter, r *http.Request)
 	}
 	notice, err := h.notices.GetUnreadPopupNotice(ctx, claims.ID)
 	if err != nil {
-		status := http.StatusInternalServerError
-		key := "error.internal_server_error"
 		if errors.Is(err, service.ErrNotFound) {
-			status = http.StatusNotFound
-			key = "error.not_found"
+			respondJSON(w, http.StatusOK, map[string]any{"data": nil})
+			return
 		}
-		RespondErrorI18nAction(ctx, w, status, "user.notice.unread", key, h.i18n)
+		RespondErrorI18nAction(ctx, w, http.StatusInternalServerError, "user.notice.unread", "error.internal_server_error", h.i18n)
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"data": notice})

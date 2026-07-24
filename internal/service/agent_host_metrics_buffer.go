@@ -81,11 +81,14 @@ func (b *agentHostMetricsBuffer) Flush(ctx context.Context) error {
 			b.cache.Delete(ctx, key)
 			continue
 		}
+		// Delete before UpdateMetrics to avoid TOCTOU race with concurrent Enqueue.
+		b.cache.Delete(ctx, key)
 		if err := b.repo.UpdateMetrics(ctx, entry.AgentHostID, entry.Metrics); err != nil {
+			// Re-enqueue on failure so data is retried on next flush cycle
+			_ = b.Enqueue(ctx, entry.AgentHostID, entry.Metrics)
 			b.logger.Error("failed to flush agent host metrics", "agent_host_id", entry.AgentHostID, "error", err)
 			continue
 		}
-		b.cache.Delete(ctx, key)
 	}
 	return nil
 }

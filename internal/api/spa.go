@@ -12,7 +12,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/creamcroissant/xboard/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -22,9 +21,10 @@ import (
 type RouterOption func(*routerOptions)
 
 type routerOptions struct {
-	adminUI   AdminUIOptions
-	userUI    UserUIOptions
-	installUI InstallUIOptions
+	adminUI           AdminUIOptions
+	userUI            UserUIOptions
+	installUI         InstallUIOptions
+	corsAllowedOrigins []string
 }
 
 // AdminUIOptions 控制管理端前端资源的加载与品牌定制。
@@ -76,6 +76,13 @@ func WithInstallUI(opts InstallUIOptions) RouterOption {
 	}
 }
 
+// WithCORSAllowedOrigins 设置 CORS 允许的来源列表，覆盖默认的开放策略。
+func WithCORSAllowedOrigins(origins []string) RouterOption {
+	return func(ro *routerOptions) {
+		ro.corsAllowedOrigins = origins
+	}
+}
+
 type adminBranding struct {
 	baseURL         string
 	title           string
@@ -96,10 +103,6 @@ type adminSPAHandler struct {
 	indexFile     string
 	branding      adminBranding
 	hiddenModules []string
-
-	indexOnce sync.Once
-	indexData []byte
-	indexErr  error
 }
 
 type userSPAHandler struct {
@@ -107,10 +110,6 @@ type userSPAHandler struct {
 	root      string
 	indexFile string
 	branding  userBranding
-
-	indexOnce sync.Once
-	indexData []byte
-	indexErr  error
 }
 
 // unifiedSPAHandler 统一处理 User SPA 和 Admin SPA 的请求，
@@ -373,6 +372,11 @@ func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(relative, "assets/") {
+		http.NotFound(w, r)
+		return
+	}
+
 	h.serveIndex(w, r)
 }
 
@@ -458,6 +462,11 @@ func (h *userSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(h.root, filepath.FromSlash(clean))
 	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
 		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	if strings.HasPrefix(relative, "assets/") {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -677,29 +686,13 @@ func resolveRequestBaseURL(r *http.Request) string {
 }
 
 func (h *adminSPAHandler) indexBytes() ([]byte, error) {
-	h.indexOnce.Do(func() {
-		path := filepath.Join(h.root, h.indexFile)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			h.indexErr = err
-			return
-		}
-		h.indexData = data
-	})
-	return h.indexData, h.indexErr
+	path := filepath.Join(h.root, h.indexFile)
+	return os.ReadFile(path)
 }
 
 func (h *userSPAHandler) indexBytes() ([]byte, error) {
-	h.indexOnce.Do(func() {
-		path := filepath.Join(h.root, h.indexFile)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			h.indexErr = err
-			return
-		}
-		h.indexData = data
-	})
-	return h.indexData, h.indexErr
+	path := filepath.Join(h.root, h.indexFile)
+	return os.ReadFile(path)
 }
 
 func fallback(value, def string) string {

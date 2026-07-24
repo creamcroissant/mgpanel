@@ -30,6 +30,20 @@ message StatusReport {
   int64 reported_at = 9;
   AgentCommandQueueStats command_queue = 10;
   AgentUpdateStatus update_status = 11;
+  repeated OriginLatencyEntry origin_latencies = 12;
+  repeated OriginLatencyEntry mesh_peer_latencies = 13;
+  string agent_config_yaml = 14;
+}
+
+// OriginLatencyEntry records a latency probe result for an origin or mesh peer.
+message OriginLatencyEntry {
+  string domain = 1;
+  double latency_ms = 2;
+  double packet_loss = 3;
+  int32 total_probes = 4;
+  int64 updated_at = 5;
+  int64 site_id = 6;
+  string stack = 7;
 }
 
 message AgentCommandQueueStats {
@@ -156,6 +170,7 @@ message SystemMetrics {
   string boot_id = 23;
   string agent_version = 24;
   string current_core_type = 25;
+  repeated CoreInfo all_cores = 26;       // All detected core types (installed, not just the primary)
 }
 
 message MetricInt64Value {

@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1";
+
+// JoinMeshRequest is sent by Agent to join the WireGuard mesh network.
+message JoinMeshRequest {
+  string network_id = 1;  // Network ID (default: "default")
+}
+
+// JoinMeshResponse is returned by Panel after mesh join.
+message JoinMeshResponse {
+  bool success = 1;
+  string wg_private_key = 2;
+  string wg_public_key = 3;
+  string wg_ip = 4;
+  int32 wg_listen_port = 5;
+}
+
+// GetMeshPeersRequest asks for the list of all mesh peers.
+message GetMeshPeersRequest {
+  string network_id = 1;
+}
+
+// MeshPeerEntry describes a single WireGuard mesh peer.
+message MeshPeerEntry {
+  string id = 1;
+  string public_key = 2;
+  string endpoint = 3;
+  repeated string allowed_ips = 4;
+  int32 keepalive = 5;
+}
+
+// GetMeshPeersResponse returns the list of mesh peers.
+message GetMeshPeersResponse {
+  bool success = 1;
+  repeated MeshPeerEntry peers = 2;
+}
+
+// RouteEntry is a single priority routing rule for mesh traffic.
+message RouteEntry {
+  string peer_id = 1;
+  int32 priority = 2;        // 1=highest
+  string peer_wg_ip = 3;     // 10.144.0.x
+  int32 peer_port = 4;       // 51820
+  double latency_ms = 5;
+  double packet_loss = 6;
+}
+
+// SetRoutingTablesPayload is the payload carried by agent command set_routing_table.
+message SetRoutingTablesPayload {
+  repeated RouteEntry routes = 1;
+}

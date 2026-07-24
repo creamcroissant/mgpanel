@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -386,6 +386,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_AGENT_CORES });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_AGENT_CORE_INSTANCES });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_AGENT_CORE_SWITCH_LOGS });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_AGENT_BINARY_VERSIONS });
       setTrackedOperationIds((current) => current.filter((id) => id !== operation.id));
     });
 
@@ -550,9 +551,11 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
     [operations]
   );
 
-  const availableCreateOptions = coreOptions.length > 0 ? coreOptions : allCoreOptions;
+  const fallbackCoreOptions = useMemo(() => [{ value: "sing-box", label: "sing-box" }, { value: "xray", label: "xray" }], []);
+  const availableCreateOptions = coreOptions.length > 0 ? coreOptions : allCoreOptions.length > 0 ? allCoreOptions : fallbackCoreOptions;
   const isLoading = coresQuery.isLoading || instancesQuery.isLoading;
   const hasError = coresQuery.error || instancesQuery.error;
+  const isRefreshing = useIsFetching({ queryKey: ["admin", "agents"] }) > 0;
 
   if (isLoading) {
     return <Loading />;
@@ -565,8 +568,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
         <Button
           variant="outline"
           onClick={() => {
-            coresQuery.refetch();
-            instancesQuery.refetch();
+            queryClient.invalidateQueries({ queryKey: ["admin", "agents"] });
           }}
         >
           {t("common.retry")}
@@ -588,14 +590,13 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
+              disabled={isRefreshing}
               onClick={() => {
-                coresQuery.refetch();
-                instancesQuery.refetch();
-                operationsQuery.refetch();
+                queryClient.invalidateQueries({ queryKey: ["admin", "agents"] });
               }}
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {t("common.refresh")}
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? t("common.loading") : t("common.refresh")}
             </Button>
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
@@ -617,79 +618,43 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
 
           {busyBlocker && <BusyBlockerAlert blocker={busyBlocker} onDismiss={() => setBusyBlocker(null)} />}
 
-          <BinaryVersionStatusPanel agentHostId={agentHostId} />
-
-          <AgentUpdatePanel agentHostId={agentHostId} />
-
-          <AgentCommandQueuePanel agentHostId={agentHostId} />
+          <BinaryVersionStatusPanel
+            agentHostId={agentHostId}
+            onCoreOperationSubmitted={(operation) => onOperationSubmitted(operation, "admin.cores.operationSubmitted")}
+          />
 
           <div className="grid gap-4 xl:grid-cols-2">
             <TrafficCycleStatusCard agentHostId={agentHostId} />
             <TrafficPolicyForm agentHostId={agentHostId} />
           </div>
 
-          <Card className="border border-border shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("admin.cores.operationsSummaryTitle")}</CardTitle>
-              <CardDescription>
-                {hasActiveOperations ? t("admin.cores.operationsPolling") : t("admin.cores.operationsIdle")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {recentOperations.length === 0 ? (
-                <EmptyState
-                  icon={<History className="h-full w-full" />}
-                  title={t("admin.cores.operationsEmpty")}
-                  description={t("admin.cores.operationsEmptyDescription")}
-                  size="sm"
-                />
-              ) : (
-                <div className="space-y-2">
-                  {recentOperations.map((operation) => {
-                    const selected = selectedOperation?.id === operation.id;
-                    return (
-                      <button
-                        type="button"
-                        key={operation.id}
-                        className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
-                          selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
-                        }`}
-                        onClick={() => setSelectedOperationId(operation.id)}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
-                            <span className="text-sm font-medium">
-                              {t(`admin.cores.operationType.${operation.operation_type}`)}
-                            </span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">{buildOperationTarget(operation)}</div>
-                          <div className="text-xs text-muted-foreground">{formatDateTime(operation.created_at)}</div>
-                        </div>
-                        <div className="max-w-[360px] truncate text-xs text-muted-foreground">
-                          {describeOperationPayload(operation)}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <OperationLogTimeline
-            agentHostId={agentHostId}
-            targetId={selectedOperation?.id}
-            enabled={Boolean(selectedOperation?.id)}
-          />
-
           {cores.length === 0 ? (
-            <EmptyState
-              icon={<History className="h-full w-full" />}
-              title={t("admin.cores.empty")}
-              description={t("admin.cores.emptyDescription")}
-              size="sm"
-            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {["sing-box", "xray"].map((coreType) => (
+                <Card key={coreType} className="border border-border shadow-none">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{coreType}</span>
+                      <Badge variant="secondary">{t("admin.cores.uninstalled")}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t("admin.cores.version")}: -
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleInstall(coreType)}
+                      disabled={installMutation.isPending && installingCoreType === coreType}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {installMutation.isPending && installingCoreType === coreType
+                        ? t("common.loading")
+                        : t("admin.cores.install")}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {cores.map((core) => (
@@ -811,6 +776,8 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
           )}
         </CardContent>
       </Card>
+
+          <AgentUpdatePanel agentHostId={agentHostId} />
 
       <Dialog open={isCreateOpen} onOpenChange={handleCreateDialogChange}>
         <DialogContent className="sm:max-w-xl">
@@ -991,6 +958,63 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
               </div>
             </div>
 
+            <AgentCommandQueuePanel agentHostId={agentHostId} />
+
+            <Card className="border border-border shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">{t("admin.cores.operationsSummaryTitle")}</CardTitle>
+                <CardDescription>
+                  {hasActiveOperations ? t("admin.cores.operationsPolling") : t("admin.cores.operationsIdle")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentOperations.length === 0 ? (
+                  <EmptyState
+                    icon={<History className="h-full w-full" />}
+                    title={t("admin.cores.operationsEmpty")}
+                    description={t("admin.cores.operationsEmptyDescription")}
+                    size="sm"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {recentOperations.map((operation) => {
+                      const selected = selectedOperation?.id === operation.id;
+                      return (
+                        <button
+                          type="button"
+                          key={operation.id}
+                          className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
+                            selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                          }`}
+                          onClick={() => setSelectedOperationId(operation.id)}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
+                              <span className="text-sm font-medium">
+                                {t(`admin.cores.operationType.${operation.operation_type}`)}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">{buildOperationTarget(operation)}</div>
+                            <div className="text-xs text-muted-foreground">{formatDateTime(operation.created_at)}</div>
+                          </div>
+                          <div className="max-w-[360px] truncate text-xs text-muted-foreground">
+                            {describeOperationPayload(operation)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <OperationLogTimeline
+              agentHostId={agentHostId}
+              targetId={selectedOperation?.id}
+              enabled={Boolean(selectedOperation?.id)}
+            />
+
             {operationsQuery.isLoading ? (
               <Loading />
             ) : operations.length === 0 ? (
@@ -1044,11 +1068,18 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
 
             <Pagination page={operationsPage} totalPages={operationsTotalPages} onPageChange={setOperationsPage} />
 
-            <OperationLogTimeline
-              agentHostId={agentHostId}
-              targetId={selectedOperation?.id}
-              enabled={isOperationsOpen && Boolean(selectedOperation?.id)}
-            />
+            <details className="rounded-md border border-border">
+              <summary className="cursor-pointer select-none p-3 text-sm font-medium text-muted-foreground hover:text-foreground">
+                {t("admin.cores.viewTimeline")}
+              </summary>
+              <div className="border-t border-border p-3">
+                <OperationLogTimeline
+                  agentHostId={agentHostId}
+                  targetId={selectedOperation?.id}
+                  enabled={isOperationsOpen && Boolean(selectedOperation?.id)}
+                />
+              </div>
+            </details>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleOperationsDialogChange(false)}>

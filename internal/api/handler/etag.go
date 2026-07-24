@@ -9,5 +9,6 @@ func formatETag(raw string) string {
 	if trimmed == "" {
 		return ""
 	}
-	return "\"" + trimmed + "\""
+	safe := strings.ReplaceAll(trimmed, `"`, `\"`)
+	return `"` + safe + `"`
 }

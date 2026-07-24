@@ -109,6 +109,11 @@ func (h *OperationLogHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, entry := range replay.Items {
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+		}
 		if entry.ID <= lastSentID {
 			continue
 		}

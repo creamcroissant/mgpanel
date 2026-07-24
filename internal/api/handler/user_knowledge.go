@@ -77,7 +77,7 @@ func (h *UserKnowledgeHandler) handleFetch(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		status := http.StatusInternalServerError
 		key := "error.internal_server_error"
-		if errors.Is(err, service.ErrNotFound) || strings.Contains(err.Error(), "language is required") {
+		if errors.Is(err, service.ErrNotFound) || errors.Is(err, service.ErrLanguageRequired) {
 			status = http.StatusBadRequest
 			key = "error.bad_request"
 		}

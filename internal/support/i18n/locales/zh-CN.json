@@ -3,7 +3,6 @@
   "common.server": "节点",
   "common.user": "用户",
   "common.plan": "套餐",
-  "common.invite": "邀请码",
   "common.notice": "公告",
   "common.knowledge": "知识库",
   "common.config": "配置",
@@ -35,7 +34,6 @@
   "common.error": "错误",
   "common.warning": "警告",
   "common.info": "提示",
-  
   "dashboard.title": "概览",
   "dashboard.total_users": "总用户",
   "dashboard.active_users": "活跃用户",
@@ -52,7 +50,6 @@
   "dashboard.load": "负载",
   "dashboard.memory": "内存",
   "dashboard.traffic_rank": "流量排行",
-  
   "server.node_list": "节点列表",
   "server.node_group": "节点分组",
   "server.route_settings": "路由设置",
@@ -69,7 +66,6 @@
   "server.parent_id_desc": "留空为独立节点",
   "server.route_id": "路由组",
   "server.group_id": "权限组",
-  
   "user.user_list": "用户列表",
   "user.add_user": "添加用户",
   "user.edit_user": "编辑用户",
@@ -77,7 +73,6 @@
   "user.username": "用户名",
   "user.password": "密码",
   "user.balance": "余额",
-  "user.commission_balance": "佣金",
   "user.transfer_enable": "总流量",
   "user.used_traffic": "已用流量",
   "user.u": "上传",
@@ -90,8 +85,6 @@
   "user.remarks": "备注",
   "user.reset_password": "重置密码",
   "user.reset_traffic": "重置流量",
-  "user.invite_by": "邀请人",
-  
   "plan.plan_list": "套餐列表",
   "plan.add_plan": "添加套餐",
   "plan.edit_plan": "编辑套餐",
@@ -112,21 +105,18 @@
   "plan.sort": "排序",
   "plan.show": "在售",
   "plan.renew": "允许续费",
-  
   "notice.title": "标题",
   "notice.content": "内容",
   "notice.img_url": "图片链接",
   "notice.tags": "标签",
   "notice.show": "显示",
   "notice.popup": "弹窗",
-  
   "knowledge.title": "标题",
   "knowledge.category": "分类",
   "knowledge.language": "语言",
   "knowledge.body": "内容",
   "knowledge.sort": "排序",
   "knowledge.show": "显示",
-  
   "config.site_name": "站点名称",
   "config.site_url": "站点地址",
   "config.frontend_theme": "前端主题",
@@ -142,7 +132,6 @@
   "config.telegram_chat_id": "Telegram Chat ID",
   "config.advanced": "高级设置",
   "config.support_email": "客服邮箱",
-
   "common.add": "添加",
   "common.reset": "重置",
   "common.show": "显示",
@@ -150,9 +139,7 @@
   "common.clear": "清空",
   "common.selected": "已选择",
   "common.copy": "复制",
-
   "plan.select_plan": "选择套餐",
-
   "admin.user.fetch": "获取用户列表失败 / Failed to fetch user list",
   "admin.user.update": "更新用户失败 / Failed to update user",
   "admin.user.generate": "生成用户失败 / Failed to generate user",
@@ -183,7 +170,6 @@
   "admin.knowledge.sort": "排序知识库失败 / Failed to sort knowledge",
   "install.status": "获取安装状态失败 / Failed to check install status",
   "install.create": "初始化管理员失败 / Failed to initialize admin",
-
   "error.internal_server_error": "服务器内部错误",
   "error.unauthorized": "未授权",
   "error.forbidden": "禁止访问",
@@ -209,8 +195,6 @@
   "error.invalid_email": "无效的邮箱",
   "error.invalid_password": "无效的密码",
   "error.invalid_verification_code": "验证码无效",
-  "error.invalid_invite_code": "无效的邀请码",
-  "error.invite_required": "需要邀请码",
   "error.email_domain_not_allowed": "邮箱域名不允许",
   "error.identifier_required": "账号不能为空",
   "error.email_exists": "邮箱已存在",

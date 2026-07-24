@@ -55,12 +55,15 @@ func (r *agentCoreSwitchLogRepo) Create(ctx context.Context, log *repository.Age
 }
 
 func (r *agentCoreSwitchLogRepo) UpdateStatus(ctx context.Context, id int64, status string, detail string, completedAt *int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE agent_core_switch_logs
 		SET status = ?, detail = ?, completed_at = ?
 		WHERE id = ?
 	`, status, detail, optionalInt64(completedAt), id)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *agentCoreSwitchLogRepo) List(ctx context.Context, filter repository.AgentCoreSwitchLogFilter) ([]*repository.AgentCoreSwitchLog, error) {

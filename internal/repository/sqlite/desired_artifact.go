@@ -75,11 +75,18 @@ func (r *desiredArtifactRepo) CreateBatch(ctx context.Context, artifacts []*repo
 	return tx.Commit()
 }
 
-func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64) error {
-	_, err := r.db.ExecContext(ctx, `
-		DELETE FROM desired_artifacts
-		WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ?
-	`, agentHostID, coreType, desiredRevision)
+func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, sourceTags ...string) error {
+	query := "DELETE FROM desired_artifacts WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ?"
+	args := []any{agentHostID, coreType, desiredRevision}
+	if len(sourceTags) > 0 {
+		placeholders := make([]string, len(sourceTags))
+		for i, tag := range sourceTags {
+			placeholders[i] = "?"
+			args = append(args, tag)
+		}
+		query += " AND source_tag IN (" + strings.Join(placeholders, ",") + ")"
+	}
+	_, err := r.db.ExecContext(ctx, query, args...) // idempotent: no error if not found
 	return err
 }
 

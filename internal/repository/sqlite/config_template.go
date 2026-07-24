@@ -69,7 +69,7 @@ func (r *configTemplateRepo) Update(ctx context.Context, tpl *repository.ConfigT
 		capsJSON = []byte("[]")
 	}
 
-	_, err = r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE config_templates SET
 			name = ?, type = ?, content = ?, description = ?, min_version = ?,
 			capabilities = ?, schema_version = ?, is_valid = ?, validation_error = ?,
@@ -80,12 +80,18 @@ func (r *configTemplateRepo) Update(ctx context.Context, tpl *repository.ConfigT
 		string(capsJSON), tpl.SchemaVersion, boolToInt(tpl.IsValid), tpl.ValidationError,
 		tpl.UpdatedAt, tpl.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *configTemplateRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM config_templates WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM config_templates WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *configTemplateRepo) FindByID(ctx context.Context, id int64) (*repository.ConfigTemplate, error) {

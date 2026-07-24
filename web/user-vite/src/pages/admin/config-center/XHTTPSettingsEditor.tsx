@@ -28,6 +28,19 @@ type XHTTPSettingsEditorProps = {
   onDraftBlur: (field: keyof XHTTPJSONDraftState) => void;
 };
 
+const FIELD_IDS = {
+  transport: "config-center-xray-transport-trigger",
+  transportLabel: "config-center-xray-transport-label",
+  host: "config-center-xhttp-host-input",
+  path: "config-center-xhttp-path-input",
+  mode: "config-center-xhttp-mode-trigger",
+  modeLabel: "config-center-xhttp-mode-label",
+  headers: "config-center-xhttp-headers-input",
+  extra: "config-center-xhttp-extra-input",
+  xmux: "config-center-xhttp-xmux-input",
+  downloadSettings: "config-center-xhttp-download-settings-input",
+};
+
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -59,9 +72,15 @@ export function XHTTPSettingsEditor({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t("admin.configCenter.xhttp.fields.transport")}</label>
+          <label id={FIELD_IDS.transportLabel} htmlFor={FIELD_IDS.transport} className="text-sm font-medium">
+            {t("admin.configCenter.xhttp.fields.transport")}
+          </label>
           <Select value={xrayTransport} onValueChange={onTransportChange}>
-            <SelectTrigger data-testid="config-center-xray-transport">
+            <SelectTrigger
+              id={FIELD_IDS.transport}
+              aria-labelledby={FIELD_IDS.transportLabel}
+              data-testid="config-center-xray-transport"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -74,8 +93,11 @@ export function XHTTPSettingsEditor({
           </Select>
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t("admin.configCenter.xhttp.fields.host")}</label>
+          <label htmlFor={FIELD_IDS.host} className="text-sm font-medium">
+            {t("admin.configCenter.xhttp.fields.host")}
+          </label>
           <Input
+            id={FIELD_IDS.host}
             data-testid="config-center-xhttp-host"
             value={stringValue(xhttpSettings.host)}
             onChange={(event) => onStringChange("host", event.target.value)}
@@ -84,8 +106,11 @@ export function XHTTPSettingsEditor({
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t("admin.configCenter.xhttp.fields.path")}</label>
+          <label htmlFor={FIELD_IDS.path} className="text-sm font-medium">
+            {t("admin.configCenter.xhttp.fields.path")}
+          </label>
           <Input
+            id={FIELD_IDS.path}
             data-testid="config-center-xhttp-path"
             value={stringValue(xhttpSettings.path)}
             onChange={(event) => onStringChange("path", event.target.value)}
@@ -94,9 +119,15 @@ export function XHTTPSettingsEditor({
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t("admin.configCenter.xhttp.fields.mode")}</label>
+          <label id={FIELD_IDS.modeLabel} htmlFor={FIELD_IDS.mode} className="text-sm font-medium">
+            {t("admin.configCenter.xhttp.fields.mode")}
+          </label>
           <Select value={xhttpMode} onValueChange={onModeChange} disabled={!isXHTTPSelected}>
-            <SelectTrigger data-testid="config-center-xhttp-mode">
+            <SelectTrigger
+              id={FIELD_IDS.mode}
+              aria-labelledby={FIELD_IDS.modeLabel}
+              data-testid="config-center-xhttp-mode"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -117,8 +148,11 @@ export function XHTTPSettingsEditor({
       )}
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">{t("admin.configCenter.xhttp.fields.headers")}</label>
+        <label htmlFor={FIELD_IDS.headers} className="text-sm font-medium">
+          {t("admin.configCenter.xhttp.fields.headers")}
+        </label>
         <Textarea
+          id={FIELD_IDS.headers}
           data-testid="config-center-xhttp-headers"
           className="min-h-[84px] font-mono text-xs"
           value={xhttpJsonDraft.headers}
@@ -140,10 +174,11 @@ export function XHTTPSettingsEditor({
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor={FIELD_IDS.extra} className="text-xs font-medium text-muted-foreground">
               {t("admin.configCenter.xhttp.fields.extra")}
             </label>
             <Textarea
+              id={FIELD_IDS.extra}
               data-testid="config-center-xhttp-extra"
               className="min-h-[96px] font-mono text-xs"
               value={xhttpJsonDraft.extra}
@@ -154,10 +189,11 @@ export function XHTTPSettingsEditor({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor={FIELD_IDS.xmux} className="text-xs font-medium text-muted-foreground">
               {t("admin.configCenter.xhttp.fields.xmux")}
             </label>
             <Textarea
+              id={FIELD_IDS.xmux}
               data-testid="config-center-xhttp-xmux"
               className="min-h-[96px] font-mono text-xs"
               value={xhttpJsonDraft.xmux}
@@ -168,10 +204,11 @@ export function XHTTPSettingsEditor({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor={FIELD_IDS.downloadSettings} className="text-xs font-medium text-muted-foreground">
               {t("admin.configCenter.xhttp.fields.downloadSettings")}
             </label>
             <Textarea
+              id={FIELD_IDS.downloadSettings}
               data-testid="config-center-xhttp-download-settings"
               className="min-h-[96px] font-mono text-xs"
               value={xhttpJsonDraft.downloadSettings}

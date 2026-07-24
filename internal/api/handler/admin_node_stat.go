@@ -45,6 +45,10 @@ func (h *AdminNodeStatHandler) GetServerStats(w http.ResponseWriter, r *http.Req
 		}
 	}
 
+	if h.svc == nil {
+		RespondErrorI18nAction(ctx, w, http.StatusServiceUnavailable, "admin.node_stat.fetch", "error.service_unavailable", h.i18n)
+		return
+	}
 	records, err := h.svc.GetServerStats(ctx, serverID, recordType, days)
 	if err != nil {
 		RespondErrorI18nAction(ctx, w, http.StatusInternalServerError, "admin.node_stat.fetch", "error.internal_server_error", h.i18n)
@@ -83,6 +87,10 @@ func (h *AdminNodeStatHandler) GetTotalTraffic(w http.ResponseWriter, r *http.Re
 		}
 	}
 
+	if h.svc == nil {
+		RespondErrorI18nAction(ctx, w, http.StatusServiceUnavailable, "admin.node_stat.traffic", "error.service_unavailable", h.i18n)
+		return
+	}
 	result, err := h.svc.GetTotalTraffic(ctx, recordType, startAt, endAt)
 	if err != nil {
 		RespondErrorI18nAction(ctx, w, http.StatusInternalServerError, "admin.node_stat.traffic", "error.internal_server_error", h.i18n)
@@ -132,6 +140,10 @@ func (h *AdminNodeStatHandler) GetTopServers(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	if h.svc == nil {
+		RespondErrorI18nAction(ctx, w, http.StatusServiceUnavailable, "admin.node_stat.rank", "error.service_unavailable", h.i18n)
+		return
+	}
 	result, err := h.svc.GetTopServers(ctx, recordType, startAt, endAt, limit)
 	if err != nil {
 		RespondErrorI18nAction(ctx, w, http.StatusInternalServerError, "admin.node_stat.rank", "error.internal_server_error", h.i18n)

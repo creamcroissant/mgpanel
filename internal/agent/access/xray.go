@@ -104,6 +104,10 @@ func (c *XrayAccessCollector) collectFromInstance(ctx context.Context, inst *cor
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		c.logger.Warn("xray access log scan error", "instance", inst.ID, "error", err)
+	}
+
 	c.offsets[inst.ID] = newOffset
 	return entries, nil
 }

@@ -21,8 +21,7 @@ type RegistrationInput struct {
 	Email      string
 	Username   string
 	Password   string
-	InviteCode string
-	EmailCode  string
+		EmailCode  string
 	IP         string
 }
 
@@ -33,8 +32,7 @@ type RegistrationService interface {
 
 type registrationService struct {
 	users    repository.UserRepository
-	invites  InviteService
-	settings repository.SettingRepository
+		settings repository.SettingRepository
 	hasher   hash.Hasher
 	verify   VerificationService
 	limits   cache.Store
@@ -46,14 +44,13 @@ const (
 )
 
 // NewRegistrationService 组装仓储驱动的注册流程。
-func NewRegistrationService(users repository.UserRepository, invites InviteService, settings repository.SettingRepository, hasher hash.Hasher, verify VerificationService, store cache.Store) RegistrationService {
+func NewRegistrationService(users repository.UserRepository, settings repository.SettingRepository, hasher hash.Hasher, verify VerificationService, store cache.Store) RegistrationService {
 	var limits cache.Store
 	if store != nil {
 		limits = store.Namespace("auth:register")
 	}
 	return &registrationService{
 		users:    users,
-		invites:  invites,
 		settings: settings,
 		hasher:   hasher,
 		verify:   verify,
@@ -97,10 +94,6 @@ func (s *registrationService) Register(ctx context.Context, input RegistrationIn
 		return nil, err
 	}
 
-	invite, err := s.validateInvite(ctx, input.InviteCode)
-	if err != nil {
-		return nil, err
-	}
 
 	if s.emailVerifyRequired(ctx) {
 		if email == "" {
@@ -155,27 +148,24 @@ func (s *registrationService) Register(ctx context.Context, input RegistrationIn
 		U:                 0,
 		D:                 0,
 		TransferEnable:    0,
-		CommissionBalance: 0,
-		Status:            1,
+				Status:            1,
 		Banned:            false,
 		LastLoginAt:       0,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if invite != nil {
-		user.InviteUserID = invite.UserID
-	}
+	
 	created, err := s.users.Create(ctx, user)
 	if err != nil {
-		return nil, err
-	}
-
-	if invite != nil && !s.inviteNeverExpire(ctx) {
-		if err := s.invites.Consume(ctx, invite.Code); err != nil {
-			// 记录错误但继续注册？还是直接失败？
-			// 理想情况下应保证一致性，但当前关键路径已成功，先记录日志即可。
-			// fmt.Printf("failed to mark invite used: %v\n", err)
+		// Concurrent registration may bypass pre-checks and hit DB constraint.
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "email") && strings.Contains(errMsg, "unique") {
+			return nil, ErrEmailExists
 		}
+		if strings.Contains(errMsg, "username") && strings.Contains(errMsg, "unique") {
+			return nil, ErrUsernameExists
+		}
+		return nil, err
 	}
 
 	s.bumpIPLimit(ctx, input.IP)
@@ -194,13 +184,7 @@ func (s *registrationService) emailVerifyRequired(ctx context.Context) bool {
 	return s.boolSetting(ctx, "email_verify", false)
 }
 
-func (s *registrationService) inviteRequired(ctx context.Context) bool {
-	return s.boolSetting(ctx, "invite_force", false)
-}
 
-func (s *registrationService) inviteNeverExpire(ctx context.Context) bool {
-	return s.boolSetting(ctx, "invite_never_expire", false)
-}
 
 func (s *registrationService) whitelistEnabled(ctx context.Context) bool {
 	return s.boolSetting(ctx, "email_whitelist_enable", false)
@@ -240,23 +224,6 @@ func (s *registrationService) enforceGmailPolicy(ctx context.Context, email stri
 		return ErrInvalidEmail
 	}
 	return nil
-}
-
-func (s *registrationService) validateInvite(ctx context.Context, code string) (*repository.InviteCode, error) {
-	trimmed := strings.TrimSpace(code)
-	if trimmed == "" {
-		if s.inviteRequired(ctx) {
-			return nil, ErrInviteRequired
-		}
-		return nil, nil
-	}
-	if s.invites == nil {
-		if s.inviteRequired(ctx) {
-			return nil, fmt.Errorf("invite service unavailable / 邀请服务不可用")
-		}
-		return nil, nil
-	}
-	return s.invites.Validate(ctx, trimmed)
 }
 
 func (s *registrationService) ensureIPLimit(ctx context.Context, ip string) error {

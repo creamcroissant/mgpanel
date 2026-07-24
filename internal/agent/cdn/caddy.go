@@ -58,13 +58,13 @@ func (ci *CaddyInstaller) IsInstalled() bool {
 }
 
 // Version returns the installed caddy version string by running "caddy version".
-func (ci *CaddyInstaller) Version() (string, error) {
+func (ci *CaddyInstaller) Version(ctx context.Context) (string, error) {
 	if !ci.IsInstalled() {
 		return "", fmt.Errorf("caddy not installed")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), versionTimeout)
+	versionCtx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, ci.binPath, "version")
+	cmd := exec.CommandContext(versionCtx, ci.binPath, "version")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("get caddy version: %w", err)
@@ -77,7 +77,7 @@ func (ci *CaddyInstaller) Version() (string, error) {
 func (ci *CaddyInstaller) Install(ctx context.Context) error {
 	// Skip if already installed with a valid version.
 	if ci.IsInstalled() {
-		ver, verErr := ci.Version()
+		ver, verErr := ci.Version(ctx)
 		if verErr == nil && ver != "" {
 			return nil
 		}
@@ -111,7 +111,7 @@ func (ci *CaddyInstaller) Install(ctx context.Context) error {
 	}
 
 	// Verify the installed binary.
-	ver, err := ci.Version()
+	ver, err := ci.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("verify caddy installation: %w", err)
 	}

@@ -56,7 +56,7 @@ type AgentClient struct {
 }
 
 // NewAgentClient 创建新的 Agent gRPC 客户端。
-func NewAgentClient(cfg Config) (*AgentClient, error) {
+func NewAgentClient(ctx context.Context, cfg Config) (*AgentClient, error) {
 	if cfg.Keepalive == nil {
 		cfg.Keepalive = &KeepaliveConfig{Time: 30 * time.Second, Timeout: 10 * time.Second}
 	}
@@ -87,8 +87,6 @@ func NewAgentClient(cfg Config) (*AgentClient, error) {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout.Connect)
-	defer cancel()
 	conn, err := grpc.DialContext(ctx, cfg.Address, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create agent gRPC client: %w", err)

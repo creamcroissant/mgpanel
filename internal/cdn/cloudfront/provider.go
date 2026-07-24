@@ -51,13 +51,17 @@ type CloudFrontProvider struct {
 }
 
 // NewCloudFrontProvider creates a new CloudFrontProvider.
-func NewCloudFrontProvider(accessKey, secretKey string) *CloudFrontProvider {
-	return &CloudFrontProvider{
-		client: NewClient(Credentials{
-			AccessKeyID:     accessKey,
-			SecretAccessKey: secretKey,
-		}),
+func NewCloudFrontProvider(accessKey, secretKey string) (*CloudFrontProvider, error) {
+	client, err := NewClient(Credentials{
+		AccessKeyID:     accessKey,
+		SecretAccessKey: secretKey,
+	})
+	if err != nil {
+		return nil, err
 	}
+	return &CloudFrontProvider{
+		client: client,
+	}, nil
 }
 
 // WithHTTPClient sets a custom HTTP client on the underlying API client.
@@ -79,7 +83,7 @@ func (p *CloudFrontProvider) Name() string {
 
 // SyncDistribution creates a CloudFront distribution from the given site config.
 // site should be a *DistributionCfg. edges is ignored.
-func (p *CloudFrontProvider) SyncDistribution(site interface{}, _ interface{}) (interface{}, error) {
+func (p *CloudFrontProvider) SyncDistribution(ctx context.Context, site interface{}, _ interface{}) (interface{}, error) {
 	cfg, ok := site.(*DistributionCfg)
 	if !ok {
 		return nil, &cdn.ErrProviderConfig{
@@ -87,8 +91,6 @@ func (p *CloudFrontProvider) SyncDistribution(site interface{}, _ interface{}) (
 			Message:  "site must be *cloudfront.DistributionCfg",
 		}
 	}
-
-	ctx := context.Background()
 
 	// Build origin config
 	origin := Origin{
@@ -145,14 +147,12 @@ func (p *CloudFrontProvider) SyncDistribution(site interface{}, _ interface{}) (
 }
 
 // DeleteDistribution deletes a CloudFront distribution.
-func (p *CloudFrontProvider) DeleteDistribution(id string) error {
-	ctx := context.Background()
+func (p *CloudFrontProvider) DeleteDistribution(ctx context.Context, id string) error {
 	return p.client.DeleteDistribution(ctx, id)
 }
 
 // GetDistributionStatus returns the status of a distribution.
-func (p *CloudFrontProvider) GetDistributionStatus(id string) (interface{}, error) {
-	ctx := context.Background()
+func (p *CloudFrontProvider) GetDistributionStatus(ctx context.Context, id string) (interface{}, error) {
 
 	dist, err := p.client.GetDistribution(ctx, id)
 	if err != nil {
@@ -169,20 +169,18 @@ func (p *CloudFrontProvider) GetDistributionStatus(id string) (interface{}, erro
 }
 
 // SyncDNS returns ErrNotSupported — CloudFront does not manage DNS.
-func (p *CloudFrontProvider) SyncDNS(_ string, _ []string, _ bool) (interface{}, error) {
+func (p *CloudFrontProvider) SyncDNS(_ context.Context, _ string, _ []string, _ bool) (interface{}, error) {
 	return nil, cdn.ErrNotSupported
 }
 
 // SyncCacheRules returns ErrNotSupported — CloudFront cache behavior is set
 // at distribution config time and updated via DistributionConfig updates.
-func (p *CloudFrontProvider) SyncCacheRules(_ string, _ interface{}) error {
+func (p *CloudFrontProvider) SyncCacheRules(_ context.Context, _ string, _ interface{}) error {
 	return cdn.ErrNotSupported
 }
 
 // Invalidate creates a CloudFront cache invalidation for the given paths.
-func (p *CloudFrontProvider) Invalidate(distID string, paths []string) error {
-	ctx := context.Background()
-
+func (p *CloudFrontProvider) Invalidate(ctx context.Context, distID string, paths []string) error {
 	_, err := p.client.CreateInvalidation(ctx, &CreateInvalidationInput{
 		DistributionID: distID,
 		Paths:          paths,

@@ -50,7 +50,7 @@ func (r *forwardingRuleRepo) Update(ctx context.Context, rule *repository.Forwar
 	rule.UpdatedAt = time.Now().Unix()
 	rule.Version = time.Now().UnixNano()
 
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE forwarding_rules SET
 			name = ?, protocol = ?, listen_port = ?, target_address = ?,
 			target_port = ?, enabled = ?, priority = ?, remark = ?,
@@ -61,12 +61,25 @@ func (r *forwardingRuleRepo) Update(ctx context.Context, rule *repository.Forwar
 		rule.TargetPort, boolToInt(rule.Enabled), rule.Priority, rule.Remark,
 		rule.Version, rule.UpdatedAt, rule.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *forwardingRuleRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM forwarding_rules WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM forwarding_rules WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
 }
 
 func (r *forwardingRuleRepo) FindByID(ctx context.Context, id int64) (*repository.ForwardingRule, error) {
@@ -197,4 +210,3 @@ func (r *forwardingRuleRepo) scanRules(rows *sql.Rows) ([]*repository.Forwarding
 	}
 	return rules, rows.Err()
 }
-

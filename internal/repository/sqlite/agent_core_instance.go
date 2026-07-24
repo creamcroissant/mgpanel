@@ -45,7 +45,7 @@ func (r *agentCoreInstanceRepo) Update(ctx context.Context, instance *repository
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE agent_core_instances SET
 			agent_host_id = ?, instance_id = ?, core_type = ?, status = ?, listen_ports = ?,
 			config_template_id = ?, config_hash = ?, started_at = ?, last_heartbeat_at = ?,
@@ -66,7 +66,10 @@ func (r *agentCoreInstanceRepo) Update(ctx context.Context, instance *repository
 		instance.UpdatedAt,
 		instance.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *agentCoreInstanceRepo) ReplaceSnapshot(ctx context.Context, agentHostID int64, instances []*repository.AgentCoreInstance) error {
@@ -151,8 +154,11 @@ func (r *agentCoreInstanceRepo) ReplaceSnapshot(ctx context.Context, agentHostID
 }
 
 func (r *agentCoreInstanceRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM agent_core_instances WHERE id = ?`, id)
-	return err
+	result, err := r.db.ExecContext(ctx, `DELETE FROM agent_core_instances WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *agentCoreInstanceRepo) FindByID(ctx context.Context, id int64) (*repository.AgentCoreInstance, error) {

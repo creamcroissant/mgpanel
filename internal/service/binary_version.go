@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/creamcroissant/xboard/internal/repository"
+	agentv1 "github.com/creamcroissant/xboard/pkg/pb/agent/v1"
 )
 
 const (
@@ -51,6 +53,7 @@ type UpdateLocalVersionsRequest struct {
 type CoreVersionReport struct {
 	Component    string
 	Version      string
+	Installed    *bool
 	Capabilities []string
 	BuildTags    []string
 }
@@ -79,16 +82,19 @@ type BinaryVersionStateView struct {
 }
 
 type BinaryVersionServiceOptions struct {
-	Now func() time.Time
+	Now            func() time.Time
+	CoreOperations repository.CoreOperationRepository
 }
 
 type binaryVersionService struct {
-	versions repository.BinaryVersionStateRepository
-	hosts    repository.AgentHostRepository
-	provider BinaryVersionRemoteProvider
-	now      func() time.Time
+	versions       repository.BinaryVersionStateRepository
+	hosts          repository.AgentHostRepository
+	provider       BinaryVersionRemoteProvider
+	coreOperations repository.CoreOperationRepository
+	now            func() time.Time
 }
 
+// staticBinaryVersionProvider holds a read-only version map populated at startup.
 type staticBinaryVersionProvider struct {
 	versions map[string]string
 }
@@ -102,7 +108,7 @@ func NewBinaryVersionServiceWithOptions(versions repository.BinaryVersionStateRe
 	if now == nil {
 		now = time.Now
 	}
-	return &binaryVersionService{versions: versions, hosts: hosts, provider: provider, now: now}
+	return &binaryVersionService{versions: versions, hosts: hosts, provider: provider, coreOperations: opts.CoreOperations, now: now}
 }
 
 func NewStaticBinaryVersionProvider(versions map[string]string) BinaryVersionRemoteProvider {
@@ -156,7 +162,8 @@ func (s *binaryVersionService) UpdateLocalVersions(ctx context.Context, req Upda
 	seen := make(map[string]struct{}, len(coreReports))
 	for _, report := range coreReports {
 		report.Version = strings.TrimSpace(report.Version)
-		if report.Version == "" {
+		explicitlyMissing := report.Installed != nil && !*report.Installed
+		if report.Version == "" && !explicitlyMissing {
 			continue
 		}
 		component, err := NormalizeBinaryVersionComponent(report.Component)
@@ -205,6 +212,7 @@ func (s *binaryVersionService) ListVersionStates(ctx context.Context, req ListVe
 		}
 		byComponent[component] = state
 	}
+	s.applyCompletedCoreOperationFallbacks(ctx, req.AgentHostID, byComponent)
 
 	result := make([]BinaryVersionStateView, 0, len(binaryVersionComponents))
 	for _, component := range binaryVersionComponents {
@@ -215,6 +223,110 @@ func (s *binaryVersionService) ListVersionStates(ctx context.Context, req ListVe
 		result = append(result, binaryVersionStateViewFromRepo(localStateFromHost(host, component, s.now().Unix())))
 	}
 	return result, nil
+}
+
+func (s *binaryVersionService) applyCompletedCoreOperationFallbacks(ctx context.Context, agentHostID int64, byComponent map[string]*repository.BinaryVersionState) {
+	if s == nil || s.coreOperations == nil {
+		return
+	}
+	operationType := "install"
+	status := "completed"
+	operations, err := s.coreOperations.List(ctx, repository.CoreOperationFilter{
+		AgentHostID:   &agentHostID,
+		OperationType: &operationType,
+		Status:        &status,
+		Limit:         50,
+	})
+	if err != nil {
+		return
+	}
+	seen := make(map[string]struct{}, len(binaryVersionComponents))
+	for _, operation := range operations {
+		report, ok := coreOperationVersionReport(operation)
+		if !ok {
+			continue
+		}
+		component, err := NormalizeBinaryVersionComponent(report.Component)
+		if err != nil || component == BinaryVersionComponentAgent {
+			continue
+		}
+		if _, ok := seen[component]; ok {
+			continue
+		}
+		report.Component = component
+		state := byComponent[component]
+		if !shouldApplyCoreOperationFallback(state, operation, report) {
+			seen[component] = struct{}{}
+			continue
+		}
+		if err := s.upsertLocalState(ctx, report, agentHostID); err != nil {
+			seen[component] = struct{}{}
+			continue
+		}
+		if updated, err := s.versions.FindByHostComponent(ctx, agentHostID, component); err == nil {
+			byComponent[component] = updated
+		}
+		seen[component] = struct{}{}
+	}
+}
+
+func coreOperationVersionReport(operation *repository.CoreOperation) (CoreVersionReport, bool) {
+	if operation == nil || strings.TrimSpace(operation.OperationType) != "install" || strings.TrimSpace(operation.Status) != "completed" {
+		return CoreVersionReport{}, false
+	}
+	var payload agentv1.InstallCorePayload
+	if len(operation.RequestPayload) > 0 {
+		if err := json.Unmarshal(operation.RequestPayload, &payload); err != nil {
+			slog.Debug("failed to parse install core request payload", "error", err)
+		}
+	}
+	var result agentv1.InstallCoreResponse
+	if len(operation.ResultPayload) > 0 {
+		if err := json.Unmarshal(operation.ResultPayload, &result); err != nil {
+				slog.Warn("binary_version: parse ResultPayload failed", "error", err)
+			}
+	}
+	component := strings.TrimSpace(result.GetCoreType())
+	if component == "" {
+		component = strings.TrimSpace(operation.CoreType)
+	}
+	if component == "" {
+		return CoreVersionReport{}, false
+	}
+	action := strings.ToLower(strings.TrimSpace(payload.GetAction()))
+	if action == "" {
+		action = "install"
+	}
+	installed := action != "uninstall"
+	version := strings.TrimSpace(result.GetVersion())
+	if !installed {
+		version = ""
+	} else if version == "" {
+		return CoreVersionReport{}, false
+	}
+	return CoreVersionReport{Component: component, Version: version, Installed: &installed}, true
+}
+
+func shouldApplyCoreOperationFallback(state *repository.BinaryVersionState, operation *repository.CoreOperation, report CoreVersionReport) bool {
+	if state == nil {
+		return true
+	}
+	installed := report.Installed == nil || *report.Installed
+	localVersion := strings.TrimSpace(state.LocalVersion)
+	if installed && localVersion == "" {
+		return true
+	}
+	operationTime := operation.UpdatedAt
+	if operation.FinishedAt != nil {
+		operationTime = *operation.FinishedAt
+	}
+	if operationTime > 0 && state.UpdatedAt > operationTime {
+		return false
+	}
+	if !installed {
+		return localVersion != ""
+	}
+	return localVersion != strings.TrimSpace(report.Version)
 }
 
 func (s *binaryVersionService) RefreshRemoteVersion(ctx context.Context, req RefreshRemoteVersionRequest) (*BinaryVersionStateView, error) {
@@ -235,6 +347,11 @@ func (s *binaryVersionService) RefreshRemoteVersion(ctx context.Context, req Ref
 	state, err := s.findOrCreateState(ctx, host, component)
 	if err != nil {
 		return nil, err
+	}
+	byComponent := map[string]*repository.BinaryVersionState{component: state}
+	s.applyCompletedCoreOperationFallbacks(ctx, req.AgentHostID, byComponent)
+	if updated := byComponent[component]; updated != nil {
+		state = updated
 	}
 
 	checkedAt := s.now().Unix()

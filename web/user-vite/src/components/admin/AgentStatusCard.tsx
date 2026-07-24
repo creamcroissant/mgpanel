@@ -178,7 +178,7 @@ export default function AgentStatusCard({ agent, onClick, onEdit }: AgentStatusC
           </div>
         </div>
 
-        {agent.last_restart_at && agent.last_restart_at > 0 && (
+        {agent.last_restart_at != null && agent.last_restart_at > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
             <RotateCw className="h-3.5 w-3.5" />
             <span>{t("admin.agents.restartDetected", { time: formatRelativeTime(agent.last_restart_at, t) })}</span>

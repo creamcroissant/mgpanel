@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/creamcroissant/xboard/internal/agent/core"
@@ -19,6 +20,7 @@ type Manager struct {
 
 	collectors []Collector
 	stopCh     chan struct{}
+	stopOnce   sync.Once
 }
 
 func NewManager(client *transport.GRPCClient, coreManager *core.Manager, logger *slog.Logger) *Manager {
@@ -41,7 +43,9 @@ func (m *Manager) Start() {
 }
 
 func (m *Manager) Stop() {
-	close(m.stopCh)
+	m.stopOnce.Do(func() {
+		close(m.stopCh)
+	})
 }
 
 func (m *Manager) run() {

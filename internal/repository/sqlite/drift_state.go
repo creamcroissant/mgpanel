@@ -65,12 +65,15 @@ func (r *driftStateRepo) Upsert(ctx context.Context, drift *repository.DriftStat
 }
 
 func (r *driftStateRepo) MarkRecoveredByHostCore(ctx context.Context, agentHostID int64, coreType string, recoveredAt int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		UPDATE drift_states
 		SET status = 'recovered', last_changed_at = ?
 		WHERE agent_host_id = ? AND core_type = ? AND status != 'recovered'
 	`, recoveredAt, agentHostID, coreType)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensureRowsAffected(result)
 }
 
 func (r *driftStateRepo) List(ctx context.Context, filter repository.DriftStateFilter) ([]*repository.DriftState, error) {

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -252,6 +253,10 @@ func (h *ShortLinkHandler) HandleRedirect(w http.ResponseWriter, r *http.Request
 			}
 			for key, value := range subResult.Headers {
 				if key != "" && !strings.EqualFold(key, "content-type") {
+					if strings.ContainsAny(value, "\n\r") {
+						slog.Warn("subscription: skipping header with CR/LF", "key", key)
+						continue
+					}
 					w.Header().Set(key, value)
 				}
 			}

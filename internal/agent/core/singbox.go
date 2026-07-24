@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,6 +26,8 @@ type SingBoxCore struct {
 	detector    *capability.Detector
 	serviceName string
 	configDir   string
+	binaryPath  string
+	logger      *slog.Logger
 
 	mu        sync.RWMutex
 	instances map[string]*CoreInstance
@@ -49,7 +53,9 @@ func NewSingBoxCore(initSys initsys.InitSystem, detector *capability.Detector, s
 		detector:    detector,
 		serviceName: serviceName,
 		configDir:   configDir,
+		binaryPath:  detector.SingBoxPath(),
 		instances:   make(map[string]*CoreInstance),
+		logger:      slog.Default(),
 	}
 }
 
@@ -74,10 +80,7 @@ func (c *SingBoxCore) Capabilities(ctx context.Context) ([]string, error) {
 }
 
 func (c *SingBoxCore) IsInstalled(ctx context.Context) bool {
-	caps, err := c.detector.Detect(ctx)
-	if err != nil {
-		return false
-	}
+	caps := c.detector.Detect(ctx)
 	return caps.CoreType == string(CoreTypeSingBox)
 }
 
@@ -150,6 +153,9 @@ func (c *SingBoxCore) Start(ctx context.Context, instanceID, configPath string, 
 	}
 
 	service := c.serviceNameForInstance(instanceID)
+	if err := c.ensureSystemdUnit(ctx); err != nil {
+		c.logger.Warn("cannot provision systemd unit", "error", err)
+	}
 	if err := c.initSys.Start(ctx, service); err != nil {
 		c.updateInstanceError(instanceID, err.Error())
 		return err
@@ -288,6 +294,48 @@ func (c *SingBoxCore) ListInstances(ctx context.Context) ([]*CoreInstance, error
 
 func (c *SingBoxCore) CollectTraffic(ctx context.Context, instanceID string) ([]TrafficSample, error) {
 	return nil, nil
+}
+
+// ensureSystemdUnit creates a minimal systemd template unit for sing-box if one does not exist.
+func (c *SingBoxCore) ensureSystemdUnit(ctx context.Context) error {
+	if _, err := os.Stat("/run/systemd/system"); os.IsNotExist(err) {
+		return nil // not systemd
+	}
+	unitPath := "/etc/systemd/system/sing-box@.service"
+	if _, err := os.Stat(unitPath); err == nil {
+		return nil // already exists
+	}
+	binPath := strings.TrimSpace(c.binaryPath)
+	if binPath == "" {
+		return fmt.Errorf("sing-box binary path unknown, cannot create systemd unit")
+	}
+	content := fmt.Sprintf(`[Unit]
+Description=Sing-box instance %%i
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=%s run -c /etc/sing-box/conf/%%i.json
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+`, binPath)
+	if err := os.MkdirAll("/etc/systemd/system", 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(unitPath, []byte(content), 0o644); err != nil {
+		return err
+	}
+	c.logger.Info("created systemd template unit", "path", unitPath, "binary", binPath)
+	// Run daemon-reload to register the new unit
+	if err := exec.CommandContext(ctx, "systemctl", "daemon-reload").Run(); err != nil {
+		c.logger.Warn("systemctl daemon-reload failed", "error", err)
+	}
+	return nil
 }
 
 func (c *SingBoxCore) detectCaps(ctx context.Context) (*capability.DetectedCapabilities, error) {

@@ -697,7 +697,7 @@ func (m *Manager) updateInboundUsers(config map[string]any, users []UserConfig) 
 
 // injectUsersIntoSingboxInbound 注入 sing-box inbound 用户。
 func (m *Manager) injectUsersIntoSingboxInbound(inbound map[string]any, users []UserConfig) {
-	inboundType, _ := inbound["type"].(string)
+	inboundType, _ := inbound["type"].(string) // ok check done by caller, empty string on mismatch
 
 	// 按协议类型构建用户列表
 	usersList := make([]map[string]any, 0, len(users))
@@ -784,7 +784,7 @@ func (m *Manager) updateXrayInboundUsers(config map[string]any, users []UserConf
 
 // injectUsersIntoXrayInbound 注入 Xray inbound 用户。
 func (m *Manager) injectUsersIntoXrayInbound(inbound map[string]any, users []UserConfig) {
-	protocol, _ := inbound["protocol"].(string)
+	protocol, _ := inbound["protocol"].(string) // ok check done by caller, empty string on mismatch
 
 	// 获取或创建 settings 对象
 	settings, ok := inbound["settings"].(map[string]any)
