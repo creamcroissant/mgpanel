@@ -1507,13 +1507,66 @@ if [ ! -f "$INSTALL_DIR/config.yml" ] && [ ! -f "$INSTALL_DIR/.env" ]; then
             echo "Error: failed to create config.yml."
             fail_stage "panel config creation failed"
         fi
-        echo "Created config.yml."
+        echo "Created config.yml from local config.example.yml."
     elif [ -f ".env.example" ]; then
         if ! install_file ".env.example" "$INSTALL_DIR/.env"; then
             echo "Error: failed to create .env."
             fail_stage "panel env creation failed"
         fi
         echo "Created .env."
+    else
+        # Fallback: download config.example.yml from GitHub release
+        echo "config.example.yml not found locally, downloading from GitHub..."
+        EXAMPLE_URL="https://raw.githubusercontent.com/${XBOARD_RELEASE_REPO}/main/config.example.yml"
+        TMP_CONFIG=$(mktemp)
+        if [ -n "$TMP_CONFIG" ] && curl --fail --silent --show-error --location --retry 3 --retry-delay 1 --output "$TMP_CONFIG" "$EXAMPLE_URL"; then
+            if install_file "$TMP_CONFIG" "$INSTALL_DIR/config.yml"; then
+                echo "Created config.yml from release config.example.yml."
+            else
+                echo "Error: failed to install downloaded config.yml."
+                rm -f "$TMP_CONFIG"
+                fail_stage "panel config creation failed"
+            fi
+            rm -f "$TMP_CONFIG"
+        else
+            rm -f "$TMP_CONFIG"
+            # Last resort: generate minimal inline config
+            echo "Warning: could not download config.example.yml, generating minimal config."
+            CONFIG_TEMP=$(mktemp)
+            if [ -z "$CONFIG_TEMP" ]; then
+                fail_stage "failed to create temporary config file"
+            fi
+            cat > "$CONFIG_TEMP" <<EOF
+# XBoard Configuration
+
+http:
+  addr: "0.0.0.0:${XBOARD_PANEL_HTTP_PORT:-8080}"
+  shutdown_timeout: "15s"
+
+log:
+  level: "info"
+  format: "json"
+  add_source: false
+  environment: "production"
+  log_dir: "logs"
+  max_days: 7
+
+database:
+  driver: "sqlite"
+  path: "data/xboard.db"
+
+auth:
+  signing_key: "change-me"
+EOF
+            if install_file "$CONFIG_TEMP" "$INSTALL_DIR/config.yml"; then
+                echo "Created minimal config.yml at ${INSTALL_DIR}."
+            else
+                echo "Error: failed to create config.yml."
+                rm -f "$CONFIG_TEMP"
+                fail_stage "panel config creation failed"
+            fi
+            rm -f "$CONFIG_TEMP"
+        fi
     fi
 fi
 
