@@ -27,6 +27,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -49,6 +50,7 @@ interface NodeForm {
   hasValue: boolean;
   lastModified?: number;
   agentGrpcAddress: string;
+  grpcTlsEnabled: boolean;
   pullInterval: string;
   pushInterval: string;
   deviceLimitMode: string;
@@ -71,6 +73,7 @@ function NodeTabContent({ initialForm }: NodeTabContentProps) {
     mutationFn: (payload: NodeForm) =>
       saveSettings(CATEGORY, {
         agent_grpc_address: payload.agentGrpcAddress.trim(),
+        grpc_tls_enabled: payload.grpcTlsEnabled ? "true" : "false",
         [TEMPLATE_INTERVAL_KEY.pull]: payload.pullInterval.trim(),
         [TEMPLATE_INTERVAL_KEY.push]: payload.pushInterval.trim(),
         device_limit_mode: payload.deviceLimitMode.trim(),
@@ -213,6 +216,20 @@ function NodeTabContent({ initialForm }: NodeTabContentProps) {
           <p className="text-xs text-muted-foreground">{t("admin.system.settings.tooltips.agentGrpcAddress")}</p>
         </div>
 
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium" htmlFor="grpc-tls-toggle">
+              {t("admin.system.settings.fields.grpcTlsEnabled")}
+            </label>
+            <p className="text-xs text-muted-foreground">{t("admin.system.settings.tooltips.grpcTlsEnabled")}</p>
+          </div>
+          <Switch
+            id="grpc-tls-toggle"
+            checked={form.grpcTlsEnabled}
+            onCheckedChange={(v) => setForm((prev) => ({ ...prev, grpcTlsEnabled: v }))}
+          />
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("admin.system.settings.fields.pullInterval")}</label>
@@ -305,6 +322,7 @@ export default function NodeTab() {
       hasValue: keyQuery.data?.has_value ?? false,
       lastModified: keyQuery.data?.last_modified,
       agentGrpcAddress: (data?.agent_grpc_address ?? "").trim(),
+      grpcTlsEnabled: (data?.grpc_tls_enabled ?? "") === "true",
       pullInterval: data?.[TEMPLATE_INTERVAL_KEY.pull] ?? "60",
       pushInterval: data?.[TEMPLATE_INTERVAL_KEY.push] ?? "60",
       deviceLimitMode: data?.device_limit_mode ?? "0",

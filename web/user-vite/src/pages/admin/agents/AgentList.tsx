@@ -39,11 +39,12 @@ function resolveDeployScriptURL(): string {
   return runtimeURL || DEFAULT_DEPLOY_SCRIPT_URL;
 }
 
-function buildDeployCommand(communicationKey: string, grpcAddress: string): string {
+function buildDeployCommand(communicationKey: string, grpcAddress: string, grpcTlsEnabled: boolean): string {
   const deployScriptURL = resolveDeployScriptURL();
+  const tlsArg = grpcTlsEnabled ? " -t true" : "";
   return [
     `curl -fsSL ${shellEscapeSingleQuoted(deployScriptURL)} -o /tmp/agent.sh`,
-    `sudo INSTALL_DIR=/opt/xboard/agent sh /tmp/agent.sh -k ${shellEscapeSingleQuoted(communicationKey)} -g ${shellEscapeSingleQuoted(grpcAddress)}`,
+    `sudo INSTALL_DIR=/opt/xboard/agent sh /tmp/agent.sh -k ${shellEscapeSingleQuoted(communicationKey)} -g ${shellEscapeSingleQuoted(grpcAddress)}${tlsArg}`,
   ].join(" && ");
 }
 
@@ -108,17 +109,19 @@ export default function AgentList() {
       const [nodeSettings, keyInfo] = await Promise.all([fetchSettings("node"), revealKey()]);
       const grpcAddress = (nodeSettings.agent_grpc_address ?? "").trim();
       const communicationKey = (keyInfo.key || "").trim();
+      const grpcTlsEnabled = nodeSettings.grpc_tls_enabled === "true";
       return {
         grpcAddress,
         communicationKey,
+        grpcTlsEnabled,
       };
     },
-    onSuccess: ({ grpcAddress, communicationKey }) => {
+    onSuccess: ({ grpcAddress, communicationKey, grpcTlsEnabled }) => {
       setIsDialogOpen(false);
       const hasGrpcAddress = grpcAddress.length > 0;
       const hasCommunicationKey = communicationKey.length > 0;
       setDeployMissingAddress(!hasGrpcAddress);
-      setDeployCommand(hasGrpcAddress && hasCommunicationKey ? buildDeployCommand(communicationKey, grpcAddress) : "");
+      setDeployCommand(hasGrpcAddress && hasCommunicationKey ? buildDeployCommand(communicationKey, grpcAddress, grpcTlsEnabled) : "");
       setIsDeployDialogOpen(true);
     },
     onError: (err: Error) => {

@@ -1628,7 +1628,8 @@
           "alertExpireThreshold": "Expiry Alert Threshold",
           "defaultTemplate": "Default Template",
           "customRules": "Custom Rules",
-          "mcpEnabled": "MCP Server"
+          "mcpEnabled": "MCP Server",
+          "grpcTlsEnabled": "TLS Encryption"
         },
         "placeholders": {
           "siteName": "e.g. XBoard",
@@ -1668,7 +1669,8 @@
           "alertTrafficEnabled": "Notify when traffic exceeds the threshold",
           "alertExpireEnabled": "Notify before subscription expires",
           "defaultTemplate": "Select the default configuration template",
-          "mcpEnabled": "Enable or disable the MCP Server. Requires a restart to take effect."
+          "mcpEnabled": "Enable or disable the MCP Server. Requires a restart to take effect.",
+          "grpcTlsEnabled": "Enable TLS when connecting to Panel via Caddy reverse proxy. The deploy command will include -t true."
         },
         "options": {
           "deviceLimitMode": {
