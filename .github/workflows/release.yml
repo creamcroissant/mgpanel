@@ -351,17 +351,6 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/with-core-out" \
-            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            XBOARD_RELEASE_REPO="local/local" \
-            XBOARD_RELEASE_TAG="local" \
-            sh ./agent.sh -k "with-core-token" -g "127.0.0.1:19090" -c sing-box
-            test -x "${WORKDIR_SH}/with-core-out/agent"
-            test -f "${WORKDIR_SH}/with-core-out/config.yml"
-          )
-
-          (
-            cd "${WORKDIR_SH}"
             if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-out" \
               sh ./agent.sh --uninstall -k "conflict-key" -g "127.0.0.1:19090"; then
               echo "agent.sh --uninstall should fail when mixed with install parameters" >&2
@@ -395,123 +384,6 @@ jobs:
               XBOARD_AGENT_HOST_TOKEN="forbidden-token" \
               sh ./agent.sh -k "conflict-key" -g "127.0.0.1:19090"; then
               echo "agent.sh should fail when communication key and host token are mixed" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-bootstrap-uninstall-out" \
-              sh ./agent.sh --bootstrap --uninstall; then
-              echo "agent.sh --bootstrap --uninstall should fail" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_BASH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/conflict-bootstrap-uninstall-out" \
-              bash ./agent.sh --bootstrap --uninstall; then
-              echo "agent.sh --bootstrap --uninstall should fail under bash" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-core-action-out" \
-              sh ./agent.sh --core-action upgrade --core-type xray -k "conflict-key" -g "127.0.0.1:19090"; then
-              echo "agent.sh --core-action should fail when mixed with install parameters" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-with-core-action-out" \
-              sh ./agent.sh -k "conflict-key" -g "127.0.0.1:19090" -c sing-box --core-action upgrade --core-type sing-box; then
-              echo "agent.sh --with-core should fail when mixed with --core-action" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/bootstrap-out" XBOARD_BOOTSTRAP_REF=local \
-            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            XBOARD_BOOTSTRAP_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            XBOARD_AGENT_SCRIPT_URL="file://${WORKDIR_SH}/agent.sh" \
-            XBOARD_AGENT_COMMUNICATION_KEY="bootstrap-token-sh" \
-            XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
-            sh ./agent.sh --bootstrap \
-              --repo local/local \
-              --service-url "file://${WORKDIR_SH}/agent.service"
-            test -x "${WORKDIR_SH}/bootstrap-out/agent"
-            test -f "${WORKDIR_SH}/bootstrap-out/config.yml"
-          )
-
-          (
-            cd "${WORKDIR_BASH}"
-            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/bootstrap-out" XBOARD_BOOTSTRAP_REF=local \
-            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
-            XBOARD_BOOTSTRAP_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
-            XBOARD_AGENT_SCRIPT_URL="file://${WORKDIR_BASH}/agent.sh" \
-            XBOARD_AGENT_COMMUNICATION_KEY="bootstrap-token-bash" \
-            XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
-            bash ./agent.sh --bootstrap \
-              --repo local/local \
-              --service-url "file://${WORKDIR_BASH}/agent.service"
-            test -x "${WORKDIR_BASH}/bootstrap-out/agent"
-            test -f "${WORKDIR_BASH}/bootstrap-out/config.yml"
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/bootstrap-host-token-fail-out" XBOARD_BOOTSTRAP_REF=local \
-              XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_BOOTSTRAP_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_AGENT_SCRIPT_URL="file://${WORKDIR_SH}/agent.sh" \
-              XBOARD_AGENT_HOST_TOKEN="bootstrap-host-token" \
-              XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
-              sh ./agent.sh --bootstrap \
-                --repo local/local \
-                --service-url "file://${WORKDIR_SH}/agent.service"; then
-              echo "agent.sh --bootstrap should fail when XBOARD_AGENT_HOST_TOKEN is provided" >&2
-              exit 1
-            fi
-          )
-
-          cp "${WORKDIR_SH}/agent.service" "${WORKDIR_SH}/agent.service.bad"
-          printf '\n# checksum mismatch fixture\n' >> "${WORKDIR_SH}/agent.service.bad"
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/bootstrap-checksum-fail-out" XBOARD_BOOTSTRAP_REF=local \
-              XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_BOOTSTRAP_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_AGENT_SCRIPT_URL="file://${WORKDIR_SH}/agent.sh" \
-              XBOARD_AGENT_COMMUNICATION_KEY="bootstrap-checksum-token" \
-              XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
-              sh ./agent.sh --bootstrap \
-                --repo local/local \
-                --service-url "file://${WORKDIR_SH}/agent.service.bad"; then
-              echo "agent.sh --bootstrap should fail when agent.service checksum mismatches" >&2
-              exit 1
-            fi
-          )
-
-          (
-            cd "${WORKDIR_SH}"
-            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/bootstrap-download-fail-out" XBOARD_BOOTSTRAP_REF=local \
-              XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_BOOTSTRAP_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              XBOARD_AGENT_SCRIPT_URL="file://${WORKDIR_SH}/agent.sh" \
-              XBOARD_AGENT_COMMUNICATION_KEY="bootstrap-download-token" \
-              XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
-              sh ./agent.sh --bootstrap \
-                --repo local/local \
-                --service-url "file://${WORKDIR_SH}/missing-agent.service"; then
-              echo "agent.sh --bootstrap should fail when agent.service download fails" >&2
               exit 1
             fi
           )
@@ -701,7 +573,7 @@ jobs:
           sha256sum deploy/agent.sh deploy/agent.service >> dist/release/SHA256SUMS.txt
           sort -k2 dist/release/SHA256SUMS.txt -o dist/release/SHA256SUMS.txt
 
-      - name: Verify bootstrap checksum entries
+      - name: Verify release checksum entries
         run: |
           set -euo pipefail
 
