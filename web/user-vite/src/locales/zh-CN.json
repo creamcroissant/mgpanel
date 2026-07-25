@@ -1593,7 +1593,8 @@
           "subscription": "订阅设置",
           "node": "节点通信",
           "email": "邮件服务",
-          "routing": "路由规则"
+          "routing": "路由规则",
+          "mcp": "MCP 服务器"
         },
         "fields": {
           "siteName": "站点名称",
@@ -1624,7 +1625,8 @@
           "alertTrafficThreshold": "流量告警阈值",
           "alertExpireThreshold": "到期告警阈值",
           "defaultTemplate": "默认模板",
-          "customRules": "自定义规则"
+          "customRules": "自定义规则",
+          "mcpEnabled": "MCP 服务器"
         },
         "placeholders": {
           "siteName": "例如：XBoard",
@@ -1663,7 +1665,8 @@
           "smtpPassword": "不会显示已保存的密码",
           "alertTrafficEnabled": "流量超过阈值时发送通知",
           "alertExpireEnabled": "到期前发送通知",
-          "defaultTemplate": "选择默认下发的配置模板"
+          "defaultTemplate": "选择默认下发的配置模板",
+          "mcpEnabled": "开启或关闭 MCP 服务器，重启后生效。"
         },
         "options": {
           "deviceLimitMode": {
@@ -1717,7 +1720,8 @@
           "revealSuccess": "通信密钥已显示",
           "resetConfirm": "确认重置通信密钥？",
           "resetImpact": "重置只影响后续新 Agent 的首次注册；已完成 host token 交换的 Agent 会继续使用各自的专属 token。",
-          "resetSuccess": "通信密钥已重置"
+          "resetSuccess": "通信密钥已重置",
+          "mcpRestartHint": "此设置重启面板后生效。"
         }
       }
     },

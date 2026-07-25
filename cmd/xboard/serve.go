@@ -406,6 +406,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Initialize AgentLogCache (shared by gRPC and MCP)
 	agentLogCache := service.NewAgentLogCache(infra.Cache, cfg.MCP.MaxAgentLogLines)
 
+	// Check runtime MCP enabled state from DB settings (overrides config file)
+	if mcpSettings, err := adminSystemSettingsService.GetByCategory(ctx, "mcp"); err == nil {
+		if mcpSettings["enabled"] == "true" {
+			cfg.MCP.Enabled = true
+		} else if mcpSettings["enabled"] == "false" {
+			cfg.MCP.Enabled = false
+		}
+	}
+
 	// Initialize MCP API key service and MCP server
 	mcpAPIKeySvc := service.NewMCPApiKeyService(store.MCPApiKeys())
 	mcpKeyValidator := service.KeyCheckFunc(func(rawKey string) (bool, error) {

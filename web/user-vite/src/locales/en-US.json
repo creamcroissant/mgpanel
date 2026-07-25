@@ -1595,7 +1595,8 @@
           "subscription": "Subscription",
           "node": "Node Communication",
           "email": "Email Service",
-          "routing": "Routing"
+          "routing": "Routing",
+          "mcp": "MCP Server"
         },
         "fields": {
           "siteName": "Site Name",
@@ -1626,7 +1627,8 @@
           "alertTrafficThreshold": "Traffic Alert Threshold",
           "alertExpireThreshold": "Expiry Alert Threshold",
           "defaultTemplate": "Default Template",
-          "customRules": "Custom Rules"
+          "customRules": "Custom Rules",
+          "mcpEnabled": "MCP Server"
         },
         "placeholders": {
           "siteName": "e.g. XBoard",
@@ -1665,7 +1667,8 @@
           "smtpPassword": "Saved password is not displayed",
           "alertTrafficEnabled": "Notify when traffic exceeds the threshold",
           "alertExpireEnabled": "Notify before subscription expires",
-          "defaultTemplate": "Select the default configuration template"
+          "defaultTemplate": "Select the default configuration template",
+          "mcpEnabled": "Enable or disable the MCP Server. Requires a restart to take effect."
         },
         "options": {
           "deviceLimitMode": {
@@ -1719,7 +1722,8 @@
           "revealSuccess": "Communication key revealed",
           "resetConfirm": "Reset the communication key?",
           "resetImpact": "Reset only affects future first registrations. Agents that already exchanged a host-specific token keep using their own token.",
-          "resetSuccess": "Communication key reset"
+          "resetSuccess": "Communication key reset",
+          "mcpRestartHint": "This setting takes effect after the server restarts."
         }
       }
     },
