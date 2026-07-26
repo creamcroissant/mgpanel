@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Clock, Cpu, HardDrive, MemoryStick, Pencil, RotateCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Cpu, FileText, HardDrive, MemoryStick, Pencil, RotateCw } from "lucide-react";
 import { AgentStatus, type AgentHost } from "@/types";
 import ResourceGauge from "./ResourceGauge";
 import { formatBytes } from "@/lib/format";
@@ -11,6 +11,7 @@ interface AgentStatusCardProps {
   agent: AgentHost;
   onClick?: () => void;
   onEdit?: () => void;
+  onViewConfig?: () => void;
 }
 
 function formatRelativeTime(
@@ -55,7 +56,7 @@ const normalizeLabel = (value: string | undefined, fallback: string): string => 
   return trimmed || fallback;
 };
 
-export default function AgentStatusCard({ agent, onClick, onEdit }: AgentStatusCardProps) {
+export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }: AgentStatusCardProps) {
   const { t } = useTranslation();
   const statusConfig = getStatusConfig(agent.status, t);
   const hostLabel = agent.port ? `${agent.host}:${agent.port}` : agent.host;
@@ -92,6 +93,21 @@ export default function AgentStatusCard({ agent, onClick, onEdit }: AgentStatusC
             <span className="block truncate text-sm text-muted-foreground">{hostLabel}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {onViewConfig && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                aria-label={t("admin.agents.config.title")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onViewConfig();
+                }}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            )}
             {onEdit && (
               <Button
                 type="button"

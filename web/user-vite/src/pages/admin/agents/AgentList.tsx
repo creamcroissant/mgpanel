@@ -20,6 +20,7 @@ import {
 import { AgentStatus, type AgentHost, type UpdateAgentHostRequest } from "@/types";
 import AgentCorePanel from "./AgentCorePanel";
 import AgentBatchManagePanel from "./AgentBatchManagePanel";
+import AgentConfigEditor from "./AgentConfigEditor";
 import { MeshPeerTable } from "./MeshPeerTable";
 import LatencyProbePanel from "./LatencyProbePanel";
 
@@ -97,6 +98,8 @@ export default function AgentList() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isMeshOpen, setIsMeshOpen] = useState(false);
   const [isLatencyProbeOpen, setIsLatencyProbeOpen] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [configAgent, setConfigAgent] = useState<AgentHost | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentHost | null>(null);
   const [deployCommand, setDeployCommand] = useState("");
   const [deployMissingAddress, setDeployMissingAddress] = useState(false);
@@ -187,6 +190,18 @@ export default function AgentList() {
     if (!open) {
       setDeployCommand("");
       setDeployMissingAddress(false);
+    }
+  };
+
+  const handleOpenConfigEditor = (agent: AgentHost) => {
+    setConfigAgent(agent);
+    setIsConfigOpen(true);
+  };
+
+  const handleConfigDialogChange = (open: boolean) => {
+    setIsConfigOpen(open);
+    if (!open) {
+      setConfigAgent(null);
     }
   };
 
@@ -364,7 +379,7 @@ export default function AgentList() {
         ) : (
           <ResponsiveGrid minColWidth={300} gap={18}>
             {agents.map((agent) => (
-              <AgentStatusCard key={agent.id} agent={agent} onClick={() => handleOpenCorePanel(agent)} onEdit={() => handleOpenEditDialog(agent)} />
+              <AgentStatusCard key={agent.id} agent={agent} onClick={() => handleOpenCorePanel(agent)} onEdit={() => handleOpenEditDialog(agent)} onViewConfig={() => handleOpenConfigEditor(agent)} />
             ))}
           </ResponsiveGrid>
         )}
@@ -489,6 +504,13 @@ export default function AgentList() {
         open={isMeshOpen}
         onOpenChange={setIsMeshOpen}
         onRefetch={refetch}
+      />
+
+      <AgentConfigEditor
+        agentHostId={configAgent?.id ?? 0}
+        agentName={configAgent?.name}
+        open={isConfigOpen}
+        onOpenChange={handleConfigDialogChange}
       />
 
       <LatencyProbePanel

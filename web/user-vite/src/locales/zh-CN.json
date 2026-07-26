@@ -513,6 +513,17 @@
         "loadPeersFailed": "加载组网节点失败",
         "latency": "延迟",
         "packetLoss": "丢包"
+      },
+      "config": {
+        "title": "Agent 配置",
+        "description": "查看 {{name}} 的配置",
+        "subtitle": "查看详细的 Agent 配置信息",
+        "refreshFromAgent": "从 Agent 刷新",
+        "refreshTriggered": "配置刷新已触发",
+        "loadError": "加载配置失败",
+        "noReport": "尚未上报配置",
+        "noReportHint": "Agent 在线时可尝试从 Agent 刷新",
+        "refreshError": "刷新配置失败"
       }
     },
     "users": {

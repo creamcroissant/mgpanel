@@ -513,6 +513,17 @@
         "loadPeersFailed": "Failed to load mesh peers",
         "latency": "Latency",
         "packetLoss": "Loss"
+      },
+      "config": {
+        "title": "Agent Configuration",
+        "description": "View configuration for {{name}}",
+        "subtitle": "View detailed agent configuration",
+        "refreshFromAgent": "Refresh from Agent",
+        "refreshTriggered": "Config refresh triggered",
+        "loadError": "Failed to load configuration",
+        "noReport": "No configuration reported yet",
+        "noReportHint": "Agent is online, try refreshing from agent",
+        "refreshError": "Failed to refresh config"
       }
     },
     "users": {
