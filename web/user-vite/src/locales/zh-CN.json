@@ -1627,7 +1627,7 @@
           "defaultTemplate": "默认模板",
           "customRules": "自定义规则",
           "mcpEnabled": "MCP 服务器",
-          "grpcTlsEnabled": "TLS 加密"
+          "grpcTlsEnabled": "启用 TLS"
         },
         "placeholders": {
           "siteName": "例如：XBoard",
@@ -1667,8 +1667,7 @@
           "alertTrafficEnabled": "流量超过阈值时发送通知",
           "alertExpireEnabled": "到期前发送通知",
           "defaultTemplate": "选择默认下发的配置模板",
-          "mcpEnabled": "开启或关闭 MCP 服务器，重启后生效。",
-          "grpcTlsEnabled": "通过 Caddy 反向代理连接 Panel 时启用 TLS，部署命令将包含 -t true。"
+          "mcpEnabled": "开启或关闭 MCP 服务器，重启后生效。"
         },
         "options": {
           "deviceLimitMode": {
