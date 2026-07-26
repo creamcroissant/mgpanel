@@ -646,13 +646,25 @@ func resolveRegisterEndpoint(cfg *Config) (string, error) {
 		return "", fmt.Errorf("grpc.address is required to infer panel register endpoint")
 	}
 
-	host, _, err := net.SplitHostPort(grpcAddress)
+	host, port, err := net.SplitHostPort(grpcAddress)
 	if err != nil {
 		return "", fmt.Errorf("parse grpc.address %q: %w", grpcAddress, err)
 	}
 	host = strings.TrimSpace(host)
 	if host == "" {
 		return "", fmt.Errorf("grpc.address host is empty")
+	}
+
+	// When TLS is enabled, the agent connects through a reverse proxy (e.g. Caddy)
+	// that also terminates HTTPS for the panel API. Use the same host:port with https:// scheme.
+	// When TLS is not enabled, fall back to the default HTTP port (8080) for the registration
+	// request, as gRPC and HTTP historically listen on separate ports.
+	if cfg.GRPC.TLS.Enabled {
+		port = strings.TrimSpace(port)
+		if port == "" {
+			port = "443"
+		}
+		return "https://" + net.JoinHostPort(host, port) + "/api/v1/agent/register", nil
 	}
 
 	panelHost := net.JoinHostPort(host, defaultPanelHTTPPort)
