@@ -35,13 +35,17 @@ func NewServer(cfg Config, registry *tools.Registry, logger *slog.Logger, opts .
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Server{
+	s := &Server{
 		config:    cfg,
 		registry:  registry,
 		validator: nil,
 		logger:    logger.With("component", "mcp"),
 		sessions:  make(map[string]*SSESession),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // ServerOption configures the MCP server.
