@@ -30,7 +30,7 @@ const (
 	defaultProxyNftTableName      = "xboard_proxy"
 	defaultProxyPIDDir            = "/var/run/xboard/cores"
 	defaultProxyCgroupBasePath    = "/sys/fs/cgroup/xboard"
-	defaultPanelHTTPPort          = "8080"
+
 	defaultInstallScriptPath      = "/opt/xboard/deploy/agent.sh"
 	defaultSingBoxBinaryPath      = "/opt/xboard/bin/sing-box"
 	defaultXrayBinaryPath         = "/opt/xboard/bin/xray"
@@ -655,20 +655,14 @@ func resolveRegisterEndpoint(cfg *Config) (string, error) {
 		return "", fmt.Errorf("grpc.address host is empty")
 	}
 
-	// When TLS is enabled, the agent connects through a reverse proxy (e.g. Caddy)
-	// that also terminates HTTPS for the panel API. Use the same host:port with https:// scheme.
-	// When TLS is not enabled, fall back to the default HTTP port (8080) for the registration
-	// request, as gRPC and HTTP historically listen on separate ports.
+	// Panel serves both HTTP API and gRPC on the same port via h2c.
+	// Use the same host:port from grpc.address with the appropriate scheme.
+	scheme := "http"
 	if cfg.GRPC.TLS.Enabled {
-		port = strings.TrimSpace(port)
-		if port == "" {
-			port = "443"
-		}
-		return "https://" + net.JoinHostPort(host, port) + "/api/v1/agent/register", nil
+		scheme = "https"
 	}
-
-	panelHost := net.JoinHostPort(host, defaultPanelHTTPPort)
-	return "http://" + panelHost + "/api/v1/agent/register", nil
+	addr := net.JoinHostPort(host, strings.TrimSpace(port))
+	return scheme + "://" + addr + "/api/v1/agent/register", nil
 }
 
 func normalizePanelURL(raw string) (string, error) {
