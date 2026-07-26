@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { List, Plus, RefreshCw, Server } from "lucide-react";
+import { List, Network, Plus, RefreshCw, Server } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import { getAgentHosts, refreshAgentHosts, updateAgentHost } from "@/api/admin";
 import { fetchSettings, revealKey } from "@/api/admin/settings";
@@ -20,6 +20,7 @@ import {
 import { AgentStatus, type AgentHost, type UpdateAgentHostRequest } from "@/types";
 import AgentCorePanel from "./AgentCorePanel";
 import AgentBatchManagePanel from "./AgentBatchManagePanel";
+import { MeshPeerTable } from "./MeshPeerTable";
 
 
 const DEFAULT_DEPLOY_SCRIPT_URL =
@@ -93,6 +94,7 @@ export default function AgentList() {
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isMeshOpen, setIsMeshOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentHost | null>(null);
   const [deployCommand, setDeployCommand] = useState("");
   const [deployMissingAddress, setDeployMissingAddress] = useState(false);
@@ -254,6 +256,10 @@ export default function AgentList() {
 
   const actions = (
     <>
+      <Button variant="outline" onClick={() => setIsMeshOpen(true)}>
+        <Network className="mr-2 h-4 w-4" />
+        {t("admin.agents.meshTable.title")}
+      </Button>
       <Button variant="outline" onClick={() => setIsBatchOpen(true)}>
         <List className="mr-2 h-4 w-4" />
         {t("admin.agents.batch.manage")}
@@ -472,6 +478,12 @@ export default function AgentList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MeshPeerTable
+        open={isMeshOpen}
+        onOpenChange={setIsMeshOpen}
+        onRefetch={refetch}
+      />
     </>
   );
 }
