@@ -29,6 +29,7 @@ import { BinaryVersionStatusPanel } from "./BinaryVersionStatusPanel";
 import { OperationLogTimeline } from "./OperationLogTimeline";
 import { TrafficCycleStatusCard } from "./TrafficCycleStatusCard";
 import { TrafficPolicyForm } from "./TrafficPolicyForm";
+import { MeshStatusCard } from "./MeshStatusCard";
 import {
   Badge,
   Button,
@@ -627,6 +628,8 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
             <TrafficCycleStatusCard agentHostId={agentHostId} />
             <TrafficPolicyForm agentHostId={agentHostId} />
           </div>
+
+          <MeshStatusCard agentHostId={agentHostId} />
 
           {cores.length === 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">

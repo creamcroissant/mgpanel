@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { List, Network, Plus, RefreshCw, Server } from "lucide-react";
+import { Activity, List, Network, Plus, RefreshCw, Server } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import { getAgentHosts, refreshAgentHosts, updateAgentHost } from "@/api/admin";
 import { fetchSettings, revealKey } from "@/api/admin/settings";
@@ -21,6 +21,7 @@ import { AgentStatus, type AgentHost, type UpdateAgentHostRequest } from "@/type
 import AgentCorePanel from "./AgentCorePanel";
 import AgentBatchManagePanel from "./AgentBatchManagePanel";
 import { MeshPeerTable } from "./MeshPeerTable";
+import LatencyProbePanel from "./LatencyProbePanel";
 
 
 const DEFAULT_DEPLOY_SCRIPT_URL =
@@ -95,6 +96,7 @@ export default function AgentList() {
   const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isMeshOpen, setIsMeshOpen] = useState(false);
+  const [isLatencyProbeOpen, setIsLatencyProbeOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentHost | null>(null);
   const [deployCommand, setDeployCommand] = useState("");
   const [deployMissingAddress, setDeployMissingAddress] = useState(false);
@@ -259,6 +261,10 @@ export default function AgentList() {
       <Button variant="outline" onClick={() => setIsMeshOpen(true)}>
         <Network className="mr-2 h-4 w-4" />
         {t("admin.agents.meshTable.title")}
+      </Button>
+      <Button variant="outline" onClick={() => setIsLatencyProbeOpen(true)}>
+        <Activity className="mr-2 h-4 w-4" />
+        {t("admin.probe.title")}
       </Button>
       <Button variant="outline" onClick={() => setIsBatchOpen(true)}>
         <List className="mr-2 h-4 w-4" />
@@ -483,6 +489,11 @@ export default function AgentList() {
         open={isMeshOpen}
         onOpenChange={setIsMeshOpen}
         onRefetch={refetch}
+      />
+
+      <LatencyProbePanel
+        open={isLatencyProbeOpen}
+        onOpenChange={setIsLatencyProbeOpen}
       />
     </>
   );
