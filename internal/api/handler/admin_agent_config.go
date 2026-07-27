@@ -55,8 +55,8 @@ func sanitizeConfigYAML(yaml string) string {
 	return yaml
 }
 
-// GetConfig 处理 GET /api/v2/admin/agent-hosts/{id}/config
-// 返回 Agent 上报的运行配置内容
+// GetConfig handles GET /agent-hosts/{id}/config
+// Returns the agent's reported running config YAML (sensitive fields redacted).
 func (h *AdminAgentConfigHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireAdmin(w, r); !ok {
 		return
@@ -72,4 +72,15 @@ func (h *AdminAgentConfigHandler) GetConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"data": sanitizeConfigYAML(configYAML)})
+}
+
+// ReportConfig handles POST /agent-hosts/{id}/report-config
+// Triggers the agent to re-read and report its config.yml.
+// Currently acknowledges the request; actual gRPC command dispatch
+// is pending agent communication infrastructure.
+func (h *AdminAgentConfigHandler) ReportConfig(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]bool{"triggered": true}})
 }

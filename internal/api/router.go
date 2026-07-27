@@ -394,6 +394,7 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		adminMCPKeyHandler := handler.NewAdminMCPKeyHandler(mcpApiKeys)
 	adminMeshHandler := handler.NewAdminAgentMeshHandler(meshService, i18nManager)
 	adminAgentCoreHandler := handler.NewAdminAgentCoreHandler(agentCore, i18nManager)
+	adminAgentConfigHandler := handler.NewAdminAgentConfigHandler(agentHost, i18nManager)
 	adminAgentLifecycleHandler := handler.NewAdminAgentLifecycleHandler(agentLifecycleOperation, binaryVersion, i18nManager)
 	adminAgentTrafficHandler := handler.NewAdminAgentTrafficHandler(agentTrafficLifecycle, i18nManager)
 	adminAgentVersionHandler := handler.NewAdminAgentVersionHandler(binaryVersion, i18nManager)
@@ -472,6 +473,10 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		admin.Put("/agent-hosts/{id}/traffic-policy", adminAgentTrafficHandler.UpdatePolicy)
 		admin.Get("/agent-hosts/{id}/traffic-status", adminAgentTrafficHandler.GetStatus)
 		admin.Post("/agent-hosts/{id}/traffic-cycle/reset", adminAgentTrafficHandler.ResetCycle)
+
+		// Agent config endpoints
+		admin.Get("/agent-hosts/{id}/config", adminAgentConfigHandler.GetConfig)
+		admin.Post("/agent-hosts/{id}/report-config", adminAgentConfigHandler.ReportConfig)
 
 		// Subscription source and filter observability endpoints
 		admin.Get("/subscription/sources", adminSubscriptionHandler.ListSources)
