@@ -494,6 +494,19 @@
         "missingCommunicationKey": "Communication key is unavailable. Please check System Settings -> Node Communication.",
         "unavailable": "Deploy command is unavailable"
       },
+      "mesh": {
+        "active": "Active",
+        "joined": "Joined",
+        "joinedAt": "Joined at",
+        "listenPort": "Listen Port",
+        "networkPeers": "Network Peers",
+        "notJoined": "Not joined to mesh network",
+        "others": "others",
+        "publicKey": "Public Key",
+        "title": "Mesh",
+        "updatedAt": "Updated at",
+        "wgIp": "WG IP"
+      },
       "meshTable": {
         "title": "Mesh Network",
         "total": "Total",
@@ -525,6 +538,20 @@
         "noReportHint": "Agent is online, try refreshing from agent",
         "refreshError": "Failed to refresh config"
       }
+    },
+    "probe": {
+      "title": "Latency Probe",
+      "description": "CDN edge node latency measurements",
+      "target": "Target",
+      "latency": "Latency",
+      "isp": "ISP",
+      "province": "Province",
+      "label": "Label",
+      "packetLoss": "Packet Loss",
+      "probes": "Probes",
+      "loadError": "Failed to load probe data",
+      "noData": "No probe data available",
+      "notEnabled": "Probe is not enabled"
     },
     "users": {
       "title": "User Management",

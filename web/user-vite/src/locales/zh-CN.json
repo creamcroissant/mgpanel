@@ -494,6 +494,19 @@
         "missingCommunicationKey": "通信密钥不可用，请检查 系统设置 -> 节点通信。",
         "unavailable": "部署命令不可用"
       },
+      "mesh": {
+        "active": "活跃",
+        "joined": "已加入",
+        "joinedAt": "加入时间",
+        "listenPort": "监听端口",
+        "networkPeers": "网络节点",
+        "notJoined": "未加入组网",
+        "others": "个其他节点",
+        "publicKey": "公钥",
+        "title": "组网",
+        "updatedAt": "更新时间",
+        "wgIp": "WG IP"
+      },
       "meshTable": {
         "title": "Mesh 组网",
         "total": "总计",
@@ -525,6 +538,20 @@
         "noReportHint": "Agent 在线时可尝试从 Agent 刷新",
         "refreshError": "刷新配置失败"
       }
+    },
+    "probe": {
+      "title": "延迟探测",
+      "description": "CDN 边缘节点延迟测量",
+      "target": "目标",
+      "latency": "延迟",
+      "isp": "运营商",
+      "province": "省份",
+      "label": "标签",
+      "packetLoss": "丢包率",
+      "probes": "探测次数",
+      "loadError": "加载探测数据失败",
+      "noData": "暂无探测数据",
+      "notEnabled": "探测功能未启用"
     },
     "users": {
       "title": "用户管理",
