@@ -386,6 +386,7 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	agentHostHandler := handler.NewAgentHostHandler(agentHost, i18nManager)
 	adminForwardingHandler := handler.NewAdminForwardingHandler(forwarding, i18nManager)
 	adminCDNHandler := handler.NewAdminCDNHandler(cdn, i18nManager)
+	cdnProbeHandler := handler.NewCDNProbeHandler(cdn)
 	var cdnReportHandler *handler.AdminCDNReportHandler
 	if cdn != nil {
 		cdnReportHandler = handler.NewAdminCDNReportHandler(cdn, i18nManager)
@@ -517,6 +518,9 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 				cdn.Get("/origin-latency", cdnReportHandler.ListOriginLatencies)
 				cdn.Post("/origin-latency", cdnReportHandler.ReportOriginLatency)
 			}
+
+			// Latency probe report (for CDN edge probe dashboard)
+			cdn.Get("/probe-report", cdnProbeHandler.ProberResults)
 		})
 
 			// Mesh network management endpoints

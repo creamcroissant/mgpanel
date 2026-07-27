@@ -298,15 +298,17 @@ func extractClientIP(r *http.Request) net.IP {
 	return net.ParseIP(host)
 }
 
-// serveProbeReport exposes background prober status and results as JSON.
+// ProberResults exposes background prober data as JSON.
 //
-//	GET /api/admin/cdn/probe/report
-//	→ { "enabled": true, "targets": [...], "interval": "60s", "results": [...] }
-func (h *CDNProbeHandler) serveProbeReport(w http.ResponseWriter, r *http.Request) {
+//	GET /api/v2/admin/cdn/probe/report
+//	→ { "data": { "enabled": true, "results": [...] } }
+func (h *CDNProbeHandler) ProberResults(w http.ResponseWriter, r *http.Request) {
 	if h.prober == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"enabled": false,
-			"message": "background prober not configured",
+			"data": map[string]any{
+				"enabled": false,
+				"message": "background prober not configured",
+			},
 		})
 		return
 	}
@@ -349,19 +351,13 @@ func (h *CDNProbeHandler) serveProbeReport(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":    true,
-		"targets":    len(items),
-		"isp_summary": ispSummary,
-		"results":    items,
+		"data": map[string]any{
+			"enabled":     true,
+			"targets":     len(items),
+			"isp_summary": ispSummary,
+			"results":     items,
+		},
 	})
-}
-
-// ProberResults exposes background prober data as JSON.
-//
-//	GET /api/v2/admin/cdn/probe/report
-//	→ { "enabled": true, "results": [...] }
-func (h *CDNProbeHandler) ProberResults(w http.ResponseWriter, r *http.Request) {
-	h.serveProbeReport(w, r)
 }
 
 //
