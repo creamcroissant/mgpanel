@@ -144,7 +144,7 @@ func (h *AdminAgentMeshHandler) GetStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if peer == nil {
-		respondJSON(w, http.StatusNotFound, map[string]string{"error": "not joined"})
+		respondJSON(w, http.StatusOK, map[string]any{"data": nil})
 		return
 	}
 	latencies, _ := h.meshService.GetPeerLatencies(r.Context(), peer.NetworkID)
