@@ -630,7 +630,10 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 	a.syncCoreOperations(ctx)
 	a.syncAgentCommands(ctx)
 
-	// Sync mesh configuration if mesh is enabled
+	// Sync mesh configuration — auto-initialize if agent has a mesh record
+	if a.meshManager == nil {
+		a.tryEnableMesh(ctx)
+	}
 	if a.meshManager != nil {
 		a.syncMeshConfig(ctx)
 	}
@@ -682,6 +685,36 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 			slog.Info("Successfully applied users to config", "count", len(usersResp.Users))
 		}
 	}
+}
+
+// tryEnableMesh checks if this agent has a mesh peer record on the panel.
+// If yes, it dynamically initializes the mesh manager and prober so the agent
+// can auto-join without requiring mesh.enabled: true in the local config.yml.
+func (a *Agent) tryEnableMesh(ctx context.Context) {
+	resp, err := a.grpc.JoinMesh(ctx, &agentv1.JoinMeshRequest{NetworkId: "default"})
+	if err != nil {
+		// mesh service not available on panel, or agent not in mesh — nothing to do
+		return
+	}
+	if resp == nil || !resp.Success {
+		return
+	}
+
+	meshDir := filepath.Join(a.cfg.Core.CoreInstallDir, "..", "mesh")
+	meshDir = filepath.Clean(meshDir)
+
+	a.meshManager = mesh.NewManager(mesh.Config{
+		ConfigDir:     meshDir,
+		InterfaceName: "wgmesh0",
+		ListenPort:    51820,
+		WgBinary:      "wg",
+		NetworkCIDR:   "10.144.0.0/24",
+	}, slog.Default())
+
+	a.meshProber = NewMeshProber(a.meshManager, 30*time.Second, 5*time.Second, 10, slog.Default())
+	slog.Info("mesh: dynamically enabled after discovering panel-side mesh record",
+		"ip", resp.WgIp,
+	)
 }
 
 func (a *Agent) report(ctx context.Context) {
