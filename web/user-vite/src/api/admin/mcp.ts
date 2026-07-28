@@ -2,7 +2,6 @@
  * MCP API key management API
  */
 import { adminApi } from "./client";
-import { ADMIN_API_VERSION } from "@/lib/constants";
 
 export interface MCPApiKey {
   id: number;
@@ -22,22 +21,22 @@ export interface CreateKeyRequest {
 
 /** Fetch all MCP API keys */
 export async function fetchMCPKeys(): Promise<MCPApiKey[]> {
-  const res = await adminApi.get(`${ADMIN_API_VERSION}/mcp/keys`);
+  const res = await adminApi.get("/mcp/keys");
   return res.data;
 }
 
 /** Create a new MCP API key */
 export async function createMCPKey(req: CreateKeyRequest): Promise<MCPApiKey> {
-  const res = await adminApi.post(`${ADMIN_API_VERSION}/mcp/keys`, req);
+  const res = await adminApi.post("/mcp/keys", req);
   return res.data;
 }
 
 /** Revoke an MCP API key */
 export async function revokeMCPKey(id: number): Promise<void> {
-  await adminApi.post(`${ADMIN_API_VERSION}/mcp/keys/${id}/revoke`);
+  await adminApi.post(`/mcp/keys/${id}/revoke`);
 }
 
 /** Delete an MCP API key */
 export async function deleteMCPKey(id: number): Promise<void> {
-  await adminApi.delete(`${ADMIN_API_VERSION}/mcp/keys/${id}`);
+  await adminApi.delete(`/mcp/keys/${id}`);
 }
