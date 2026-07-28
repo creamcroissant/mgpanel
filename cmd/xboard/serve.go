@@ -442,6 +442,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		mcpRegistry.Register(tools.NewAccessLogsListHandler(accessLogService))
 		mcpRegistry.Register(tools.NewServerLogHandler(cfg.Log.LogDir, cfg.MCP.ServerLogMaxLines))
 		mcpRegistry.Register(tools.NewConfigArtifactsHandler(driftAndDiffService))
+		mcpRegistry.Register(tools.NewServerLogTailHandler(cfg.Log.LogDir, cfg.MCP.ServerLogMaxLines))
 
 		mcpServer := mcp.NewServer(mcp.Config{
 			APIKey:            cfg.MCP.APIKey,

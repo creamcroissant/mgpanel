@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -97,4 +99,85 @@ func (h *ServerLogHandler) Handle(ctx context.Context, _ any) (*ToolCallResult, 
 	}
 	sort.Strings(files)
 	return &ToolCallResult{Content: []ToolContent{{Type: "json", Data: files}}}, nil
+}
+
+// ServerLogTailHandler 查看服务端日志文件内容
+type ServerLogTailHandler struct {
+	logDir   string
+	maxLines int
+}
+
+func NewServerLogTailHandler(logDir string, maxLines int) *ServerLogTailHandler {
+	return &ServerLogTailHandler{logDir: logDir, maxLines: maxLines}
+}
+
+func (h *ServerLogTailHandler) Name() string        { return ToolServerLogTail }
+func (h *ServerLogTailHandler) Description() string { return "查看服务端日志文件内容" }
+func (h *ServerLogTailHandler) Handle(ctx context.Context, params any) (*ToolCallResult, error) {
+	if params == nil {
+		return nil, fmt.Errorf("filename is required")
+	}
+	m, ok := params.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid params")
+	}
+	filename, _ := m["filename"].(string)
+	if filename == "" {
+		return nil, fmt.Errorf("filename is required")
+	}
+	// 安全校验：只允许读取日志目录下的 .log 文件
+	absPath, err := filepath.Abs(filepath.Join(h.logDir, filename))
+	if err != nil {
+		return nil, fmt.Errorf("invalid filename: %w", err)
+	}
+	logDirAbs, err := filepath.Abs(h.logDir)
+	if err != nil {
+		return nil, fmt.Errorf("log dir: %w", err)
+	}
+	if !strings.HasPrefix(absPath, logDirAbs) {
+		return nil, fmt.Errorf("access denied")
+	}
+	if !strings.HasSuffix(filename, ".log") {
+		return nil, fmt.Errorf("only .log files are allowed")
+	}
+
+	lines := 50
+	if l, ok := m["lines"].(float64); ok && l > 0 {
+		lines = int(l)
+		if lines > h.maxLines {
+			lines = h.maxLines
+		}
+	}
+	grepStr, _ := m["grep"].(string)
+
+	f, err := os.Open(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("open log: %w", err)
+	}
+	defer f.Close()
+
+	// 读取所有行，支持 grep 过滤
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	var allLines []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if grepStr != "" && !strings.Contains(line, grepStr) {
+			continue
+		}
+		allLines = append(allLines, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read log: %w", err)
+	}
+
+	// 取最后 N 行
+	start := 0
+	if len(allLines) > lines {
+		start = len(allLines) - lines
+	}
+	tail := allLines[start:]
+	content := strings.Join(tail, "\n")
+
+	return &ToolCallResult{Content: []ToolContent{{Type: "text", Text: content}}}, nil
 }
