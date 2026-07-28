@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Plus, Trash2, XCircle, Copy, CheckCircle2 } from "lucide-react";
 import {
   fetchMCPKeys,
@@ -21,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   Input,
   Table,
   TableBody,
@@ -37,6 +37,7 @@ export default function MCPKeysPage() {
   const [keys, setKeys] = useState<MCPApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createName, setCreateName] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -60,22 +61,24 @@ export default function MCPKeysPage() {
     if (!createName.trim()) return;
     try {
       const result = await createMCPKey({ name: createName.trim() });
+      setCreateDialogOpen(false);
       if (result.key) {
         setNewKeyValue(result.key);
       }
       setCreateName("");
       await loadKeys();
     } catch (err) {
-      console.error("Failed to create MCP key", err);
+      toast.error(t("admin.mcpKeys.createError") || "Failed to create key");
     }
   };
 
   const handleRevoke = async (id: number) => {
     try {
       await revokeMCPKey(id);
+      toast.success(t("admin.mcpKeys.revokeSuccess") || "Key revoked");
       await loadKeys();
     } catch (err) {
-      console.error("Failed to revoke MCP key", err);
+      toast.error(t("admin.mcpKeys.revokeError") || "Failed to revoke key");
     }
   };
 
@@ -83,9 +86,10 @@ export default function MCPKeysPage() {
     if (!confirm(t("admin.mcpKeys.confirmDelete"))) return;
     try {
       await deleteMCPKey(id);
+      toast.success(t("admin.mcpKeys.deleteSuccess") || "Key deleted");
       await loadKeys();
     } catch (err) {
-      console.error("Failed to delete MCP key", err);
+      toast.error(t("admin.mcpKeys.deleteError") || "Failed to delete key");
     }
   };
 
@@ -113,16 +117,11 @@ export default function MCPKeysPage() {
           <h1 className="text-2xl font-bold">{t("admin.mcpKeys.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("admin.mcpKeys.description")}</p>
         </div>
-        <Dialog
-          open={!!newKeyValue}
-          onOpenChange={(open) => { if (!open) { setNewKeyValue(null); setCopied(false); } }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("admin.mcpKeys.create")}
-            </Button>
-          </DialogTrigger>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("admin.mcpKeys.create")}
+          </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("admin.mcpKeys.createTitle")}</DialogTitle>

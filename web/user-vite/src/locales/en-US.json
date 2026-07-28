@@ -1791,6 +1791,11 @@
       "disabled": "Disabled",
       "revoke": "Revoke",
       "delete": "Delete",
+      "createError": "Failed to create key",
+      "revokeSuccess": "Key revoked",
+      "revokeError": "Failed to revoke key",
+      "deleteSuccess": "Key deleted",
+      "deleteError": "Failed to delete key",
       "confirmDelete": "Are you sure you want to delete this key?"
     }
   }

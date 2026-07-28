@@ -1789,6 +1789,11 @@
       "disabled": "已禁用",
       "revoke": "吊销",
       "delete": "删除",
+      "createError": "创建密钥失败",
+      "revokeSuccess": "密钥已吊销",
+      "revokeError": "吊销密钥失败",
+      "deleteSuccess": "密钥已删除",
+      "deleteError": "删除密钥失败",
       "confirmDelete": "确定要删除这个密钥吗？"
     }
   }
