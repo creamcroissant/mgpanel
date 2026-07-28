@@ -106,16 +106,137 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dispatch(ctx context.Context, req *JSONRPCRequest) *JSONRPCResponse {
-	handler, ok := s.registry.Get(req.Method)
+	switch req.Method {
+	case "initialize":
+		return s.handleInitialize(req)
+	case "tools/list":
+		return s.handleToolsList(req)
+	case "tools/call":
+		return s.handleToolsCall(ctx, req)
+	default:
+		// fallback: direct tool lookup (custom clients)
+		handler, ok := s.registry.Get(req.Method)
+		if !ok {
+			return &JSONRPCResponse{
+				JSONRPC: JSONRPCVersion,
+				ID:      req.ID,
+				Error:   &RPCError{Code: ErrCodeMethodNotFound, Message: fmt.Sprintf("unknown tool: %s", req.Method)},
+			}
+		}
+
+		result, err := handler.Handle(ctx, req.Params)
+		if err != nil {
+			return &JSONRPCResponse{
+				JSONRPC: JSONRPCVersion,
+				ID:      req.ID,
+				Error:   &RPCError{Code: ErrCodeInternal, Message: err.Error()},
+			}
+		}
+		return &JSONRPCResponse{
+			JSONRPC: JSONRPCVersion,
+			ID:      req.ID,
+			Result:  result,
+		}
+	}
+}
+
+// MCPInitializeResult is the response to an initialize request.
+type MCPInitializeResult struct {
+	ProtocolVersion string             `json:"protocolVersion"`
+	ServerInfo      MCPImplementation `json:"serverInfo"`
+	Capabilities    MCPCapabilities    `json:"capabilities"`
+}
+
+// MCPImplementation identifies the server implementation.
+type MCPImplementation struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// MCPCapabilities declares what the server supports.
+type MCPCapabilities struct {
+	Tools MCPToolCapabilities `json:"tools"`
+}
+
+// MCPToolCapabilities indicates tool support.
+type MCPToolCapabilities struct {
+	ListChanged bool `json:"listChanged"`
+}
+
+func (s *Server) handleInitialize(req *JSONRPCRequest) *JSONRPCResponse {
+	return &JSONRPCResponse{
+		JSONRPC: JSONRPCVersion,
+		ID:      req.ID,
+		Result: MCPInitializeResult{
+			ProtocolVersion: "2024-11-05",
+			ServerInfo: MCPImplementation{
+				Name:    "xboard",
+				Version: "0.1.0",
+			},
+			Capabilities: MCPCapabilities{
+				Tools: MCPToolCapabilities{ListChanged: false},
+			},
+		},
+	}
+}
+
+// MCPToolDefinition describes a tool in tools/list responses.
+type MCPToolDefinition struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	InputSchema any    `json:"inputSchema"`
+}
+
+func (s *Server) handleToolsList(req *JSONRPCRequest) *JSONRPCResponse {
+	handlers := s.registry.List()
+	toolsList := make([]MCPToolDefinition, 0, len(handlers))
+	for _, h := range handlers {
+		toolsList = append(toolsList, MCPToolDefinition{
+			Name:        h.Name(),
+			Description: h.Description(),
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "required": []string{}},
+		})
+	}
+	return &JSONRPCResponse{
+		JSONRPC: JSONRPCVersion,
+		ID:      req.ID,
+		Result: map[string]any{
+			"tools": toolsList,
+		},
+	}
+}
+
+// MCPToolCallParams is the params for a tools/call request.
+type MCPToolCallParams struct {
+	Name      string `json:"name"`
+	Arguments any    `json:"arguments,omitempty"`
+}
+
+func (s *Server) handleToolsCall(ctx context.Context, req *JSONRPCRequest) *JSONRPCResponse {
+	var params MCPToolCallParams
+	switch p := req.Params.(type) {
+	case map[string]any:
+		name, _ := p["name"].(string)
+		params.Name = name
+		params.Arguments = p["arguments"]
+	default:
+		return &JSONRPCResponse{
+			JSONRPC: JSONRPCVersion,
+			ID:      req.ID,
+			Error:   &RPCError{Code: ErrCodeInvalidParams, Message: "invalid params"},
+		}
+	}
+
+	handler, ok := s.registry.Get(params.Name)
 	if !ok {
 		return &JSONRPCResponse{
 			JSONRPC: JSONRPCVersion,
 			ID:      req.ID,
-			Error:   &RPCError{Code: ErrCodeMethodNotFound, Message: fmt.Sprintf("unknown tool: %s", req.Method)},
+			Error:   &RPCError{Code: ErrCodeMethodNotFound, Message: fmt.Sprintf("unknown tool: %s", params.Name)},
 		}
 	}
 
-	result, err := handler.Handle(ctx, req.Params)
+	result, err := handler.Handle(ctx, params.Arguments)
 	if err != nil {
 		return &JSONRPCResponse{
 			JSONRPC: JSONRPCVersion,
