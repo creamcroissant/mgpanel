@@ -609,12 +609,13 @@ func (i *Installer) lockForCore(coreType CoreType) *sync.Mutex {
 
 func normalizeInstallCoreType(raw string) (CoreType, error) {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
-	case string(CoreTypeSingBox), "singbox":
+	case string(CoreTypeSingBox), "singbox", "sing_box":
 		return CoreTypeSingBox, nil
 	case string(CoreTypeXray):
 		return CoreTypeXray, nil
 	}
-	return "", fmt.Errorf("unsupported core_type")
+	slog.Warn("installer: unsupported core_type received", "raw", raw)
+	return "", fmt.Errorf("unsupported core_type: %q", raw)
 }
 
 func normalizeInstallAction(raw string) (string, error) {
