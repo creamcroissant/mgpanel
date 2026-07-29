@@ -691,7 +691,9 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 // If yes, it dynamically initializes the mesh manager and prober so the agent
 // can auto-join without requiring mesh.enabled: true in the local config.yml.
 func (a *Agent) tryEnableMesh(ctx context.Context) {
-	resp, err := a.grpc.JoinMesh(ctx, &agentv1.JoinMeshRequest{NetworkId: "default"})
+	joinCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	resp, err := a.grpc.JoinMesh(joinCtx, &agentv1.JoinMeshRequest{NetworkId: "default"})
 	if err != nil {
 		// mesh service not available on panel, or agent not in mesh — nothing to do
 		return
