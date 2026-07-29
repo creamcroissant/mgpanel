@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
+	"syscall"
 
 	"github.com/creamcroissant/xboard/internal/agent/command"
 	"github.com/creamcroissant/xboard/internal/agent/config"
@@ -84,6 +86,24 @@ func (a *Agent) handleAgentUpdate(ctx context.Context, task command.Task, report
 		return agentUpdateFailureResult(err, a.updateStatusProto().GetPhase())
 	}
 	payload, _ := json.Marshal(result)
+	// Self-restart: exec the new binary to replace the current process.
+	// The updater has already swapped the binary on disk. We exec it
+	// with the same args so the new version takes over immediately.
+	execPath, err := os.Executable()
+	if err == nil && execPath != "" {
+		slog.Info("agent binary replaced, self-exec restarting",
+			"target", result.TargetVersion,
+			"path", execPath,
+		)
+		// Exec replaces the current process in-place (PID preserved, fds inherited).
+		if execErr := syscall.Exec(execPath, os.Args, os.Environ()); execErr != nil {
+			slog.Error("self-exec failed", "error", execErr)
+		}
+	} else {
+		slog.Warn("cannot determine executable path, skipping self-exec", "error", err)
+	}
+	// If exec fails, attempt os.Exit as fallback so the process manager (Docker/systemd) restarts us.
+	os.Exit(0)
 	return command.Result{Status: command.StatusSuccess, Phase: agentupdater.PhaseHealthPending, Level: command.LevelInfo, Message: "agent update waiting for health confirmation", Payload: payload}
 }
 
