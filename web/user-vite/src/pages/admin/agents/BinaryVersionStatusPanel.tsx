@@ -179,47 +179,49 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
                       <RefreshCw className="mr-2 h-3.5 w-3.5" />
                       {isRefreshing ? t("common.loading") : t("admin.cores.versionRefresh")}
                     </Button>
-                    <DropdownMenu open={openMenu === state.component} onOpenChange={(open) => setOpenMenu(open ? state.component : null)}>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="sm" variant="outline" className="px-2">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setOpenMenu(null);
-                            installMutation.mutate({ coreType: state.component, action: "install" });
-                          }}
-                          disabled={installMutation.isPending}
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          {t("admin.cores.coreInstall")}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setOpenMenu(null);
-                            installMutation.mutate({ coreType: state.component, action: "upgrade" });
-                          }}
-                          disabled={installMutation.isPending}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          {t("admin.cores.coreUpgrade")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setOpenMenu(null);
-                            installMutation.mutate({ coreType: state.component, action: "uninstall" });
-                          }}
-                          disabled={installMutation.isPending}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t("admin.cores.coreUninstall")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {state.component !== "agent" && (
+                      <DropdownMenu open={openMenu === state.component} onOpenChange={(open) => setOpenMenu(open ? state.component : null)}>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="px-2">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setOpenMenu(null);
+                              installMutation.mutate({ coreType: state.component, action: "install" });
+                            }}
+                            disabled={installMutation.isPending}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            {t("admin.cores.coreInstall")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setOpenMenu(null);
+                              installMutation.mutate({ coreType: state.component, action: "upgrade" });
+                            }}
+                            disabled={installMutation.isPending}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {t("admin.cores.coreUpgrade")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setOpenMenu(null);
+                              installMutation.mutate({ coreType: state.component, action: "uninstall" });
+                            }}
+                            disabled={installMutation.isPending}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {t("admin.cores.coreUninstall")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
               );
