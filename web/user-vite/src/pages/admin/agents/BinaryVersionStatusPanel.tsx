@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, MoreHorizontal, RefreshCw, Trash2, Upload } from "lucide-react";
+import { Download, MoreHorizontal, RefreshCw, Trash2, Upload, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { listAgentBinaryVersions, refreshAgentBinaryVersion, installAgentCore } from "@/api/admin";
+import { listAgentBinaryVersions, refreshAgentBinaryVersion, installAgentCore, createAgentUpdateOperation } from "@/api/admin";
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -22,11 +22,11 @@ import {
   Loading,
 } from "@/components/ui";
 import { useState } from "react";
-import type { AgentCoreOperation, BinaryVersionComponent, BinaryVersionState, BinaryVersionStatus } from "@/types";
+import type { AgentCoreOperation, BinaryVersionComponent, BinaryVersionState, BinaryVersionStatus, AgentLifecycleOperation } from "@/types";
 
 interface BinaryVersionStatusPanelProps {
   agentHostId: number;
-  onCoreOperationSubmitted?: (operation: AgentCoreOperation) => void;
+  onCoreOperationSubmitted?: (operation: AgentCoreOperation | AgentLifecycleOperation) => void;
 }
 
 const COMPONENTS: BinaryVersionComponent[] = ["agent", "sing-box", "xray"];
@@ -96,6 +96,21 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
     },
     onError: (error: Error) => {
       toast.error(t("admin.cores.operationError"), { description: error.message });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () => createAgentUpdateOperation(agentHostId, { release_tag: "latest" }),
+    onSuccess: (operation) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "agents"] });
+      if (onCoreOperationSubmitted) {
+        onCoreOperationSubmitted(operation);
+        return;
+      }
+      toast.success(t("admin.cores.updateSubmitted") || "Update submitted");
+    },
+    onError: (error: Error) => {
+      toast.error(t("admin.cores.updateError") || "Update failed", { description: error.message });
     },
   });
 
@@ -179,7 +194,17 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
                       <RefreshCw className="mr-2 h-3.5 w-3.5" />
                       {isRefreshing ? t("common.loading") : t("admin.cores.versionRefresh")}
                     </Button>
-                    {state.component !== "agent" && (
+                    {state.component === "agent" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateMutation.mutate()}
+                        disabled={updateMutation.isPending}
+                      >
+                        <ArrowUp className="mr-2 h-3.5 w-3.5" />
+                        {updateMutation.isPending ? t("common.loading") : t("admin.cores.coreUpgrade")}
+                      </Button>
+                    ) : (
                       <DropdownMenu open={openMenu === state.component} onOpenChange={(open) => setOpenMenu(open ? state.component : null)}>
                         <DropdownMenuTrigger asChild>
                           <Button size="sm" variant="outline" className="px-2">
