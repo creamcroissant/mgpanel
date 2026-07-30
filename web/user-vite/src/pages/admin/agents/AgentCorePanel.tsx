@@ -63,6 +63,7 @@ import type {
   AgentCoreInstance,
   AgentCoreOperation,
   AgentCoreSwitchLog,
+  AgentLifecycleOperation,
   AgentOperationBlocker,
   AdminApiErrorDetails,
   CreateAgentCoreInstanceRequest,
