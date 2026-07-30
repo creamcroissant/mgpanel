@@ -395,7 +395,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
   }, [operationsQuery.data, queryClient, t, trackedOperationIds]);
 
 
-  const onOperationSubmitted = (operation: AgentCoreOperation, messageKey: string) => {
+  const onOperationSubmitted = (operation: AgentCoreOperation | AgentLifecycleOperation, messageKey: string) => {
     setBusyBlocker(null);
     setSelectedOperationId(operation.id);
     setTrackedOperationIds((current) => Array.from(new Set([...current, operation.id])));
