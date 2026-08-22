@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #050915;
+  --panel: #0b1224;
+  --card: #0f172a;
+  --muted: #9fb0c9;
+  --accent: #a855f7;
+  --accent-2: #22d3ee;
+  --border: #162038;
+  --text: #e5e7eb;
+  --shadow: 0 25px 70px rgba(0, 0, 0, 0.45);
+  font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.14), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(34, 211, 238, 0.14), transparent 28%),
+    linear-gradient(180deg, #050915 0%, #080d1c 60%, #04070f 100%);
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.install-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 18px 40px;
+}
+
+.install-panel {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.install-hero {
+  background: linear-gradient(140deg, rgba(168, 85, 247, 0.16), rgba(34, 211, 238, 0.08));
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.install-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(34, 211, 238, 0.12);
+  color: #a5f3fc;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+.install-hero h1 {
+  margin: 18px 0 10px;
+  font-size: 28px;
+  letter-spacing: -0.3px;
+}
+
+.install-hero p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.install-meta {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+.install-meta li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.install-meta span {
+  color: var(--muted);
+}
+
+.install-meta strong {
+  color: var(--text);
+}
+
+.install-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.install-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.install-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.22), rgba(34, 211, 238, 0.18));
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  display: grid;
+  place-items: center;
+  color: #e9d5ff;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.install-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.install-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.install-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus {
+  outline: none;
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.12);
+}
+
+input::placeholder {
+  color: #6b7280;
+}
+
+.install-button {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #a855f7, #22d3ee);
+  color: #0b1224;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 0.2px;
+  box-shadow: 0 12px 35px rgba(168, 85, 247, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.install-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 42px rgba(168, 85, 247, 0.45);
+}
+
+.install-button:active {
+  transform: translateY(0);
+  opacity: 0.9;
+}
+
+.install-message {
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.install-message.success {
+  color: #4ade80;
+}
+
+.install-message.error {
+  color: #fb7185;
+}
+
+.install-tip {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.install-tip a {
+  color: #a855f7;
+  text-decoration: none;
+}
+
+.install-tip a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .install-hero {
+    order: 2;
+  }
+  .install-card {
+    order: 1;
+  }
+}

@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --background: 220 33% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 220 26% 95%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 220 25% 95%;
+  --muted-foreground: 215 16% 40%;
+  --border: 220 22% 89%;
+  --destructive: 0 72.2% 50.6%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 142.1 76.2% 36.3%;
+  --success-foreground: 210 40% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 222 47% 11%;
+  --sidebar-width-expanded: 256px;
+  --sidebar-width-collapsed: 80px;
+  --sidebar-width: var(--sidebar-width-expanded);
+  --header-height: 64px;
+  --content-padding: 24px;
+  --toast-radius: 16px;
+  --toast-border: hsl(var(--border));
+  --toast-bg: hsl(var(--card));
+  --toast-color: hsl(var(--card-foreground));
+  --toast-shadow: 0 20px 48px -24px hsl(var(--foreground) / 0.18);
+}
+
+.dark {
+  --background: 222 30% 10%;
+  --foreground: 210 40% 98%;
+  --card: 222 24% 13%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 24% 13%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217 91% 64%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 222 19% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 222 18% 18%;
+  --muted-foreground: 215 20% 72%;
+  --border: 222 17% 24%;
+  --destructive: 0 62.8% 50.6%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142.1 70.6% 45.3%;
+  --success-foreground: 222.2 47.4% 11.2%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 222 47% 11%;
+  --toast-border: hsl(var(--border));
+  --toast-bg: hsl(var(--card));
+  --toast-color: hsl(var(--card-foreground));
+  --toast-shadow: 0 24px 56px -28px hsl(var(--foreground) / 0.28);
+}
+
+[data-sonner-toaster] {
+  z-index: 60;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply min-h-screen bg-background text-foreground antialiased;
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted/60;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-border;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/70;
+}
+
+.dark ::-webkit-scrollbar-track {
+  @apply bg-muted/70;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-border;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/80;
+}

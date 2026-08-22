@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MGPanel · 初始化向导</title>
+    <link rel="stylesheet" href="/install/style.css" />
+  </head>
+  <body>
+    <main class="install-shell">
+      <section class="install-panel">
+        <div class="install-hero">
+          <div class="install-badge">MGPanel · Go</div>
+          <h1>初始化管理员</h1>
+          <p>数据库为 SQLite，首次部署需创建管理员账号后才能进入控制台。</p>
+          <ul class="install-meta">
+            <li><span>数据库</span><strong>SQLite (默认内置)</strong></li>
+            <li><span>路径</span><strong>data/ 或环境变量指定</strong></li>
+            <li><span>接口</span><strong>/api/install</strong></li>
+          </ul>
+        </div>
+        <div class="install-card">
+          <div class="install-brand">
+            <div class="install-icon">XB</div>
+            <div>
+              <p class="install-title">创建管理员账号</p>
+              <p class="install-subtitle">完成后将跳转到登录页</p>
+            </div>
+          </div>
+          <form id="install-form" class="install-form">
+            <label class="field">
+              <span>管理员用户名（可选）</span>
+              <input type="text" name="username" placeholder="admin" pattern="[a-zA-Z0-9._-]{3,32}" />
+            </label>
+            <label class="field">
+              <span>管理员邮箱（可选）</span>
+              <input type="email" name="email" placeholder="admin@example.com" />
+            </label>
+            <label class="field">
+              <span>管理员密码</span>
+              <input type="password" name="password" placeholder="至少 8 位" minlength="8" required />
+            </label>
+            <button type="submit" class="install-button">创建并继续</button>
+          </form>
+          <div id="install-message" class="install-message" role="status"></div>
+          <div class="install-tip">已初始化？ <a href="/login">前往登录</a></div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/install/app.js"></script>
+  </body>
+</html>

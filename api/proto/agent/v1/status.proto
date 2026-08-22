@@ -1,0 +1,296 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+import "agent/v1/core.proto";
+
+// HeartbeatRequest is sent by Agent to Panel periodically
+message HeartbeatRequest {
+  int64 timestamp = 1;
+}
+
+// HeartbeatResponse is returned by Panel
+message HeartbeatResponse {
+  bool success = 1;
+  int64 server_time = 2;
+}
+
+// StatusReport contains system and network metrics
+message StatusReport {
+  int64 timestamp = 1;
+  SystemMetrics system = 2;
+  NetworkMetrics network = 3;
+  repeated ProtocolState protocols = 4;
+  ClientConfigReport client_configs = 5;  // Client configurations from subscribe directory
+  repeated CoreInstance instances = 6;    // Core instances on agent
+  repeated ConfigInventoryEntry inventory = 7;    // Applied config file inventory
+  repeated InboundIndexEntry inbound_index = 8;   // Parsed inbound semantic index
+  int64 reported_at = 9;
+  AgentCommandQueueStats command_queue = 10;
+  AgentUpdateStatus update_status = 11;
+  repeated OriginLatencyEntry origin_latencies = 12;
+  repeated OriginLatencyEntry mesh_peer_latencies = 13;
+  string agent_config_yaml = 14;
+}
+
+// OriginLatencyEntry records a latency probe result for an origin or mesh peer.
+message OriginLatencyEntry {
+  string domain = 1;
+  double latency_ms = 2;
+  double packet_loss = 3;
+  int32 total_probes = 4;
+  int64 updated_at = 5;
+  int64 site_id = 6;
+  string stack = 7;
+}
+
+message AgentCommandQueueStats {
+  int32 capacity = 1;
+  int32 queued = 2;
+  int32 inflight = 3;
+  int32 workers = 4;
+  int32 available = 5;
+  repeated string active_command_ids = 6;
+  int64 updated_at = 7;
+}
+
+message AgentUpdateStatus {
+  string current_version = 1;
+  string target_version = 2;
+  string status = 3;
+  string phase = 4;
+  string previous_version = 5;
+  string error_message = 6;
+  int64 started_at = 7;
+  int64 finished_at = 8;
+  int64 last_checked_at = 9;
+  string last_check_error = 10;
+  bool rollback_available = 11;
+  bool rolled_back = 12;
+  string locked_bad_version = 13;
+  int32 crash_count = 14;
+  int64 health_deadline_at = 15;
+}
+
+message ProtocolState {
+  string name = 1;          // Config filename (e.g. "11_vless-reality_inbounds.json")
+  string type = 2;          // Core type (e.g. "sing-box", "xray")
+  bool running = 3;         // Service status
+  string content_hash = 4;  // Content hash for change detection
+  repeated ProtocolDetails details = 5;  // Parsed protocol details
+}
+
+// ProtocolDetails contains detailed protocol configuration
+message ProtocolDetails {
+  string protocol = 1;       // vless, vmess, shadowsocks, trojan, hysteria
+  string tag = 2;            // Inbound tag
+  string listen = 3;         // Listen address
+  int32 port = 4;            // Listen port
+  TransportConfig transport = 5;
+  TLSConfig tls = 6;
+  repeated ProtocolUserInfo users = 7;
+  string source_file = 8;
+  string core_type = 9;
+  MultiplexConfig multiplex = 10;  // Multiplex configuration
+}
+
+// TransportConfig describes transport layer settings
+message TransportConfig {
+  string type = 1;           // tcp, ws, grpc, http, quic, h2
+  string path = 2;           // WebSocket/HTTP path
+  string host = 3;           // HTTP Host header
+  string service_name = 4;   // gRPC service name
+}
+
+// TLSConfig describes TLS settings
+message TLSConfig {
+  bool enabled = 1;
+  string server_name = 2;
+  repeated string alpn = 3;
+  RealityConfig reality = 4;
+}
+
+// RealityConfig describes XTLS Reality settings
+message RealityConfig {
+  bool enabled = 1;
+  repeated string short_ids = 2;
+  string server_name = 3;
+  string fingerprint = 4;
+  string handshake_addr = 5;   // Handshake target server
+  int32 handshake_port = 6;    // Handshake target port
+  string public_key = 7;       // Public key (optional)
+}
+
+// MultiplexConfig describes multiplex (mux) settings
+message MultiplexConfig {
+  bool enabled = 1;
+  bool padding = 2;
+  BrutalConfig brutal = 3;
+}
+
+// BrutalConfig describes BBR Brutal settings
+message BrutalConfig {
+  bool enabled = 1;
+  int32 up_mbps = 2;
+  int32 down_mbps = 3;
+}
+
+// ProtocolUserInfo describes a user configuration in protocol
+message ProtocolUserInfo {
+  string uuid = 1;
+  string flow = 2;           // xtls-rprx-vision, etc.
+  string email = 3;
+  string method = 4;         // Cipher for Shadowsocks
+}
+
+// SystemMetrics contains system resource usage
+message SystemMetrics {
+  double cpu_usage = 1;
+  double memory_usage = 2;
+  double memory_total = 3;
+  double memory_used = 4;
+  double disk_usage = 5;
+  double disk_total = 6;
+  double disk_used = 7;
+  int64 uptime_seconds = 8;
+  int32 connection_count = 9;
+  double load1 = 10;
+  double load5 = 11;
+  double load15 = 12;
+  int32 process_count = 13;
+  int32 tcp_count = 14;
+  int32 udp_count = 15;
+
+  // Core capabilities (for config generation)
+  string core_version = 20;            // Core version (e.g., "1.10.0")
+  repeated string capabilities = 21;   // Detected capabilities (e.g., ["reality", "multiplex"])
+  repeated string build_tags = 22;     // Build tags (e.g., ["with_v2ray_api"])
+  string boot_id = 23;
+  string agent_version = 24;
+  string current_core_type = 25;
+  repeated CoreInfo all_cores = 26;       // All detected core types (installed, not just the primary)
+}
+
+message MetricInt64Value {
+  int64 value = 1;
+}
+
+message MetricUInt64Value {
+  uint64 value = 1;
+}
+
+// NetworkMetrics contains network traffic statistics
+message NetworkMetrics {
+  uint64 upload_bytes = 1;
+  uint64 download_bytes = 2;
+  uint64 upload_delta = 3;
+  uint64 download_delta = 4;
+  MetricInt64Value upload_rate_bps = 5;
+  MetricInt64Value download_rate_bps = 6;
+  MetricUInt64Value raw_upload_total_bytes = 7;
+  MetricUInt64Value raw_download_total_bytes = 8;
+  bool raw_counters_present = 9;
+}
+
+// StatusResponse is returned after status report
+message StatusResponse {
+  bool success = 1;
+  string message = 2;
+  int32 sync_interval_seconds = 3;   // Panel-controlled sync interval (seconds), 0 = use default
+  int32 report_interval_seconds = 4; // Panel-controlled report interval (seconds), 0 = use default
+}
+
+// StatusCommand is a command sent from Panel to Agent
+message StatusCommand {
+  string command = 1;   // Command type: "reload", "restart", "update_config", etc.
+  bytes payload = 2;    // Optional command payload
+}
+
+// ConfigInventoryEntry describes an applied config file discovered on agent.
+message ConfigInventoryEntry {
+  string source = 1;       // legacy | managed | merged
+  string filename = 2;
+  string core_type = 3;    // sing-box | xray
+  string content_hash = 4; // applied file hash
+  string parse_status = 5; // ok | parse_error
+  string parse_error = 6;
+  int64 last_seen_at = 7;
+}
+
+// InboundIndexEntry describes parsed inbound semantics from applied files.
+message InboundIndexEntry {
+  string source = 1;       // legacy | managed | merged
+  string filename = 2;
+  string core_type = 3;    // sing-box | xray
+  string tag = 4;
+  string protocol = 5;
+  string listen = 6;
+  int32 port = 7;
+  string tls = 8;          // JSON
+  string transport = 9;    // JSON
+  string multiplex = 10;   // JSON
+  int64 last_seen_at = 11;
+}
+
+// ClientConfigReport contains client configurations parsed from subscribe directory
+message ClientConfigReport {
+  repeated ClientConfig configs = 1;
+  string content_hash = 2;  // For change detection
+}
+
+// ClientConfig represents a single protocol's client configuration
+message ClientConfig {
+  string name = 1;         // Protocol name/tag
+  string protocol = 2;     // vless, vmess, hysteria2, tuic, ss, trojan, anytls
+  string server = 3;       // Server address
+  int32 port = 4;          // Main port
+
+  // Authentication
+  string uuid = 5;
+  string password = 6;
+
+  // Transport
+  string network = 7;      // tcp, ws, grpc, http, quic
+  string path = 8;         // WebSocket/HTTP path
+  string service_name = 9; // gRPC service name
+
+  // TLS
+  bool tls = 10;
+  string sni = 11;
+  string alpn = 12;
+  string fingerprint = 13;
+  bool insecure = 14;
+
+  // Reality
+  bool reality_enabled = 15;
+  string reality_public_key = 16;
+  string reality_short_id = 17;
+
+  // VLESS specific
+  string flow = 18;
+
+  // Hysteria2 specific
+  string hop_ports = 19;     // Port hopping range
+  int32 hop_interval = 20;   // Hop interval in seconds
+  int32 up_mbps = 21;
+  int32 down_mbps = 22;
+
+  // TUIC specific
+  string congestion_control = 23;
+
+  // Shadowsocks specific
+  string cipher = 24;
+
+  // ShadowTLS specific
+  int32 shadowtls_version = 25;
+  string shadowtls_password = 26;
+
+  // Multiplex
+  bool mux_enabled = 27;
+  bool mux_padding = 28;
+
+  // Raw configs for direct export (format -> content)
+  map<string, string> raw_configs = 30;
+}

@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+import "agent/v1/status.proto";
+import "agent/v1/config.proto";
+import "agent/v1/traffic.proto";
+import "agent/v1/forwarding.proto";
+import "agent/v1/core.proto";
+import "agent/v1/access_log.proto";
+import "agent/v1/config_center.proto";
+import "agent/v1/mesh.proto";
+import "agent/v1/log.proto";
+
+// AgentService defines the communication interface between Agent and Panel
+// Panel acts as the gRPC server, Agent connects as client
+service AgentService {
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc ReportStatus(StatusReport) returns (StatusResponse);
+  rpc GetConfig(ConfigRequest) returns (ConfigResponse);
+  rpc GetUsers(UsersRequest) returns (UsersResponse);
+  rpc ReportTraffic(TrafficReport) returns (TrafficResponse);
+  rpc ReportAlive(AliveReport) returns (AliveResponse);
+  rpc StatusStream(stream StatusReport) returns (stream StatusCommand);
+  rpc GetForwardingRules(ForwardingRulesRequest) returns (ForwardingRulesResponse);
+  rpc ReportForwardingStatus(ForwardingStatusReport) returns (StatusResponse);
+  rpc GetCoreOperations(GetCoreOperationsRequest) returns (GetCoreOperationsResponse);
+  rpc ReportCoreOperation(ReportCoreOperationRequest) returns (ReportCoreOperationResponse);
+  rpc ReportAccessLogs(AccessLogReport) returns (AccessLogResponse);
+  rpc ReportAgentLogs(ReportAgentLogsRequest) returns (ReportAgentLogsResponse);
+  rpc GetApplyBatch(ApplyBatchRequest) returns (ApplyBatchResponse);
+  rpc ReportApplyRun(ApplyRunReport) returns (ApplyRunResponse);
+  rpc GetAgentCommands(GetAgentCommandsRequest) returns (GetAgentCommandsResponse);
+  rpc ReportAgentCommand(ReportAgentCommandRequest) returns (ReportAgentCommandResponse);
+  rpc ReportOperationEvent(ReportOperationEventRequest) returns (ReportOperationEventResponse);
+  rpc JoinMesh(JoinMeshRequest) returns (JoinMeshResponse);
+  rpc GetMeshPeers(GetMeshPeersRequest) returns (GetMeshPeersResponse);
+}
+
+message AgentCommand {
+  string id = 1;
+  int64 agent_host_id = 2;
+  string operation_type = 3;
+  bytes request_payload = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+  string source = 7;
+  int64 timeout_seconds = 8;
+  string correlation_id = 9;
+}
+
+message GetAgentCommandsRequest {
+  repeated string supported_actions = 1;
+  AgentCommandQueueStats queue_stats = 2;
+  int32 limit = 3;
+  string worker_id = 4;
+  int64 requested_at = 5;
+}
+
+message GetAgentCommandsResponse {
+  bool success = 1;
+  repeated AgentCommand commands = 2;
+  string message = 3;
+  int32 next_poll_interval_seconds = 4;
+  int64 server_time = 5;
+}
+
+message AgentCommandEvent {
+  string command_id = 1;
+  string event_type = 2;
+  string status = 3;
+  string phase = 4;
+  string level = 5;
+  string message = 6;
+  bytes payload_json = 7;
+  string error_message = 8;
+  int64 occurred_at = 9;
+  string source_event_id = 10;
+  int64 sequence = 11;
+  bool terminal = 12;
+}
+
+message ReportAgentCommandRequest {
+  repeated AgentCommandEvent events = 1;
+  AgentCommandQueueStats queue_stats = 2;
+  string worker_id = 3;
+}
+
+message ReportAgentCommandResponse {
+  bool success = 1;
+  string message = 2;
+  int32 accepted = 3;
+  int64 server_time = 4;
+}
+
+message OperationEvent {
+  string scope = 1;
+  string target_id = 2;
+  string phase = 3;
+  string level = 4;
+  string message = 5;
+  int64 occurred_at = 6;
+  string source_event_id = 7;
+  bytes payload_json = 8;
+  int64 sequence = 9;
+}
+
+message ReportOperationEventRequest {
+  repeated OperationEvent events = 1;
+}
+
+message ReportOperationEventResponse {
+  int32 accepted = 1;
+  bool success = 2;
+  string message = 3;
+  int64 last_log_id = 4;
+}

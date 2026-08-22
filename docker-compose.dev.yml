@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  mgpanel:
+    build: .
+    environment:
+      - GO_ENV=development
+      - MGPANEL_LOG_LEVEL=debug
+    volumes:
+      - ./data:/data
+      # Optional: mount source code if using a dev container with air/reflex
+      # - .:/app

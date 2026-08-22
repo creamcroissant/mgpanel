@@ -1,0 +1,92 @@
+# Build Artifacts
+/data/
+/dist/
+/bin/
+/out/
+/mgpanel
+/agent
+mgpanelctl
+
+# Environment
+.env
+.env.backup
+.env.local
+.env.bak
+
+# IDE
+.idea/
+.DS_Store
+.vscode/
+
+# Logs
+*.log
+
+# Temp & Cache
+/tmp/
+/coverage/
+__pycache__/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+
+# Test Data (keep test_data/config files, ignore databases)
+test_data/*.db
+test_data/*.db-shm
+test_data/*.db-wal
+test_data/*_results/
+test_data/e2e_runs/
+test-results/
+web/user-vite/test-results/
+web/user-vite/playwright-report/
+
+# Legacy & Archives
+Mgpanel
+.claude
+sing-box-custom-builder
+.github/prompts/
+.archive/
+.serena/
+
+# Design Files (Excalidraw, images)
+frontend.excalidraw
+frontend.png
+frontend.svg
+
+# Documentation (generated locally)
+CLAUDE.md
+coding.md
+coding_old.md
+tmp.md
+
+# Config files (keep examples)
+config.yml
+e2e_agent_config.yml
+
+# Dependencies
+web/user-vite/node_modules
+node_modules
+
+# Temp Files
+*.tmp
+*.bak
+
+# MCP & AI Workflow Files
+.spec-workflow/
+.serena/
+.mcp.json
+
+# Integration Test Files
+integration_test.py
+agent_config_test.yml
+core-switch-*.json
+
+# Test Tools (downloaded binaries)
+tools/
+!internal/mcp/tools/
+
+# Test Data Outputs
+test_data/singbox_conf/
+
+# Temp coding docs in frontend
+web/user-vite/coding_update.md

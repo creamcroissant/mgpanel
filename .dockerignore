@@ -1,0 +1,15 @@
+.git
+.github
+Dockerfile
+README.md
+coding.md
+todo.list
+*.md
+node_modules
+vendor
+storage
+.tmp
+.idea
+.vscode
+*.log
+data

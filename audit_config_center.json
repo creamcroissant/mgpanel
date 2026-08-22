@@ -1,0 +1,66 @@
+[
+  {
+    "subsystem": "config-center",
+    "severity": "P1",
+    "file": "/opt/work/mgpanel/internal/service/config_center_compiler.go",
+    "line": 325,
+    "summary": "RenderCoreConfigs 创建 DesiredArtifact 时遗漏 ContentHash",
+    "detail": "RenderCoreConfigs (L325) 构造 DesiredArtifact 时未设置 ContentHash 字段。虽然 metdata 中计算了 MD5 (L335-336)，但 artifact.ContentHash 保持空字符串。这导致 (1) drift 检测在 EvaluateDrift 中将 core config artifact 的 desired_hash 视为空，与实际 applied_hash 比较时始终判定 hash_mismatch；(2) 前端 ConfigCenterArtifact.content_hash 字段为空。修正需在 L331 后添加 artifact.ContentHash = hex.EncodeToString(hash[:])。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "P1",
+    "file": "/opt/work/mgpanel/internal/service/config_center_compiler.go",
+    "line": 248,
+    "summary": "入站 Spec 与 CoreConfig revision 分叉导致 GetApplyBatch 返回不全",
+    "detail": "inbound spec 的 renderDesiredArtifacts 和 core config 的 renderCoreConfigArtifacts 各自独立调用 GetLatestRevision + 1。当两种 artifact 处于不同 revision 时，GetApplyBatch (config_center_apply.go:L408) 只返回最新 revision 下的 artifacts。Agent 端使用 StagedApplyModeSnapshot (applier.go:L251)，意味着旧 revision 的 core config 文件会被引擎删除。重现：创建 inbound spec → revision 1，再创建 core config item → revision 2，再更新 inbound spec → revision 3，此时 GetApplyBatch 返回只有 revision 3 的 inbound 文件。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "P1",
+    "file": "/opt/work/mgpanel/internal/repository/types.go",
+    "line": 726,
+    "summary": "AgentConfigInventory / InboundIndex / DriftState 缺少 JSON tags",
+    "detail": "这三个 struct 均无 json:\"...\" tags。Handler 中 ListAppliedSnapshot 和 ListDriftStates 直接透传它们给 respondJSON，Go encoding/json 默认使用 PascalCase（如 ID、AgentHostID、ParseStatus），但前端 configCenter.ts 定义的 TS 接口使用 snake_case（如 id、agent_host_id、parse_status）。前端 API 调用无法正确反序列化这些字段。影响端点：GET /config-center/snapshot (inventories, inbound_indexes)、GET /config-center/drift (items)、GET /config-center/recover (items)。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "P2",
+    "file": "/opt/work/mgpanel/internal/api/handler/admin_config_center_core_config.go",
+    "line": 131,
+    "summary": "CoreConfig handler 始终传入 OperatorID=0",
+    "detail": "Config Center Core Config 的 Upsert handler (upsert 方法 L130) 写死 OperatorID: 0，没有从 JWT claims 中提取 admin ID。对比：InboundSpec handler 正确传入 adminID。这导致 core config 变更的 operator 追踪丢失，created_by/updated_by 均为 0。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "P2",
+    "file": "/opt/work/mgpanel/internal/service/config_center_spec_test.go",
+    "line": 1,
+    "summary": "Spec 服务的 Bind/Unbind/ListBoundHosts 无 service 级别测试",
+    "detail": "config_center_spec_test.go 只测试了 mockInboundSpecRepo 的基本 CRUD，没有测试 inboundSpecService 的 BindSpec、UnbindSpec、ListBoundHosts 方法。这些方法包含了 binding 后自动渲染 artifact 的关键逻辑（L114-145），但没有任何单元测试覆盖编译调用路径和错误处理。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "P2",
+    "file": "/opt/work/mgpanel/internal/api/handler/admin_config_center_drift_test.go",
+    "line": 72,
+    "summary": "Drift handler 测试未反序列化 JSON 响应体，未捕获字段名不匹配",
+    "detail": "ListAppliedSnapshot / ListDriftStates handler 测试（L72-95）只检查 HTTP status code 和 svc 接收到的请求参数，未调 resp.Body 做 JSON 反序列化检查。这导致 P1 #3（JSON tag 缺失）从未在测试中被捕获。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "info",
+    "file": "/opt/work/mgpanel/internal/service/config_center_inventory.go",
+    "line": 237,
+    "summary": "normalizeInventoryParseStatus 默认返回 parse_error",
+    "detail": "L237：default 分支返回 inventoryParseStatusParseError。这意味着 agent 上报的任何未知/未识别的 parse_status 值都被视为 parse_error，而不是被过滤掉或保留原样。如果未来扩展 parse_status 集合，旧版本面板会误标。"
+  },
+  {
+    "subsystem": "config-center",
+    "severity": "info",
+    "file": "/opt/work/mgpanel/internal/service/config_center_spec_validation.go",
+    "line": 20,
+    "summary": "sing-box / xray 协议黑名单硬编码，需与上游同步",
+    "detail": "singBoxInboundProtocols (L20-27) 和 xrayInboundProtocols (L30-35) 硬编码了协议白名单。例如 sing-box 1.11+ 包含了 anytls/shadowtls 等，xray 1.8+ 的 hysteria2/tuic 已列出。这些列表需要每次升级核心版本后人工同步，无自动化机制确保覆盖最新协议。"
+  }
+]

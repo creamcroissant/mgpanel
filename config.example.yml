@@ -1,0 +1,109 @@
+# MGPanel Configuration File
+# This file is used to configure the MGPanel server and node behavior.
+# Environment variables can override these settings (e.g. MGPANEL_DB_PATH overrides database.path).
+
+# ------------------------------------------------------------------------------
+# System Configuration (Panel)
+# ------------------------------------------------------------------------------
+
+# HTTP Service Configuration
+http:
+  addr: "0.0.0.0:8080"            # Listen address
+  shutdown_timeout: "15s"         # Graceful shutdown timeout
+
+# Logging Configuration
+log:
+  level: "info"                   # debug, info, warn, error
+  format: "json"                  # json, text
+  add_source: false               # Include file source in logs
+  environment: "production"       # development, production
+  log_dir: "logs"                 # Directory for persisted daily logs (relative to working dir)
+  max_days: 7                     # Days to retain log files
+
+# Database Configuration
+database:
+  driver: "sqlite"                # Currently only sqlite is supported
+  path: "data/mgpanel.db"          # Path to SQLite database file
+
+# Authentication & Security
+auth:
+  signing_key: "change-me"        # JWT signing key (Keep secret!)
+  token_ttl: "24h"                # Access token time-to-live
+  issuer: "mgpanel"                # JWT issuer
+  audience: "mgpanel-client"       # JWT audience
+  leeway: "30s"                   # Time skew allowance
+  bcrypt_cost: 12                 # Password hashing cost
+
+# Security Configuration
+security:
+  subscribe_obfuscation: false    # Enable subscription link obfuscation
+
+# Prometheus Metrics Configuration
+metrics:
+  enabled: false                  # Enable Prometheus metrics endpoint
+  namespace: "mgpanel"             # Metrics namespace prefix
+  subsystem: "http"               # Metrics subsystem name
+  token: ""                       # Bearer token for /metrics endpoint (optional)
+
+# User Interface Configuration
+ui:
+  admin:
+    enabled: true
+    dir: "web/user-vite/dist"     # Path to Admin UI static files
+    base_url: ""                  # Base URL path (optional)
+    title: "MGPanel Admin"
+    version: "1.0.0"
+    logo: "https://mgpanel.io/images/logo.png"
+  user:
+    enabled: true
+    dir: "web/user-vite/dist"     # Path to User UI static files
+    base_url: ""                  # Base URL path (optional)
+    title: "MGPanel"
+  install:
+    enabled: true
+    dir: "web/install"            # Path to Install UI static files
+
+# ------------------------------------------------------------------------------
+# Agent Configuration (gRPC)
+# ------------------------------------------------------------------------------
+
+grpc:
+  enabled: true                 # Required. Agent only supports gRPC transport.
+  addr: "0.0.0.0:8080"       # Same listener as http.addr when reuse_http_port is true
+  reuse_http_port: true       # Enable single-port HTTP+gRPC multiplexing on http.addr
+# tag: "default"                # Agent tag (optional)
+
+monitor:
+  interval: "10s"              # System metrics interval
+
+traffic:
+  interval: "10s"              # Traffic report interval
+
+# Agent core configuration (template rendering)
+core:
+  template_path: "/etc/mgpanel/templates/singbox.tmpl"  # Go template file
+  output_path: "/etc/sing-box/config.json"            # Rendered config path
+  reload_cmd: "systemctl reload sing-box"             # Command to reload core
+  install_script_path: "/opt/mgpanel/deploy/agent.sh" # Trusted installer used by InstallCore RPC
+  singbox_binary_path: "/opt/mgpanel/bin/sing-box"    # Standard stable binary path used by runtime detection
+  xray_binary_path: "/opt/mgpanel/bin/xray"           # Standard stable binary path used by runtime detection
+
+# Agent multi-core configuration (optional)
+# - Use this when you want to manage multiple core instances (sing-box / xray, etc.)
+# - `cores` defines available core types and their config paths
+# - `instances` declares initial running instances and their templates
+multi_core:
+  enabled: false
+  cores:
+    sing-box:
+      template_path: "/etc/mgpanel/templates/singbox.tmpl"
+      output_path: "/etc/sing-box/config.json"
+      reload_cmd: "systemctl reload sing-box"
+    xray:
+      template_path: "/etc/mgpanel/templates/xray.tmpl"
+      output_path: "/etc/xray/config.json"
+      reload_cmd: "systemctl reload xray"
+  instances:
+    - instance_id: "singbox-default"
+      core_type: "sing-box"
+      config_template_id: 1

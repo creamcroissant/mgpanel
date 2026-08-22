@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+// ApplyBatchRequest asks panel for target revision artifacts.
+message ApplyBatchRequest {
+  string core_type = 1;            // sing-box | xray
+  int64 current_revision = 2;      // agent current applied revision
+}
+
+// ApplyArtifact is a single deployable file in apply batch.
+message ApplyArtifact {
+  string filename = 1;
+  string source_tag = 2;
+  bytes content = 3;
+  string content_hash = 4;
+}
+
+// ApplyBatchResponse returns revisioned artifact batch to agent.
+message ApplyBatchResponse {
+  bool success = 1;
+  bool not_modified = 2;
+  string run_id = 3;
+  string core_type = 4;
+  int64 target_revision = 5;
+  int64 previous_revision = 6;
+  repeated ApplyArtifact artifacts = 7;
+  string error_message = 8;
+}
+
+// ApplyRunReport reports apply execution result from agent.
+message ApplyRunReport {
+  string run_id = 1;
+  string core_type = 2;
+  int64 target_revision = 3;
+  bool success = 4;
+  string status = 5;               // success | failed | rolled_back
+  string error_message = 6;
+  int64 rollback_revision = 7;
+  int64 finished_at = 8;
+}
+
+// ApplyRunResponse acknowledges report ingestion.
+message ApplyRunResponse {
+  bool success = 1;
+  string message = 2;
+}

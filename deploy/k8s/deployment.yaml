@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mgpanel
+  labels:
+    app: mgpanel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mgpanel
+  template:
+    metadata:
+      labels:
+        app: mgpanel
+    spec:
+      containers:
+      - name: mgpanel
+        image: mgpanel:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: mgpanel-config
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: mgpanel-pvc

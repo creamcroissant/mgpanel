@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+// ConfigRequest is sent by Agent to get node configuration
+message ConfigRequest {
+  int32 node_id = 1;
+  string etag = 2;  // For conditional requests
+}
+
+// ConfigResponse contains node configuration
+message ConfigResponse {
+  bool success = 1;
+  bool not_modified = 2;  // True if etag matched (304 equivalent)
+  bytes config_json = 3;  // Node configuration as JSON
+  string etag = 4;
+  int64 version = 5;
+}
+
+// UsersRequest is sent by Agent to get user list
+message UsersRequest {
+  int32 node_id = 1;
+  string etag = 2;         // For conditional requests
+  int64 since_version = 3; // For incremental updates
+}
+
+// UsersResponse contains user list
+message UsersResponse {
+  bool success = 1;
+  bool not_modified = 2;
+  repeated UserInfo users = 3;
+  string etag = 4;
+  int64 version = 5;
+}
+
+// UserInfo contains user details
+message UserInfo {
+  int64 user_id = 1;
+  string uuid = 2;
+  string email = 3;
+  int64 speed_limit = 4;
+  int32 device_limit = 5;
+  bool enabled = 6;
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=MGPanel Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/mgpanel/panel
+EnvironmentFile=-/etc/default/mgpanel
+ExecStart=/opt/mgpanel/panel/mgpanel serve --config /opt/mgpanel/panel/config.yml
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

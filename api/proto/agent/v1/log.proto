@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+// AgentLogEntry represents a single log line from agent.
+message AgentLogEntry {
+  int64 timestamp = 1;         // Unix timestamp
+  string level = 2;            // "info", "warn", "error", "debug"
+  string message = 3;          // Log content (up to 4096 bytes)
+  string source = 4;           // Log source: "agent" | "core"
+}
+
+// ReportAgentLogsRequest carries a batch of agent logs.
+message ReportAgentLogsRequest {
+  repeated AgentLogEntry entries = 1;  // Log entries (max 100 per batch)
+  int64 reported_at = 2;               // Unix timestamp of upload
+}
+
+// ReportAgentLogsResponse acknowledges receipt.
+message ReportAgentLogsResponse {
+  bool success = 1;
+  int32 accepted = 2;   // Number of entries accepted
+  string message = 3;
+}

@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+// TrafficReport contains user-level traffic data
+message TrafficReport {
+  int64 timestamp = 1;
+  repeated UserTraffic user_traffic = 2;
+  string report_id = 3;
+}
+
+// UserTraffic contains traffic for a single user
+message UserTraffic {
+  int64 user_id = 1;
+  int64 upload_bytes = 2;
+  int64 download_bytes = 3;
+}
+
+// TrafficResponse is returned after traffic report
+message TrafficResponse {
+  bool success = 1;
+  int32 accepted_count = 2;
+  string message = 3;
+}
+
+// AliveReport contains active user IDs
+message AliveReport {
+  int64 timestamp = 1;
+  repeated int64 user_ids = 2;
+}
+
+// AliveResponse is returned after alive report
+message AliveResponse {
+  bool success = 1;
+}

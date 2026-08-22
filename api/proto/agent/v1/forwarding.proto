@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+// ForwardingRulesRequest is used by agent to fetch forwarding rules.
+message ForwardingRulesRequest {
+  int64 version = 1; // Current local version, 0 for initial fetch.
+}
+
+// ForwardingRulesResponse returns forwarding rules.
+message ForwardingRulesResponse {
+  bool success = 1;
+  bool not_modified = 2;
+  repeated ForwardingRule rules = 3;
+  int64 version = 4;
+  string error_message = 5;
+}
+
+// ForwardingRule describes a single forwarding rule.
+message ForwardingRule {
+  int64 id = 1;
+  string name = 2;
+  string protocol = 3; // tcp/udp/both
+  int32 listen_port = 4;
+  string target_address = 5;
+  int32 target_port = 6;
+  int32 priority = 7;
+  bool enabled = 8;
+}
+
+// ForwardingStatusReport reports apply result from agent.
+message ForwardingStatusReport {
+  int64 version = 1; // Applied version.
+  bool success = 2;
+  string error_message = 3;
+  int64 applied_at = 4;
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=MGPanel Agent Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/mgpanel/agent
+EnvironmentFile=-/etc/default/mgpanel-agent
+ExecStart=/opt/mgpanel/agent/agent --config /opt/mgpanel/agent/config.yml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

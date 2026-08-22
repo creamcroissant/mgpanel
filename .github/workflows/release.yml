@@ -1,0 +1,596 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  GO_VERSION: '1.25'
+  NODE_VERSION: '20'
+
+jobs:
+  build-frontend:
+    name: Build Frontend Assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build User Frontend
+        working-directory: web/user-vite
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package UI release assets
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/release
+          test -f web/user-vite/dist/index.html
+          test -f web/install/index.html
+
+          tar -C web/user-vite -czf dist/release/frontend-dist.tar.gz dist
+          tar -C web -czf dist/release/install-ui.tar.gz install
+
+      - name: Upload UI release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-release-assets
+          path: |
+            dist/release/frontend-dist.tar.gz
+            dist/release/install-ui.tar.gz
+          if-no-files-found: error
+
+  build-binaries:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ''
+          - goos: linux
+            goarch: arm64
+            ext: ''
+          - goos: darwin
+            goarch: amd64
+            ext: ''
+          - goos: darwin
+            goarch: arm64
+            ext: ''
+          - goos: windows
+            goarch: amd64
+            ext: '.exe'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download UI release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-release-assets
+          path: dist/release
+
+      - name: Extract UI release assets
+        run: |
+          set -euo pipefail
+
+          mkdir -p web/user-vite web
+          tar -C web/user-vite -xzf dist/release/frontend-dist.tar.gz
+          tar -C web -xzf dist/release/install-ui.tar.gz
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get version info
+        id: version
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/release
+
+          MGPANEL_BIN="mgpanel-${GOOS}-${GOARCH}${EXT}"
+          AGENT_BIN="agent-${GOOS}-${GOARCH}${EXT}"
+
+          echo "Building ${MGPANEL_BIN}"
+          go build -trimpath \
+            -ldflags "-s -w -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
+            -o "dist/release/${MGPANEL_BIN}" \
+            ./cmd/mgpanel
+
+          echo "Building ${AGENT_BIN}"
+          go build -trimpath \
+            -ldflags "-s -w -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
+            -o "dist/release/${AGENT_BIN}" \
+            ./cmd/agent
+
+          sha256sum "dist/release/${MGPANEL_BIN}" > "dist/release/${MGPANEL_BIN}.sha256"
+          sha256sum "dist/release/${AGENT_BIN}" > "dist/release/${AGENT_BIN}.sha256"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Download UI release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-release-assets
+          path: dist/release
+
+      - name: Verify expected release assets exist
+        run: |
+          set -euo pipefail
+          test -f dist/release/mgpanel-linux-amd64
+          test -f dist/release/mgpanel-linux-arm64
+          test -f dist/release/mgpanel-darwin-amd64
+          test -f dist/release/mgpanel-darwin-arm64
+          test -f dist/release/mgpanel-windows-amd64.exe
+
+          test -f dist/release/agent-linux-amd64
+          test -f dist/release/agent-linux-arm64
+          test -f dist/release/agent-darwin-amd64
+          test -f dist/release/agent-darwin-arm64
+          test -f dist/release/agent-windows-amd64.exe
+
+          test -f dist/release/frontend-dist.tar.gz
+          test -f dist/release/install-ui.tar.gz
+
+      - name: Verify deploy script shell compatibility
+        run: |
+          set -euo pipefail
+
+          sh -n deploy/panel.sh deploy/agent.sh
+          bash -n deploy/panel.sh deploy/agent.sh
+
+          WORKDIR_SH="$(mktemp -d)"
+          WORKDIR_BASH="$(mktemp -d)"
+          trap 'rm -rf "${WORKDIR_SH}" "${WORKDIR_BASH}"' EXIT
+
+          cp dist/release/agent-linux-amd64 "${WORKDIR_SH}/agent"
+          cp deploy/panel.sh "${WORKDIR_SH}/panel.sh"
+          cp deploy/agent.sh "${WORKDIR_SH}/agent.sh"
+          cp deploy/agent.service "${WORKDIR_SH}/agent.service"
+
+          cp dist/release/agent-linux-amd64 "${WORKDIR_BASH}/agent"
+          cp deploy/panel.sh "${WORKDIR_BASH}/panel.sh"
+          cp deploy/agent.sh "${WORKDIR_BASH}/agent.sh"
+          cp deploy/agent.service "${WORKDIR_BASH}/agent.service"
+
+          mkdir -p "${WORKDIR_SH}/local/local/releases/download/local" "${WORKDIR_BASH}/local/local/releases/download/local"
+          cp dist/release/agent-linux-amd64 "${WORKDIR_SH}/local/local/releases/download/local/agent-linux-amd64"
+          cp dist/release/agent-linux-amd64 "${WORKDIR_BASH}/local/local/releases/download/local/agent-linux-amd64"
+          cp dist/release/mgpanel-linux-amd64 "${WORKDIR_SH}/local/local/releases/download/local/mgpanel-linux-amd64"
+          cp dist/release/mgpanel-linux-amd64 "${WORKDIR_BASH}/local/local/releases/download/local/mgpanel-linux-amd64"
+          cp dist/release/frontend-dist.tar.gz "${WORKDIR_SH}/local/local/releases/download/local/frontend-dist.tar.gz"
+          cp dist/release/frontend-dist.tar.gz "${WORKDIR_BASH}/local/local/releases/download/local/frontend-dist.tar.gz"
+          cp dist/release/install-ui.tar.gz "${WORKDIR_SH}/local/local/releases/download/local/install-ui.tar.gz"
+          cp dist/release/install-ui.tar.gz "${WORKDIR_BASH}/local/local/releases/download/local/install-ui.tar.gz"
+
+          AGENT_SHA="$(sha256sum dist/release/agent-linux-amd64 | awk '{print $1}')"
+          MGPANEL_SHA="$(sha256sum dist/release/mgpanel-linux-amd64 | awk '{print $1}')"
+          FRONTEND_SHA="$(sha256sum dist/release/frontend-dist.tar.gz | awk '{print $1}')"
+          INSTALL_UI_SHA="$(sha256sum dist/release/install-ui.tar.gz | awk '{print $1}')"
+          SCRIPT_SHA="$(sha256sum deploy/agent.sh | awk '{print $1}')"
+          SERVICE_SHA="$(sha256sum deploy/agent.service | awk '{print $1}')"
+          printf '%s  %s\n%s  %s\n%s  %s\n%s  %s\n%s  %s\n%s  %s\n' \
+            "${AGENT_SHA}" "agent-linux-amd64" \
+            "${MGPANEL_SHA}" "mgpanel-linux-amd64" \
+            "${FRONTEND_SHA}" "frontend-dist.tar.gz" \
+            "${INSTALL_UI_SHA}" "install-ui.tar.gz" \
+            "${SCRIPT_SHA}" "deploy/agent.sh" \
+            "${SERVICE_SHA}" "deploy/agent.service" \
+            > "${WORKDIR_SH}/local/local/releases/download/local/SHA256SUMS.txt"
+          cp "${WORKDIR_SH}/local/local/releases/download/local/SHA256SUMS.txt" "${WORKDIR_BASH}/local/local/releases/download/local/SHA256SUMS.txt"
+
+          chmod +x "${WORKDIR_SH}/agent" "${WORKDIR_SH}/panel.sh" "${WORKDIR_SH}/agent.sh"
+          chmod +x "${WORKDIR_BASH}/agent" "${WORKDIR_BASH}/panel.sh" "${WORKDIR_BASH}/agent.sh"
+
+          (
+            cd "${WORKDIR_SH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            sh ./agent.sh -k "workflow-token-sh" -g "127.0.0.1:19090"
+            test -x "${WORKDIR_SH}/out/agent"
+            test -f "${WORKDIR_SH}/out/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_BASH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            bash ./agent.sh -k "workflow-token-bash" -g "127.0.0.1:19090"
+            test -x "${WORKDIR_BASH}/out/agent"
+            test -f "${WORKDIR_BASH}/out/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            sh ./panel.sh
+            test -x "${WORKDIR_SH}/panel-out/mgpanel"
+            test -f "${WORKDIR_SH}/panel-out/web/user-vite/dist/index.html"
+            test -f "${WORKDIR_SH}/panel-out/web/install/index.html"
+            mkdir -p "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets"
+            touch "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets/stale.txt"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh
+            test ! -e "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets/stale.txt"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh --uninstall
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh --uninstall
+            test ! -e "${WORKDIR_SH}/panel-out/mgpanel"
+            test ! -e "${WORKDIR_SH}/panel-out/config.yml"
+            test ! -e "${WORKDIR_SH}/panel-out/.env"
+            test ! -e "${WORKDIR_SH}/panel-out/web/user-vite/dist"
+            test ! -e "${WORKDIR_SH}/panel-out/web/install"
+          )
+
+          (
+            cd "${WORKDIR_BASH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            bash ./panel.sh
+            test -x "${WORKDIR_BASH}/panel-out/mgpanel"
+            test -f "${WORKDIR_BASH}/panel-out/web/user-vite/dist/index.html"
+            test -f "${WORKDIR_BASH}/panel-out/web/install/index.html"
+            mkdir -p "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets"
+            touch "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets/stale.txt"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh
+            test ! -e "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets/stale.txt"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh --uninstall
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh --uninstall
+            test ! -e "${WORKDIR_BASH}/panel-out/mgpanel"
+            test ! -e "${WORKDIR_BASH}/panel-out/config.yml"
+            test ! -e "${WORKDIR_BASH}/panel-out/.env"
+            test ! -e "${WORKDIR_BASH}/panel-out/web/user-vite/dist"
+            test ! -e "${WORKDIR_BASH}/panel-out/web/install"
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
+            sh ./agent.sh --uninstall
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" sh ./agent.sh --uninstall
+            test ! -e "${WORKDIR_SH}/out/agent"
+            test ! -e "${WORKDIR_SH}/out/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_BASH}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
+            bash ./agent.sh --uninstall
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" bash ./agent.sh --uninstall
+            test ! -e "${WORKDIR_BASH}/out/agent"
+            test ! -e "${WORKDIR_BASH}/out/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            mkdir -p "${WORKDIR_SH}/custom-install"
+            touch "${WORKDIR_SH}/custom-install/unknown.keep"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            sh ./agent.sh -k "custom-token-sh" -g "127.0.0.1:19090"
+            test -f "${WORKDIR_SH}/custom-install/unknown.keep"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
+            sh ./agent.sh --uninstall
+            test -f "${WORKDIR_SH}/custom-install/unknown.keep"
+            test ! -e "${WORKDIR_SH}/custom-install/agent"
+            test ! -e "${WORKDIR_SH}/custom-install/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_BASH}"
+            mkdir -p "${WORKDIR_BASH}/custom-install"
+            touch "${WORKDIR_BASH}/custom-install/unknown.keep"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            bash ./agent.sh -k "custom-token-bash" -g "127.0.0.1:19090"
+            test -f "${WORKDIR_BASH}/custom-install/unknown.keep"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
+            bash ./agent.sh --uninstall
+            test -f "${WORKDIR_BASH}/custom-install/unknown.keep"
+            test ! -e "${WORKDIR_BASH}/custom-install/agent"
+            test ! -e "${WORKDIR_BASH}/custom-install/config.yml"
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-out" \
+              sh ./agent.sh --uninstall -k "conflict-key" -g "127.0.0.1:19090"; then
+              echo "agent.sh --uninstall should fail when mixed with install parameters" >&2
+              exit 1
+            fi
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-arg-fail-out" \
+              sh ./agent.sh --host-token "forbidden-token" -g "127.0.0.1:19090"; then
+              echo "agent.sh should fail when --host-token is provided for install" >&2
+              exit 1
+            fi
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-env-fail-out" \
+              MGPANEL_AGENT_HOST_TOKEN="forbidden-token" \
+              MGPANEL_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
+              sh ./agent.sh; then
+              echo "agent.sh should fail when MGPANEL_AGENT_HOST_TOKEN is provided for install" >&2
+              exit 1
+            fi
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-mixed-fail-out" \
+              MGPANEL_AGENT_HOST_TOKEN="forbidden-token" \
+              sh ./agent.sh -k "conflict-key" -g "127.0.0.1:19090"; then
+              echo "agent.sh should fail when communication key and host token are mixed" >&2
+              exit 1
+            fi
+          )
+
+          (
+            cd "${WORKDIR_SH}"
+            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/install-download-fail-out" \
+              MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+              MGPANEL_RELEASE_REPO="local/local" \
+              MGPANEL_RELEASE_TAG="missing" \
+              MGPANEL_AGENT_COMMUNICATION_KEY="strict-install-token" \
+              MGPANEL_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
+              sh ./agent.sh; then
+              echo "agent.sh should fail when release binary download fails" >&2
+              exit 1
+            fi
+          )
+
+      - name: Set up Go for install config check
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Verify install config compatibility
+        run: |
+          set -euo pipefail
+
+          WORKDIR="$(mktemp -d)"
+          VALIDATE_GO="${GITHUB_WORKSPACE}/tmp_validate_agent_config.go"
+          trap 'rm -rf "${WORKDIR}"; rm -f "${VALIDATE_GO}"' EXIT
+
+          cp dist/release/agent-linux-amd64 "${WORKDIR}/agent"
+          cp deploy/panel.sh "${WORKDIR}/panel.sh"
+          cp deploy/agent.sh "${WORKDIR}/agent.sh"
+
+          mkdir -p "${WORKDIR}/local/local/releases/download/local"
+          cp dist/release/agent-linux-amd64 "${WORKDIR}/local/local/releases/download/local/agent-linux-amd64"
+          AGENT_SHA="$(sha256sum dist/release/agent-linux-amd64 | awk '{print $1}')"
+          printf '%s  %s\n' "${AGENT_SHA}" "agent-linux-amd64" > "${WORKDIR}/local/local/releases/download/local/SHA256SUMS.txt"
+
+          chmod +x "${WORKDIR}/agent" "${WORKDIR}/panel.sh" "${WORKDIR}/agent.sh"
+
+          (
+            cd "${WORKDIR}"
+            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR}/out" \
+            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR}" \
+            MGPANEL_RELEASE_REPO="local/local" \
+            MGPANEL_RELEASE_TAG="local" \
+            sh ./agent.sh -k "release-check-token" -g "127.0.0.1:19090"
+            test -f "${WORKDIR}/out/config.yml"
+          )
+
+
+          cat > "${VALIDATE_GO}" <<'EOF'
+          package main
+
+          import (
+            "fmt"
+            "os"
+
+            "gopkg.in/yaml.v3"
+          )
+
+          type agentConfig struct {
+            Panel struct {
+              URL              string `yaml:"url"`
+              HostToken        string `yaml:"host_token"`
+              CommunicationKey string `yaml:"communication_key"`
+              Token            string `yaml:"token"`
+              NodeID           int    `yaml:"node_id"`
+            } `yaml:"panel"`
+            GRPC struct {
+              Enabled bool   `yaml:"enabled"`
+              Address string `yaml:"address"`
+              TLS     struct {
+                Enabled bool `yaml:"enabled"`
+              } `yaml:"tls"`
+            } `yaml:"grpc"`
+            Traffic struct {
+              Type string `yaml:"type"`
+            } `yaml:"traffic"`
+          }
+
+          func main() {
+            if len(os.Args) != 2 {
+              fmt.Fprintln(os.Stderr, "usage: validate_agent_config <path>")
+              os.Exit(2)
+            }
+
+            data, err := os.ReadFile(os.Args[1])
+            if err != nil {
+              fmt.Fprintln(os.Stderr, err)
+              os.Exit(1)
+            }
+
+            var cfg agentConfig
+            if err := yaml.Unmarshal(data, &cfg); err != nil {
+              fmt.Fprintln(os.Stderr, err)
+              os.Exit(1)
+            }
+
+            if !cfg.GRPC.Enabled {
+              fmt.Fprintln(os.Stderr, "grpc.enabled must be true")
+              os.Exit(1)
+            }
+            if cfg.GRPC.Address != "127.0.0.1:19090" {
+              fmt.Fprintf(os.Stderr, "grpc.address mismatch: %s\n", cfg.GRPC.Address)
+              os.Exit(1)
+            }
+            if cfg.GRPC.TLS.Enabled {
+              fmt.Fprintln(os.Stderr, "grpc.tls.enabled must default to false")
+              os.Exit(1)
+            }
+            if cfg.Panel.HostToken != "" {
+              fmt.Fprintln(os.Stderr, "panel.host_token must be empty before first boot registration")
+              os.Exit(1)
+            }
+            if cfg.Panel.CommunicationKey != "release-check-token" {
+              fmt.Fprintf(os.Stderr, "panel.communication_key mismatch: %s\n", cfg.Panel.CommunicationKey)
+              os.Exit(1)
+            }
+            if cfg.Panel.Token != "" || cfg.Panel.NodeID != 0 {
+              fmt.Fprintln(os.Stderr, "legacy panel.token/node_id fields must be empty")
+              os.Exit(1)
+            }
+            if cfg.Traffic.Type != "netio" {
+              fmt.Fprintf(os.Stderr, "traffic.type mismatch: %s\n", cfg.Traffic.Type)
+              os.Exit(1)
+            }
+          }
+          EOF
+
+          if ! grep -Eq '^[[:space:]]*grpc:' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml missing grpc section" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml missing grpc.enabled=true" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*enabled:[[:space:]]*false[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml should default grpc.tls.enabled=false" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*address:[[:space:]]*"127\.0\.0\.1:19090"[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml grpc.address should be initialized from install parameters" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*panel:' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml missing panel section" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*host_token:[[:space:]]*""[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml panel.host_token should be empty before first boot registration" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*communication_key:[[:space:]]*"release-check-token"[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml panel.communication_key should be initialized from install parameters" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*traffic:' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml missing traffic section" >&2
+            exit 1
+          fi
+          if ! grep -Eq '^[[:space:]]*type:[[:space:]]*"netio"[[:space:]]*$' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml should default traffic.type=netio" >&2
+            exit 1
+          fi
+          if grep -Eq '^[[:space:]]*token:[[:space:]]*' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml should not contain legacy panel.token" >&2
+            exit 1
+          fi
+          if grep -Eq '^[[:space:]]*node_id:[[:space:]]*' "${WORKDIR}/out/config.yml"; then
+            echo "config.yml should not contain legacy panel.node_id" >&2
+            exit 1
+          fi
+
+          go run "${VALIDATE_GO}" "${WORKDIR}/out/config.yml"
+          rm -f "${VALIDATE_GO}"
+
+      - name: Merge checksums
+        run: |
+          set -euo pipefail
+
+          cat dist/release/*.sha256 > dist/release/SHA256SUMS.txt
+          sha256sum dist/release/frontend-dist.tar.gz dist/release/install-ui.tar.gz >> dist/release/SHA256SUMS.txt
+          sha256sum deploy/agent.sh deploy/agent.service >> dist/release/SHA256SUMS.txt
+          sort -k2 dist/release/SHA256SUMS.txt -o dist/release/SHA256SUMS.txt
+
+      - name: Verify release checksum entries
+        run: |
+          set -euo pipefail
+
+          grep -Eq '[[:space:]](dist/release/)?frontend-dist\.tar\.gz$' dist/release/SHA256SUMS.txt
+          grep -Eq '[[:space:]](dist/release/)?install-ui\.tar\.gz$' dist/release/SHA256SUMS.txt
+          grep -Eq '[[:space:]]deploy/agent\.sh$' dist/release/SHA256SUMS.txt
+          grep -Eq '[[:space:]]deploy/agent\.service$' dist/release/SHA256SUMS.txt
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/mgpanel-*
+            dist/release/agent-*
+            dist/release/frontend-dist.tar.gz
+            dist/release/install-ui.tar.gz
+            dist/release/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}

@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package xray.app.stats.command;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/xray/stats/command;statscommand";
+
+// GetStatsRequest requests a specific stat counter by name.
+message GetStatsRequest {
+  // Name of the stat counter.
+  string name = 1;
+  // Whether or not to reset the counter after fetching its value.
+  bool reset = 2;
+}
+
+// Stat represents a single statistic entry.
+message Stat {
+  string name = 1;
+  int64 value = 2;
+}
+
+// GetStatsResponse returns a single stat.
+message GetStatsResponse {
+  Stat stat = 1;
+}
+
+// QueryStatsRequest queries stats matching a pattern.
+message QueryStatsRequest {
+  // Pattern to match stat names (e.g., "user>>>" for all user stats).
+  string pattern = 1;
+  // Whether or not to reset the counters after fetching.
+  bool reset = 2;
+  // Patterns to match stat names. Stats matching any pattern will be returned.
+  // If empty, pattern field is used instead.
+  repeated string patterns = 3;
+  // If true, only return stats with non-zero values.
+  bool regexp = 4;
+}
+
+// QueryStatsResponse returns matching stats.
+message QueryStatsResponse {
+  repeated Stat stat = 1;
+}
+
+// SysStatsRequest requests system statistics.
+message SysStatsRequest {}
+
+// SysStatsResponse returns system statistics.
+message SysStatsResponse {
+  uint32 NumGoroutine = 1;
+  uint32 NumGC = 2;
+  uint64 Alloc = 3;
+  uint64 TotalAlloc = 4;
+  uint64 Sys = 5;
+  uint64 Mallocs = 6;
+  uint64 Frees = 7;
+  uint64 LiveObjects = 8;
+  uint64 PauseTotalNs = 9;
+  uint32 Uptime = 10;
+}
+
+// GetStatsOnlineIpListResponse returns online IP addresses for a user.
+message GetStatsOnlineIpListResponse {
+  repeated string ips = 1;
+}
+
+// StatsService provides methods for querying traffic statistics.
+service StatsService {
+  // GetStats returns a specific stat by name.
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+
+  // GetStatsOnline returns online stats for a specific user.
+  rpc GetStatsOnline(GetStatsRequest) returns (GetStatsResponse);
+
+  // QueryStats returns all stats matching a pattern.
+  rpc QueryStats(QueryStatsRequest) returns (QueryStatsResponse);
+
+  // GetSysStats returns system statistics.
+  rpc GetSysStats(SysStatsRequest) returns (SysStatsResponse);
+
+  // GetStatsOnlineIpList returns online IP list for a user.
+  rpc GetStatsOnlineIpList(GetStatsRequest) returns (GetStatsOnlineIpListResponse);
+}

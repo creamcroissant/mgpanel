@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
+
+import "google/protobuf/timestamp.proto";
+
+message AccessLogEntry {
+    string user_email = 1;
+    string source_ip = 2;
+    string target_domain = 3;
+    string target_ip = 4;
+    int32 target_port = 5;
+    string protocol = 6;
+    int64 upload = 7;
+    int64 download = 8;
+    google.protobuf.Timestamp connection_start = 9;
+    google.protobuf.Timestamp connection_end = 10;
+}
+
+message AccessLogReport {
+    repeated AccessLogEntry entries = 1;
+}
+
+message AccessLogResponse {
+    bool success = 1;
+    string message = 2;
+    int32 accepted_count = 3;
+}
