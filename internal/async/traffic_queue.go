@@ -8,9 +8,9 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
-// UniProxyPushSample represents a raw `[user_id, traffic]` entry submitted by nodes.
+// TrafficSample represents a raw `[user_id, traffic]` entry submitted by nodes.
 // Defined here to avoid import cycle between async and service packages.
-type UniProxyPushSample struct {
+type TrafficSample struct {
 	UserID   int64
 	Upload   int64
 	Download int64
@@ -19,7 +19,7 @@ type UniProxyPushSample struct {
 // TrafficBatch stores a server snapshot with associated traffic samples.
 type TrafficBatch struct {
 	Server  *repository.Server
-	Samples []UniProxyPushSample
+	Samples []TrafficSample
 }
 
 // TrafficQueue buffers push reports before background ingestion.
@@ -34,7 +34,7 @@ func NewTrafficQueue() *TrafficQueue {
 }
 
 // Enqueue appends a server+sample batch for asynchronous processing.
-func (q *TrafficQueue) Enqueue(server *repository.Server, samples []UniProxyPushSample) {
+func (q *TrafficQueue) Enqueue(server *repository.Server, samples []TrafficSample) {
 	if q == nil || server == nil || len(samples) == 0 {
 		return
 	}
@@ -87,11 +87,11 @@ func cloneServer(server *repository.Server) *repository.Server {
 	return &snapshot
 }
 
-func cloneSamples(samples []UniProxyPushSample) []UniProxyPushSample {
+func cloneSamples(samples []TrafficSample) []TrafficSample {
 	if len(samples) == 0 {
 		return nil
 	}
-	cloned := make([]UniProxyPushSample, len(samples))
+	cloned := make([]TrafficSample, len(samples))
 	copy(cloned, samples)
 	return cloned
 }

@@ -24,7 +24,7 @@ type ServerNodeService interface {
 	Config(ctx context.Context, server *repository.Server) (*ServerNodeConfigResult, error)
 }
 
-// ServerNodeUsersResult wraps the UniProxy-compatible user payload.
+// ServerNodeUsersResult wraps the node-compatible user payload.
 type ServerNodeUsersResult struct {
 	Users []ServerNodeUser
 	ETag  string

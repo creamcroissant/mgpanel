@@ -267,12 +267,12 @@ type CustomCommands struct {
 
 type PanelConfig struct {
 	URL              string `yaml:"url"`               // Panel base URL for initial registration (optional, defaults from grpc.address)
-	Token            string `yaml:"token"`             // DEPRECATED: Legacy V2bX node token, no longer supported
+	Token            string `yaml:"token"`             // DEPRECATED: Legacy node token, no longer supported
 	HostToken        string `yaml:"host_token"`        // Agent Host Token (long-lived auth)
 	CommunicationKey string `yaml:"communication_key"` // One-time registration key for first boot
 	AdvertiseHost    string `yaml:"advertise_host"`    // Override public IP reported to panel (auto-detected if empty)
-	NodeID           int    `yaml:"node_id"`           // DEPRECATED: Legacy V2bX node ID, no longer supported
-	NodeType         string `yaml:"node_type"`         // DEPRECATED: Legacy V2bX node type, no longer supported
+	NodeID           int    `yaml:"node_id"`           // DEPRECATED: Legacy node ID, no longer supported
+	NodeType         string `yaml:"node_type"`         // DEPRECATED: Legacy node type, no longer supported
 }
 
 type ForwardingConfig struct {
@@ -804,10 +804,10 @@ func save(path string, cfg *Config) error {
 	return nil
 }
 
-// Validate enforces gRPC-only mode and rejects legacy V2bX settings.
+// Validate enforces gRPC-only mode and rejects legacy node settings.
 func (cfg *Config) Validate() error {
 	if cfg.Panel.Token != "" || cfg.Panel.NodeID != 0 || cfg.Panel.NodeType != "" {
-		return fmt.Errorf("legacy V2bX/UniProxy mode is no longer supported; migrate to gRPC with grpc.enabled=true, grpc.address, panel.host_token")
+		return fmt.Errorf("legacy node mode is no longer supported; migrate to gRPC with grpc.enabled=true, grpc.address, panel.host_token")
 	}
 	if !cfg.GRPC.Enabled || cfg.GRPC.Address == "" {
 		return fmt.Errorf("gRPC transport is required; set grpc.enabled=true and grpc.address")

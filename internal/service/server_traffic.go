@@ -14,7 +14,7 @@ import (
 
 // ServerTrafficService 负责持久化节点上报的流量增量。
 type ServerTrafficService interface {
-	Apply(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error
+	Apply(ctx context.Context, server *repository.Server, samples []TrafficSample) error
 }
 
 // serverTrafficService 组合用户仓储与统计收集器。
@@ -34,7 +34,7 @@ func NewServerTrafficService(userRepo repository.UserRepository, collector Traff
 }
 
 // Apply 处理节点上报样本，并按倍率累加到用户流量。
-func (s *serverTrafficService) Apply(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error {
+func (s *serverTrafficService) Apply(ctx context.Context, server *repository.Server, samples []TrafficSample) error {
 	if err := ensureServer(server); err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ type trafficDelta struct {
 }
 
 // aggregateTraffic 将样本按用户聚合，并应用倍率缩放。
-func aggregateTraffic(samples []UniProxyPushSample, rate float64) map[int64]trafficDelta {
+func aggregateTraffic(samples []TrafficSample, rate float64) map[int64]trafficDelta {
 	totals := make(map[int64]trafficDelta, len(samples))
 	for _, sample := range samples {
 		if sample.UserID <= 0 {

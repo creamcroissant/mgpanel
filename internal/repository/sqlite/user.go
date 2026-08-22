@@ -288,7 +288,7 @@ func (r *userRepo) ListActiveForGroups(ctx context.Context, groupIDs []int64, no
 	// This is tricky: users are related to plans, plans are related to groups (now via junction table).
 	// But `users` table also has `group_id` legacy field?
 	// The requirement is usually: User has Plan -> Plan has Groups -> User can access Groups.
-	// But V2bX/MGPanel often syncs users to nodes based on Plan/Group permissions.
+	// But MGPanel often syncs users to nodes based on Plan/Group permissions.
 	// The original query likely used `users.group_id` or `users.plan_id`.
 	// Let's assume we fetch users whose Plan allows access to any of the groupIDs.
 	// This requires joining users, plans, plan_server_groups.

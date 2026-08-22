@@ -168,7 +168,7 @@ func (s *userKnowledgeService) processBody(ctx context.Context, body string, use
 		return ""
 	}
 	if !s.isUserAvailable(user) {
-		trimmed = accessBlockRegex.ReplaceAllString(trimmed, `<div class="v2board-no-access">You must have a valid subscription to view content in this area</div>`)
+		trimmed = accessBlockRegex.ReplaceAllString(trimmed, `<div class="mgpanel-no-access">You must have a valid subscription to view content in this area</div>`)
 	}
 	subscribeURL := s.subscribeURL(ctx, user)
 	replacements := []string{
