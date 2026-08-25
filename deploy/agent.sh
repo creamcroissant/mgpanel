@@ -1388,7 +1388,37 @@ elif is_systemd_available; then
         fi
         echo "mgpanel-agent.service installed."
     else
-        echo "Warning: agent.service not found (checked override/env/local paths)."
+        # 内置兑底模板：pipe 安装无本地模板且 raw.githubusercontent 不可达时仍能完成装服务。
+        echo "Falling back to embedded default unit template."
+        EMBEDDED_SERVICE=$(mktemp)
+        cat > "$EMBEDDED_SERVICE" <<'EOF'
+[Unit]
+Description=MGPanel Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__MGPANEL_INSTALL_DIR__
+ExecStart=__MGPANEL_INSTALL_DIR__/agent --config __MGPANEL_INSTALL_DIR__/config.yml
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        SERVICE_FILE="$EMBEDDED_SERVICE"
+        if ! render_install_service_file "$SERVICE_FILE" /etc/systemd/system/mgpanel-agent.service; then
+            echo "Error: failed to install mgpanel-agent.service (embedded)."
+            rm -f "$EMBEDDED_SERVICE"
+            fail_stage "systemd service installation failed"
+        fi
+        rm -f "$EMBEDDED_SERVICE"
+        run_privileged systemctl daemon-reload
+        run_privileged systemctl enable mgpanel-agent
+        run_privileged systemctl start mgpanel-agent || fail_stage "systemd service start failed"
+        echo "mgpanel-agent.service installed (embedded template)."
     fi
 elif is_openrc_available; then
     if ! install_openrc_service "mgpanel-agent" "${INSTALL_DIR}/agent" "--config ${INSTALL_DIR}/config.yml"; then

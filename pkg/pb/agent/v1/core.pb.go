@@ -1498,7 +1498,7 @@ const file_agent_v1_core_proto_rawDesc = "" +
 	"finishedAt\"Q\n" +
 	"\x1bReportCoreOperationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessageB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\amessage\x18\x02 \x01(\tR\amessageB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_core_proto_rawDescOnce sync.Once

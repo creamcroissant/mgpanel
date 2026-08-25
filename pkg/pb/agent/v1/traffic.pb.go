@@ -323,7 +323,7 @@ const file_agent_v1_traffic_proto_rawDesc = "" +
 	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x19\n" +
 	"\buser_ids\x18\x02 \x03(\x03R\auserIds\")\n" +
 	"\rAliveResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccessB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\asuccess\x18\x01 \x01(\bR\asuccessB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_traffic_proto_rawDescOnce sync.Once

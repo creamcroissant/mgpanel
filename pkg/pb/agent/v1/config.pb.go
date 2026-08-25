@@ -406,7 +406,7 @@ const file_agent_v1_config_proto_rawDesc = "" +
 	"\vspeed_limit\x18\x04 \x01(\x03R\n" +
 	"speedLimit\x12!\n" +
 	"\fdevice_limit\x18\x05 \x01(\x05R\vdeviceLimit\x12\x18\n" +
-	"\aenabled\x18\x06 \x01(\bR\aenabledB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\aenabled\x18\x06 \x01(\bR\aenabledB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_config_proto_rawDescOnce sync.Once

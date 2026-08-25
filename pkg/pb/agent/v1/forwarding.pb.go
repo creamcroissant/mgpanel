@@ -342,7 +342,7 @@ const file_agent_v1_forwarding_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12#\n" +
 	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12\x1d\n" +
 	"\n" +
-	"applied_at\x18\x04 \x01(\x03R\tappliedAtB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"applied_at\x18\x04 \x01(\x03R\tappliedAtB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_forwarding_proto_rawDescOnce sync.Once

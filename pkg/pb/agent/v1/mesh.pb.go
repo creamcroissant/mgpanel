@@ -488,7 +488,7 @@ const file_agent_v1_mesh_proto_rawDesc = "" +
 	"\vpacket_loss\x18\x06 \x01(\x01R\n" +
 	"packetLoss\"G\n" +
 	"\x17SetRoutingTablesPayload\x12,\n" +
-	"\x06routes\x18\x01 \x03(\v2\x14.agent.v1.RouteEntryR\x06routesB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\x06routes\x18\x01 \x03(\v2\x14.agent.v1.RouteEntryR\x06routesB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_mesh_proto_rawDescOnce sync.Once

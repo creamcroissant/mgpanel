@@ -858,7 +858,7 @@ const file_agent_v1_agent_proto_rawDesc = "" +
 	"\x12ReportAgentCommand\x12#.agent.v1.ReportAgentCommandRequest\x1a$.agent.v1.ReportAgentCommandResponse\x12e\n" +
 	"\x14ReportOperationEvent\x12%.agent.v1.ReportOperationEventRequest\x1a&.agent.v1.ReportOperationEventResponse\x12A\n" +
 	"\bJoinMesh\x12\x19.agent.v1.JoinMeshRequest\x1a\x1a.agent.v1.JoinMeshResponse\x12M\n" +
-	"\fGetMeshPeers\x12\x1d.agent.v1.GetMeshPeersRequest\x1a\x1e.agent.v1.GetMeshPeersResponseB:Z8github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
+	"\fGetMeshPeers\x12\x1d.agent.v1.GetMeshPeersRequest\x1a\x1e.agent.v1.GetMeshPeersResponseB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_agent_proto_rawDescOnce sync.Once
