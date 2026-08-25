@@ -367,7 +367,7 @@ export function TrafficPolicyForm({ agentHostId }: TrafficPolicyFormProps) {
   });
 
   return (
-    <Card className="border border-border shadow-none" data-testid="agent-traffic-policy-form">
+    <Card className="border border-border" data-testid="agent-traffic-policy-form">
       {policyQuery.isLoading ? (
         <CardContent className="p-4"><Loading /></CardContent>
       ) : policyQuery.error ? (

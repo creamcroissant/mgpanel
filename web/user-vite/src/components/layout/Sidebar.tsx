@@ -186,7 +186,7 @@ export default function Sidebar({
         <div className="flex h-full min-h-0 flex-col">
           <div
             className={cn(
-              "flex h-[var(--header-height)] shrink-0 items-center border-b border-border/70 transition-all duration-300",
+              "flex h-[var(--header-height)] shrink-0 items-center border-b border-border transition-all duration-300",
               isCollapsed ? "justify-center px-0" : "justify-between px-4"
             )}
           >

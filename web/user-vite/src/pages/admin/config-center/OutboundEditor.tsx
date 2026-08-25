@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
 import { InboundTLSFields } from "./InboundTLSFields";
 import { InboundTransportFields } from "./InboundTransportFields";
 import { InboundMultiplexFields } from "./InboundMultiplexFields";
@@ -236,7 +247,7 @@ export function OutboundEditor({ value, onChange, coreType }: OutboundEditorProp
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.protocol")}</label>
           <Select value={protocol} onValueChange={(v) => setProtocol(v as OutboundProtocol)}>
@@ -300,7 +311,7 @@ function ServerTargetFields({ settings, onChange }: { settings: Record<string, u
   const port = typeof s.port === "number" ? s.port : ((s.vnext as VNextServer[] | undefined)?.[0]?.port ?? 443);
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.configCenter.inbound.address")}</label>
         <Input value={address} onChange={(e) => onChange("address", e.target.value)} placeholder="example.com" />
@@ -316,7 +327,7 @@ function ServerTargetFields({ settings, onChange }: { settings: Record<string, u
 function FreedomSettings({ settings, onChange }: { settings: Record<string, unknown>; onChange: (k: string, v: unknown) => void }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.configCenter.inbound.strategy")}</label>
         <Select value={(settings.domainStrategy as string) ?? "AsIs"} onValueChange={(v) => onChange("domainStrategy", v)}>
@@ -340,7 +351,7 @@ function FreedomSettings({ settings, onChange }: { settings: Record<string, unkn
 function BlackholeSettings({ settings, onChange }: { settings: Record<string, unknown>; onChange: (k: string, v: unknown) => void }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.configCenter.inbound.response")}</label>
         <Select value={(settings.type as string) ?? "none"} onValueChange={(v) => onChange("type", v)}>
@@ -360,7 +371,7 @@ function AuthSettings({ settings, onChange }: { protocol: string; settings: Reco
   return (
     <>
       <ServerTargetFields settings={settings} onChange={onChange} />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.username")}</label>
           <Input value={(settings.user as string) ?? ""} onChange={(e) => onChange("user", e.target.value || undefined)} />
@@ -379,7 +390,7 @@ function ShadowSocksSettings({ settings, onChange }: { settings: Record<string, 
   return (
     <>
       <ServerTargetFields settings={settings} onChange={onChange} />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.method")}</label>
           <Select value={(settings.method as string) ?? "aes-256-gcm"} onValueChange={(v) => onChange("method", v)}>
@@ -397,7 +408,7 @@ function ShadowSocksSettings({ settings, onChange }: { settings: Record<string, 
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={(settings.uot as boolean) ?? false} onChange={(e) => onChange("uot", e.target.checked || undefined)} className="h-4 w-4" />
+        <Switch checked={((settings.uot as boolean) ?? false)} onCheckedChange={(value) => onChange("uot", value || undefined)} />
         UDP over TCP
       </label>
     </>
@@ -425,7 +436,7 @@ function VlessSettings({ settings, onChange }: { settings: Record<string, unknow
   return (
     <>
       <ServerTargetFields settings={settings} onChange={onChange} />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.outbound.uuid")}</label>
           <Input value={(user.id as string) ?? ""} onChange={(e) => {
@@ -458,7 +469,7 @@ function VmessSettings({ settings, onChange }: { settings: Record<string, unknow
   return (
     <>
       <ServerTargetFields settings={settings} onChange={onChange} />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.outbound.uuid")}</label>
           <Input value={(user.id as string) ?? ""} onChange={(e) => {
@@ -491,7 +502,7 @@ function WireGuardSettings({ settings, onChange }: { settings: Record<string, un
   const peer = peers[0] ?? {};
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.address")}</label>
           <Input value={(settings.address as string) ?? ""} onChange={(e) => onChange("address", e.target.value || undefined)} placeholder="10.0.0.1/24" />
@@ -503,7 +514,7 @@ function WireGuardSettings({ settings, onChange }: { settings: Record<string, un
       </div>
       <div className="rounded-md border border-border p-3 space-y-3">
         <h4 className="text-sm font-medium">{t("admin.configCenter.outbound.peer")}</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("admin.configCenter.inbound.endpoint")}</label>
             <Input value={(peer.endpoint as string) ?? ""} onChange={(e) => {
@@ -527,7 +538,7 @@ function WireGuardSettings({ settings, onChange }: { settings: Record<string, un
 function DnsOutSettings({ settings, onChange }: { settings: Record<string, unknown>; onChange: (k: string, v: unknown) => void }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.configCenter.inbound.rewriteAddress")}</label>
         <Input value={(settings.rewriteAddress as string) ?? ""} onChange={(e) => onChange("rewriteAddress", e.target.value || undefined)} placeholder="1.1.1.1" />

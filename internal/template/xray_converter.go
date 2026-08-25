@@ -355,9 +355,7 @@ func buildXrayStreamSettings(transport *UnifiedTransport, tls *UnifiedTLS) map[s
 			} else if tls.Reality.HandshakeServer != "" {
 				realitySettings["serverNames"] = []string{tls.Reality.HandshakeServer}
 			}
-			if tls.Reality.Fingerprint != "" {
-				realitySettings["fingerprint"] = tls.Reality.Fingerprint
-			}
+			// fingerprint 是客户端 TLS 指纹参数，服务端 inbound 不识别此字段（与 sing-box 渲染器同契约），仅用于订阅渲染
 			if tls.Reality.HandshakeServer != "" {
 				dest := tls.Reality.HandshakeServer
 				if tls.Reality.HandshakePort > 0 {

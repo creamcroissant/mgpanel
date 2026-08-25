@@ -17,6 +17,15 @@ type loginLogRepo struct {
 	db *sql.DB
 }
 
+func (r *loginLogRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
+	const stmt = `DELETE FROM login_logs WHERE created_at < unixepoch() - ? * 86400`
+	res, err := r.db.ExecContext(ctx, stmt, days)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *loginLogRepo) Create(ctx context.Context, logEntry *repository.LoginLog) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("login log repository not configured / 登录日志仓储未配置")

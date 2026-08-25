@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/components/ui";
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
 import type { InboundTransportSpec, TransportType } from "@/types/configCenterInbound";
 import { TRANSPORT_OPTIONS } from "@/types/configCenterInbound";
 
@@ -67,7 +76,7 @@ export function InboundTransportFields({ value, onChange, readOnly }: InboundTra
   return (
     <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-transport-fields">
       <label className="flex items-center gap-2 text-sm font-medium cursor-pointer" onClick={() => !readOnly && handleToggle(!enabled)}>
-        <input type="checkbox" checked={enabled} onChange={(e) => handleToggle(e.target.checked)} disabled={readOnly} className="h-4 w-4 rounded border-input" />
+        <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableTransport")}
       </label>
 

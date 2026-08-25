@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/grpc/interceptor"
@@ -46,6 +47,7 @@ type AgentHandler struct {
 	agentLogCache       *service.AgentLogCache
 	logger              *slog.Logger
 	timeNow             func() time.Time
+	logCacheWarnOnce    sync.Once
 }
 
 // NewAgentHandler 创建 Agent gRPC 处理器。
@@ -149,7 +151,7 @@ func (h *AgentHandler) Heartbeat(ctx context.Context, req *agentv1.HeartbeatRequ
 		h.logger.Error("failed to update heartbeat", "agent_host_id", agentHost.ID, "error", err)
 		return nil, status.Error(codes.Internal, "failed to update heartbeat")
 	}
-	return &agentv1.HeartbeatResponse{Success: true, ServerTime: time.Now().Unix()}, nil
+	return &agentv1.HeartbeatResponse{Success: true, ServerTime: h.currentUnix()}, nil
 }
 
 // ReportStatus 处理 Agent 状态上报。
@@ -426,7 +428,14 @@ func (h *AgentHandler) GetCoreOperations(ctx context.Context, req *agentv1.GetCo
 			if errors.Is(err, service.ErrCoreOperationNotFound) {
 				break
 			}
-			return nil, mapCoreOperationGRPCError(err)
+			// 取舍：已 claim 的操作随本响应继续下发（它们已被标记 claimed，
+			// 若因网络/存储抖动未送达，可由 ClaimNext 的 reclaimBefore 租约回收；
+			// 直接报错反而会把整批已 claim 记录困在中间态）。
+			if h.logger != nil {
+				h.logger.Warn("core operation claim interrupted; delivering already-claimed batch",
+					"error", err, "claimed_so_far", len(operations))
+			}
+			break
 		}
 		operations = append(operations, convertCoreOperation(op))
 	}
@@ -914,10 +923,25 @@ func buildAgentHostMetricsReport(report *agentv1.StatusReport) service.AgentHost
 }
 
 
+// warnLogCacheUnavailable 首次未装配日志缓存时告警一次，后续静默。
+func (h *AgentHandler) warnLogCacheUnavailable() {
+	if h == nil {
+		return
+	}
+	h.logCacheWarnOnce.Do(func() {
+		if h.logger != nil {
+			h.logger.Warn("agent log cache not configured; access-log ingestion disabled (clients will back off)",
+				"hint", "wire an AgentLogCache to enable ReportAgentLogs")
+		}
+	})
+}
+
 // ReportAgentLogs receives agent log uploads and caches them in memory.
 func (h *AgentHandler) ReportAgentLogs(ctx context.Context, req *agentv1.ReportAgentLogsRequest) (*agentv1.ReportAgentLogsResponse, error) {
 	if h.agentLogCache == nil {
-		return &agentv1.ReportAgentLogsResponse{Success: false, Accepted: 0, Message: "log cache not configured"}, nil
+		// 明确 FailedPrecondition 让 agent 侧进入退避而非无限重试；告警去重避免日志风暴。
+		h.warnLogCacheUnavailable()
+		return nil, status.Error(codes.FailedPrecondition, "access log ingestion unavailable")
 	}
 	agentHost, ok := interceptor.GetAgentHostFromContext(ctx)
 	if !ok {
@@ -1062,18 +1086,45 @@ func buildCoreSnapshotsFromStatus(report *agentv1.StatusReport) []*repository.Co
 	if report == nil {
 		return nil
 	}
+	system := report.GetSystem()
+	// 按 core 类型解析各自版本；AllCores 缺失该类型时回落到全局 CoreVersion。
+	versionByType := make(map[string]string, len(system.GetAllCores()))
+	for _, core := range system.GetAllCores() {
+		if core.GetType() != "" && core.GetVersion() != "" {
+			versionByType[core.GetType()] = core.GetVersion()
+		}
+	}
 	byType := make(map[string]*repository.CoreStatusSnapshot)
 	for _, inst := range report.GetInstances() {
-		if inst == nil || inst.GetCoreType() == "" {
+		coreType := inst.GetCoreType()
+		if inst == nil || coreType == "" {
 			continue
 		}
-		byType[inst.GetCoreType()] = &repository.CoreStatusSnapshot{Type: inst.GetCoreType(), Version: report.GetSystem().GetCoreVersion(), Installed: true, Capabilities: append([]string(nil), report.GetSystem().GetCapabilities()...)}
+		version, ok := versionByType[coreType]
+		if !ok {
+			version = system.GetCoreVersion()
+		}
+		capabilities := append([]string(nil), system.GetCapabilities()...)
+		if perCore := findByType(system.GetAllCores(), coreType); perCore != nil && len(perCore.GetCapabilities()) > 0 {
+			capabilities = append([]string(nil), perCore.GetCapabilities()...)
+		}
+		byType[coreType] = &repository.CoreStatusSnapshot{Type: coreType, Version: version, Installed: true, Capabilities: capabilities}
 	}
 	result := make([]*repository.CoreStatusSnapshot, 0, len(byType))
 	for _, snapshot := range byType {
 		result = append(result, snapshot)
 	}
 	return result
+}
+
+// findByType 返回 AllCores 中指定类型的条目（无则 nil）。
+func findByType(cores []*agentv1.CoreInfo, coreType string) *agentv1.CoreInfo {
+	for _, core := range cores {
+		if core.GetType() == coreType {
+			return core
+		}
+	}
+	return nil
 }
 
 // convertProtocolDetails 将 protobuf 的协议详情转换为服务层结构。

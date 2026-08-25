@@ -28,6 +28,7 @@ type Manager struct {
 	singboxConfigDir string
 
 	collectors []Collector
+	uploadQueue *UploadQueue
 	stopCh     chan struct{}
 	stopOnce   sync.Once
 }
@@ -52,6 +53,9 @@ func (m *Manager) Start() {
 			m.logger.Warn("reload sing-box after clash_api config write", "error", err)
 		}
 		m.logger.Info("sing-box clash_api config ensured", "dir", m.singboxConfigDir)
+
+	// 创建有界上报队列（worker 限速批量上报）
+	m.uploadQueue = NewUploadQueue(m.report, m.logger)
 	}
 
 	// Register collectors
@@ -109,6 +113,9 @@ func (m *Manager) loadOrCreateSecret(path string) string {
 
 func (m *Manager) Stop() {
 	m.stopOnce.Do(func() {
+		if m.uploadQueue != nil {
+			m.uploadQueue.Stop()
+		}
 		close(m.stopCh)
 	})
 }
@@ -182,8 +189,14 @@ func (m *Manager) collectAndReport() {
 
 	m.logger.Debug("collected access logs", "count", len(allEntries))
 
-	if err := m.report(ctx, allEntries); err != nil {
-		m.logger.Error("failed to report access logs", "error", err)
+	// 入队异步上报；队列满时丢弃最旧条目
+	if m.uploadQueue != nil {
+		m.uploadQueue.Enqueue(allEntries)
+	} else {
+		// 降级：直接同步上报（无队列时）
+		if err := m.report(ctx, allEntries); err != nil {
+			m.logger.Error("failed to report access logs", "error", err)
+		}
 	}
 }
 

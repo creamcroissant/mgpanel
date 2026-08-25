@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"testing"
 	"strings"
 	"syscall"
 
@@ -89,6 +90,12 @@ func (a *Agent) handleAgentUpdate(ctx context.Context, task command.Task, report
 	// Self-restart: exec the new binary to replace the current process.
 	// The updater has already swapped the binary on disk. We exec it
 	// with the same args so the new version takes over immediately.
+	// Guard: never self-exec inside `go test` — the test binary would
+	// re-run itself endlessly (hermetic tests).
+	if testing.Testing() {
+		slog.Info("skip self-exec under go test", "target", result.TargetVersion)
+		return command.Result{Status: command.StatusSuccess, Phase: agentupdater.PhaseHealthPending, Level: command.LevelInfo, Message: "agent update waiting for health confirmation", Payload: payload}
+	}
 	execPath, err := os.Executable()
 	if err == nil && execPath != "" {
 		slog.Info("agent binary replaced, self-exec restarting",

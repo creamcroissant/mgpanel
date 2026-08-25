@@ -3,7 +3,15 @@
  * Controls: enabled, dest_override, metadata_only, domains_excluded, route_only.
  */
 import { useTranslation } from "react-i18next";
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
 import type { UnifiedSniffing } from "@/types/_generated/inbound";
 
 interface InboundSniffingFieldsProps {
@@ -34,13 +42,7 @@ export function InboundSniffingFields({ value, onChange, readOnly }: InboundSnif
         className="flex items-center gap-2 text-sm font-medium cursor-pointer"
         onClick={() => !readOnly && handleToggle(!enabled)}
       >
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => handleToggle(e.target.checked)}
-          disabled={readOnly}
-          className="h-4 w-4 rounded border-input"
-        />
+        <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableSniffing", "启用嗅探")}
       </label>
 
@@ -86,23 +88,11 @@ export function InboundSniffingFields({ value, onChange, readOnly }: InboundSnif
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={value?.metadata_only === true}
-                onChange={(e) => set({ metadata_only: e.target.checked || undefined })}
-                disabled={readOnly}
-                className="h-4 w-4 rounded border-input"
-              />
+              <Switch checked={value?.metadata_only === true} onCheckedChange={(value) => set({ metadata_only: value || undefined })} disabled={readOnly} />
               {t("admin.configCenter.inbound.metadataOnly", "仅元数据")}
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={value?.route_only === true}
-                onChange={(e) => set({ route_only: e.target.checked || undefined })}
-                disabled={readOnly}
-                className="h-4 w-4 rounded border-input"
-              />
+              <Switch checked={value?.route_only === true} onCheckedChange={(value) => set({ route_only: value || undefined })} disabled={readOnly} />
               {t("admin.configCenter.inbound.routeOnly", "仅路由")}
             </label>
           </div>

@@ -19,6 +19,15 @@ func newAgentLifecycleOperationRepo(db *sql.DB) *agentLifecycleOperationRepo {
 	return &agentLifecycleOperationRepo{db: db}
 }
 
+func (r *agentLifecycleOperationRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
+	const stmt = `DELETE FROM agent_lifecycle_operations WHERE created_at < unixepoch() - ? * 86400`
+	res, err := r.db.ExecContext(ctx, stmt, days)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *agentLifecycleOperationRepo) Create(ctx context.Context, operation *repository.AgentLifecycleOperation) error {
 	if operation == nil {
 		return errors.New("agent lifecycle operation is nil")

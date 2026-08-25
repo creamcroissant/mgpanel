@@ -122,8 +122,22 @@ func (r *accessLogRepo) buildFilter(filter repository.AccessLogFilter) (string, 
 	return query.String(), args
 }
 
+// List 的分页边界：默认值与上限，防止负/超界 LIMIT 造成全表扫描。
+const (
+	defaultAccessLogListLimit = 50
+	maxAccessLogListLimit     = 1000
+)
+
 func (r *accessLogRepo) List(ctx context.Context, filter repository.AccessLogFilter) ([]*repository.AccessLog, error) {
 	where, args := r.buildFilter(filter)
+
+	// clamp limit 到 [1,1000]，防止负 LIMIT 导致全表返回(内存放大 DoS)
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = defaultAccessLogListLimit
+	} else if limit > maxAccessLogListLimit {
+		limit = maxAccessLogListLimit
+	}
 
 	query := `
 		SELECT id, user_id, user_email, agent_host_id, source_ip, target_domain,
@@ -132,7 +146,7 @@ func (r *accessLogRepo) List(ctx context.Context, filter repository.AccessLogFil
 		FROM access_logs
 	` + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 
-	args = append(args, filter.Limit, filter.Offset)
+	args = append(args, limit, filter.Offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

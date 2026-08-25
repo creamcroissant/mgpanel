@@ -635,7 +635,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
           {cores.length === 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {["sing-box", "xray"].map((coreType) => (
-                <Card key={coreType} className="border border-border shadow-none">
+                <Card key={coreType} className="border border-border">
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{coreType}</span>
@@ -662,7 +662,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {cores.map((core) => (
-                <Card key={core.type} className="border border-border shadow-none">
+                <Card key={core.type} className="border border-border">
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{core.type}</span>
@@ -964,7 +964,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
 
             <AgentCommandQueuePanel agentHostId={agentHostId} />
 
-            <Card className="border border-border shadow-none">
+            <Card className="border border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">{t("admin.cores.operationsSummaryTitle")}</CardTitle>
                 <CardDescription>

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, MoreVertical, Pencil, Trash2, Shuffle, History, Calendar } from "lucide-react";
+import { AdminPageShell } from "@/components/admin";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   listForwardingRules,
@@ -316,19 +317,17 @@ export default function ForwardingList() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{t("admin.forwarding.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("admin.forwarding.subtitle")}</p>
-        </div>
+    <AdminPageShell
+      title={t("admin.forwarding.title")}
+      description={t("admin.forwarding.subtitle")}
+      actions={
         <Button onClick={() => setIsOpen(true)} disabled={!agentHostId}>
           <Plus className="mr-2 h-4 w-4" />
           {t("admin.forwarding.add")}
         </Button>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+      }
+      toolbar={
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
         <div className="w-full max-w-xs space-y-2">
           <label className="text-sm font-medium">{t("admin.forwarding.agent")}</label>
           <Select value={agentHostId ? String(agentHostId) : undefined} onValueChange={handleAgentChange}>
@@ -352,7 +351,9 @@ export default function ForwardingList() {
         {agentHostId !== null && !rulesQuery.isLoading && !rulesQuery.error && (
           <Badge variant="secondary">{t("admin.forwarding.version", { version: rulesVersion })}</Badge>
         )}
-      </div>
+        </div>
+      }
+    >
 
       {!agentHostId ? (
         <EmptyState
@@ -391,9 +392,9 @@ export default function ForwardingList() {
               <TableHead>{t("admin.forwarding.protocol")}</TableHead>
               <TableHead>{t("admin.forwarding.listen")}</TableHead>
               <TableHead>{t("admin.forwarding.target")}</TableHead>
-              <TableHead>{t("admin.forwarding.priority")}</TableHead>
+              <TableHead className="text-right">{t("admin.forwarding.priority")}</TableHead>
               <TableHead>{t("admin.forwarding.status")}</TableHead>
-              <TableHead>{t("common.actions")}</TableHead>
+              <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -419,7 +420,7 @@ export default function ForwardingList() {
                     <span className="text-xs text-muted-foreground">:{rule.target_port}</span>
                   </div>
                 </TableCell>
-                <TableCell>{rule.priority}</TableCell>
+                <TableCell className="text-right tabular-nums">{rule.priority}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Switch
@@ -449,7 +450,7 @@ export default function ForwardingList() {
                         {t("admin.forwarding.logsTitle")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="gap-2 text-red-600 focus:text-red-600"
+                        className="gap-2 text-destructive focus:text-destructive"
                         onSelect={() => handleDeleteRequest(rule)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -711,6 +712,6 @@ export default function ForwardingList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPageShell>
   );
 }

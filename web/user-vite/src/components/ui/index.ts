@@ -87,3 +87,5 @@ export { UsageRing } from "./UsageRing";
 export { KeyValueGrid, type KeyValueItem } from "./KeyValueGrid";
 export { SectionCard } from "./SectionCard";
 export { default as Toaster } from "./sonner";
+export { default as StatCard } from "./StatCard";
+export { default as StatusBadge } from "./StatusBadge";

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
 	"database/sql"
 	"errors"
 	"strings"
@@ -75,6 +76,28 @@ func (r *desiredArtifactRepo) CreateBatch(ctx context.Context, artifacts []*repo
 	return tx.Commit()
 }
 
+// PruneOldRevisions 按 (agent_host_id, core_type) 分组仅保留最近 keep 个
+// revision 批次，删除更早批次，约束表无限膨胀。keep<=0 视为非法参数。
+func (r *desiredArtifactRepo) PruneOldRevisions(ctx context.Context, keep int) (int64, error) {
+	if keep <= 0 {
+		return 0, fmt.Errorf("desired artifact prune: keep must be positive / 保留版本数必须为正")
+	}
+	const stmt = `DELETE FROM desired_artifacts WHERE (agent_host_id, core_type, desired_revision) IN (
+		SELECT agent_host_id, core_type, desired_revision FROM (
+			SELECT agent_host_id, core_type, desired_revision,
+			       DENSE_RANK() OVER (PARTITION BY agent_host_id, core_type ORDER BY desired_revision DESC) AS rk
+			FROM desired_artifacts
+			GROUP BY agent_host_id, core_type, desired_revision
+		)
+		WHERE rk > ?
+	)`
+	res, err := r.db.ExecContext(ctx, stmt, keep)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, sourceTags ...string) error {
 	query := "DELETE FROM desired_artifacts WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ?"
 	args := []any{agentHostID, coreType, desiredRevision}
@@ -88,6 +111,54 @@ func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agen
 	}
 	_, err := r.db.ExecContext(ctx, query, args...) // idempotent: no error if not found
 	return err
+}
+
+// ReplaceRevision 在单事务内删除指定维度(host+core+revision，可选 sourceTags)
+// 的旧 artifacts 并写入新批次；任一步失败整体回滚，杜绝"删完未写入"的中间态。
+func (r *desiredArtifactRepo) ReplaceRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, artifacts []*repository.DesiredArtifact, sourceTags ...string) (int64, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	query := "DELETE FROM desired_artifacts WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ?"
+	args := []any{agentHostID, coreType, desiredRevision}
+	if len(sourceTags) > 0 {
+		placeholders := make([]string, len(sourceTags))
+		for i, tag := range sourceTags {
+			placeholders[i] = "?"
+			args = append(args, tag)
+		}
+		query += " AND source_tag IN (" + strings.Join(placeholders, ",") + ")"
+	}
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return 0, fmt.Errorf("delete old artifacts: %w", err)
+	}
+
+	inserted := int64(0)
+	for i, a := range artifacts {
+		if a == nil {
+			return 0, fmt.Errorf("insert artifact[%d]: nil", i)
+		}
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO desired_artifacts(agent_host_id, core_type, desired_revision, filename, source_tag, content, content_hash, generated_at)
+			 VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+			a.AgentHostID, a.CoreType, a.DesiredRevision, a.Filename, a.SourceTag, a.Content, a.ContentHash, a.GeneratedAt,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("insert artifact %s: %w", a.Filename, err)
+		}
+		if id, rerr := res.LastInsertId(); rerr == nil {
+			a.ID = id
+		}
+		inserted++
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return inserted, nil
 }
 
 func (r *desiredArtifactRepo) List(ctx context.Context, filter repository.DesiredArtifactFilter) ([]*repository.DesiredArtifact, error) {

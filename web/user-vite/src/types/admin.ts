@@ -939,6 +939,8 @@ export interface RoutingPolicy {
   match_value: string;
   action: string;
   target_set_id: number | null;
+  /** 作用域：null/缺省 = 全局；非空 = 仅对该入站 spec 的流量生效（优先于全局） */
+  spec_id: number | null;
   enabled: boolean;
   created_at: number;
   updated_at: number;
@@ -952,6 +954,7 @@ export interface CreateRoutingPolicyRequest {
   match_value: string;
   action?: string;
   target_set_id: number;
+  spec_id?: number | null;
   enabled?: boolean;
 }
 

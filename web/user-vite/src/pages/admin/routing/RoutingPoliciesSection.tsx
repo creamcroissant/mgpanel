@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, RouteOff } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   listExitNodeSets,
@@ -11,6 +11,7 @@ import {
   updateRoutingPolicy,
   deleteRoutingPolicy,
 } from "@/api/admin";
+import { listConfigCenterSpecs } from "@/api/admin/configCenter";
 import {
   Badge,
   Button,
@@ -46,6 +47,12 @@ import type {
  */
 export function RoutingPoliciesSection() {
   const { t } = useTranslation();
+  // 枚举展示标签（值本身是 API 协议常量，不翻译；仅展示层映射）
+  const matchTypeLabels: Record<string, string> = {
+    geosite: t("admin.routingPolicies.matchTypes.geosite"),
+    domain: t("admin.routingPolicies.matchTypes.domain"),
+    ip_cidr: t("admin.routingPolicies.matchTypes.ip_cidr"),
+  };
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<RoutingPolicy | null>(null);
@@ -58,6 +65,7 @@ export function RoutingPoliciesSection() {
     match_value: "",
     action: "route_to_set",
     target_set_id: 0,
+    spec_id: null,
     enabled: true,
   });
 
@@ -70,6 +78,14 @@ export function RoutingPoliciesSection() {
     queryKey: [QUERY_KEYS.ADMIN_EXIT_NODE_SETS],
     queryFn: listExitNodeSets,
   });
+
+  // 入站 spec 列表（作用域下拉用；仅启用项）
+  const { data: specsData } = useQuery({
+    queryKey: [QUERY_KEYS.ADMIN_CONFIG_CENTER_SPECS],
+    queryFn: () => listConfigCenterSpecs({ enabled: true }),
+  });
+  const specs = specsData?.data ?? [];
+  const specTagById = new Map(specs.map((s) => [s.id, s.tag] as const));
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.ADMIN_ROUTING_POLICIES] });
@@ -106,7 +122,11 @@ export function RoutingPoliciesSection() {
   });
 
   const handleSubmit = () => {
-    const payload = { ...form, target_set_id: form.target_set_id || undefined };
+    const payload = {
+      ...form,
+      target_set_id: form.target_set_id || undefined,
+      spec_id: form.spec_id ?? null,
+    };
     if (editing) {
       updateMut.mutate({ id: editing.id, req: payload });
     } else {
@@ -118,7 +138,8 @@ export function RoutingPoliciesSection() {
     setEditing(null);
     setForm({
       name: "", core_type: "sing-box", priority: 0, match_type: "geosite",
-      match_value: "", action: "route_to_set", target_set_id: sets?.[0]?.set.id ?? 0, enabled: true,
+      match_value: "", action: "route_to_set", target_set_id: sets?.[0]?.set.id ?? 0,
+      spec_id: null, enabled: true,
     });
     setIsOpen(true);
   };
@@ -127,7 +148,8 @@ export function RoutingPoliciesSection() {
     setEditing(p);
     setForm({
       name: p.name, core_type: p.core_type, priority: p.priority, match_type: p.match_type,
-      match_value: p.match_value, action: p.action, target_set_id: p.target_set_id ?? 0, enabled: p.enabled,
+      match_value: p.match_value, action: p.action, target_set_id: p.target_set_id ?? 0,
+      spec_id: p.spec_id ?? null, enabled: p.enabled,
     });
     setIsOpen(true);
   };
@@ -144,15 +166,26 @@ export function RoutingPoliciesSection() {
       </div>
 
       {!policies || policies.length === 0 ? (
-        <EmptyState title={t("admin.routingPolicies.empty")} />
+        <EmptyState
+          icon={<RouteOff className="h-6 w-6" />}
+          title={t("admin.routingPolicies.empty")}
+          description={t("admin.routingPolicies.emptyDescription")}
+          action={
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("admin.routingPolicies.create")}
+            </Button>
+          }
+        />
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>{t("admin.routingPolicies.name")}</TableHead>
               <TableHead>{t("admin.routingPolicies.match")}</TableHead>
+              <TableHead>{t("admin.routing.scope.label")}</TableHead>
               <TableHead>{t("admin.routingPolicies.target")}</TableHead>
-              <TableHead>{t("admin.routingPolicies.priority")}</TableHead>
+              <TableHead className="text-right">{t("admin.routingPolicies.priority")}</TableHead>
               <TableHead>{t("admin.routingPolicies.status")}</TableHead>
               <TableHead className="text-right">{t("common.actions")}</TableHead>
             </TableRow>
@@ -164,11 +197,24 @@ export function RoutingPoliciesSection() {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{p.match_type}</Badge>
+                    <Badge variant="secondary">{matchTypeLabels[p.match_type] ?? p.match_type}</Badge>
                     <span className="ml-2">{p.match_value}</span>
                   </TableCell>
+                  <TableCell>
+                    {p.spec_id ? (
+                      <Badge
+                        variant="outline"
+                        className="border-warning/60 text-warning-foreground dark:text-warning"
+                        title={t("admin.routing.scope.specTooltip", { tag: specTagById.get(p.spec_id) ?? `#${p.spec_id}` })}
+                      >
+                        🔒 {specTagById.get(p.spec_id) ?? `#${p.spec_id}`}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">{t("admin.routing.scope.global")}</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{target?.set.name || `#${p.target_set_id ?? "-"}`}</TableCell>
-                  <TableCell>{p.priority}</TableCell>
+                  <TableCell className="text-right tabular-nums">{p.priority}</TableCell>
                   <TableCell>
                     <Badge variant={p.enabled ? "success" : "secondary"}>
                       {p.enabled ? t("common.enabled") : t("common.disabled")}
@@ -209,7 +255,7 @@ export function RoutingPoliciesSection() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["geosite", "domain", "ip_cidr"].map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s} value={s}>{matchTypeLabels[s] ?? s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -235,6 +281,30 @@ export function RoutingPoliciesSection() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm">{t("admin.routing.scope.label")}</label>
+              <Select
+                value={form.spec_id ? String(form.spec_id) : "global"}
+                onValueChange={(v) =>
+                  setForm({ ...form, spec_id: v === "global" ? null : Number(v) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("admin.routing.scope.label")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">{t("admin.routing.scope.global")}</SelectItem>
+                  {specs.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      🔒 {s.tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {t("admin.routing.scope.hint")}
+              </p>
             </div>
             <div className="space-y-2">
               <label className="text-sm">{t("admin.routingPolicies.priority")}</label>

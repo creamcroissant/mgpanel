@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/mcp/tools"
 	"github.com/creamcroissant/mgpanel/internal/migrations"
 	"github.com/creamcroissant/mgpanel/internal/protocol"
+	"github.com/creamcroissant/mgpanel/internal/repository"
 	"github.com/creamcroissant/mgpanel/internal/repository/sqlite"
 	"github.com/creamcroissant/mgpanel/internal/service"
 	"github.com/creamcroissant/mgpanel/internal/support/i18n"
@@ -141,7 +143,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	store := sqlite.NewStore(db)
+	store := sqlite.NewStore(db, sqlite.WithCache(infra.Cache))
 
 	// Services initialization
 	captchaService := service.NewCaptchaService(store.Settings(), nil)
@@ -229,9 +231,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 		logger,
 		service.AgentCoreServiceOptions{Operations: store.CoreOperations(), OperationGuard: agentOperationGuard, BinaryVersionStates: store.BinaryVersionStates()},
 	)
-	accessLogService := service.NewAccessLogService(store)
-	artifactCompilerService := service.NewArtifactCompilerService(store.InboundSpecs(), store.DesiredArtifacts(), store.CoreConfigItems(), store.AgentMeshPeers(), store.ExitNodeSets(), store.RoutingPolicies())
+	accessLogService := service.NewAccessLogServiceWithQueue(store, logger)
+	artifactCompilerService := service.NewArtifactCompilerService(store.InboundSpecs(), store.DesiredArtifacts(), store.CoreConfigItems(), store.AgentMeshPeers(), store.ExitNodeSets(), store.RoutingPolicies(), store.RelayPaths())
 	inboundSpecService := service.NewInboundSpecService(store.InboundSpecs(), store.InboundSpecRevisions(), store.InboundIndexes(), store.SpecHostBindings(), artifactCompilerService)
+	inboundSpecService.SetRelayPathRepository(store.RelayPaths())
 	coreConfigItemService := service.NewCoreConfigItemService(store.CoreConfigItems(), artifactCompilerService)
 	driftAndDiffService := service.NewDriftAndDiffService(store.DesiredArtifacts(), store.AgentConfigInventories(), store.InboundIndexes(), store.DriftStates())
 	inventoryIngestService := service.NewInventoryIngestService(store.AgentConfigInventories(), store.InboundIndexes())
@@ -240,7 +243,53 @@ func runServe(cmd *cobra.Command, args []string) error {
 	agentLifecycleOperationService := service.NewAgentLifecycleOperationService(store.AgentLifecycleOperations(), agentOperationGuard, operationLogService, infra.Audit)
 	unlockProbeService := service.NewUnlockProbeService(store.UnlockProbeResults(), store.AgentHosts(), agentLifecycleOperationService)
 	exitNodeSetService := service.NewExitNodeSetService(store.ExitNodeSets(), store.AgentHosts(), store.UnlockProbeResults(), logger)
-	routingPolicyService := service.NewRoutingPolicyService(store.RoutingPolicies(), logger)
+	routingPolicyService := service.NewRoutingPolicyService(store.RoutingPolicies(), store.InboundSpecs(), logger)
+	// 出口集合/路由策略变更 → 受影响 host 的 artifacts 原子重渲染（联动编排）。
+	// 回调尽力而为：单 host 失败记录后继续其余 host，最终错误汇总返回给服务层记日志。
+	reRenderOnPolicyChange := func(ctx context.Context) error {
+		hosts, err := store.AgentHosts().ListAll(ctx)
+		if err != nil {
+			return fmt.Errorf("list agent hosts: %w", err)
+		}
+		var firstErr error
+		for _, h := range hosts {
+			if h == nil {
+				continue
+			}
+			specs, err := store.InboundSpecs().ListByAgentHost(ctx, h.ID, repository.InboundSpecFilter{})
+			if err != nil {
+				logger.Warn("policy-change re-render: list specs failed", "agent_host_id", h.ID, "error", err)
+				continue
+			}
+			seenCore := map[string]bool{}
+			for _, sp := range specs {
+				if sp == nil || !sp.Enabled || seenCore[sp.CoreType] {
+					continue
+				}
+				seenCore[sp.CoreType] = true
+				rev, rerr := store.DesiredArtifacts().GetLatestRevision(ctx, h.ID, sp.CoreType)
+				if rerr != nil || rev <= 0 {
+					continue // 该 host+core 尚无已渲染工件，无需联动
+				}
+				_, rerr = artifactCompilerService.RenderArtifacts(ctx, service.RenderArtifactsRequest{
+					AgentHostID:     h.ID,
+					CoreType:        sp.CoreType,
+					DesiredRevision: rev,
+				})
+				if rerr != nil {
+					logger.Warn("policy-change re-render failed", "agent_host_id", h.ID, "core", sp.CoreType, "revision", rev, "error", rerr)
+					if firstErr == nil {
+						firstErr = rerr
+					}
+				} else {
+					logger.Info("policy-change re-render done", "agent_host_id", h.ID, "core", sp.CoreType, "revision", rev)
+				}
+			}
+		}
+		return firstErr
+	}
+	exitNodeSetService.SetOnChange(reRenderOnPolicyChange)
+	routingPolicyService.SetOnChange(reRenderOnPolicyChange)
 
 	cdnService := service.NewCDNService(
 		store.CDNSites(), store.CDNEdges(), store.CDNCacheRules(),
@@ -263,9 +312,20 @@ func runServe(cmd *cobra.Command, args []string) error {
 	shortLinkService := service.NewShortLinkService(store.ShortLinks(), store.Users(), store.Settings())
 	subscriptionSourceService := service.NewSubscriptionSourceService(store.SubscriptionSources(), service.SubscriptionSourceServiceOptions{})
 	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), store.Plans(), userServerSelectionService, serverTelemetryService)
+	// 订阅热路径不持久化过滤原因（写放大优化）；需要重建时手动开启。
+	subscriptionFilterService.SetPersistReasons(false)
 	coreOperationService := service.NewCoreOperationService(store.CoreOperations(), agentOperationGuard)
 	coreSnapshotService := service.NewCoreSnapshotService(store.AgentHosts(), store.AgentCoreInstances())
 	meshService := service.NewAgentMeshService(store.AgentMeshPeers(), store.AgentHosts(), agentLifecycleOperationService)
+	// 窄接口断言：具体实现携带带源延迟快照能力；断言失败则拓扑 mesh 边降级为空。
+	var latencySource service.PeerLatencySource
+	if impl, ok := meshService.(service.PeerLatencySource); ok {
+		latencySource = impl
+	}
+	topologyService := service.NewTopologyService(store.AgentHosts(), store.InboundSpecs(), store.RoutingPolicies(),
+		exitNodeSetService, store.UnlockProbeResults(), store.AgentMeshPeers(), store.RelayPaths(), latencySource, logger)
+	relayPathService := service.NewRelayPathService(store.RelayPaths(), store.AgentHosts(), logger)
+	agentRelayRouteService := service.NewAgentRelayRouteService(store.AgentHosts(), store.RelayPaths(), store.AgentMeshPeers(), logger)
 
 	scheduler := job.NewScheduler(logger)
 
@@ -311,11 +371,41 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	accessLogCleanupJob := job.NewAccessLogCleanupJob(accessLogService, logger)
-	if _, err := scheduler.Register("@every 1h", accessLogCleanupJob); err != nil {
+	if _, err := scheduler.RegisterOpts("@every 1h", accessLogCleanupJob, job.SkipIfBusy()); err != nil {
+		return err
+	}
+	// 通用数据保留清理（订阅日志/登录日志/操作日志/生命周期操作/流量去重）
+	retentionCleanupJob := job.NewRetentionCleanupJob(store.Settings(), []service.RetentionTarget{
+		{Table: "subscription_logs", SettingKey: "subscription_log.retention_days", DefaultDays: 7, DeleteFn: func(ctx context.Context, days int) (int64, error) {
+			return store.SubscriptionLogs().DeleteOlderThan(ctx, days)
+		}},
+		{Table: "login_logs", SettingKey: "login_log.retention_days", DefaultDays: 30, DeleteFn: func(ctx context.Context, days int) (int64, error) {
+			return store.LoginLogs().DeleteOlderThan(ctx, days)
+		}},
+		{Table: "agent_operation_logs", SettingKey: "operation_log.retention_days", DefaultDays: 90, DeleteFn: func(ctx context.Context, days int) (int64, error) {
+			return store.OperationLogs().DeleteOlderThan(ctx, days)
+		}},
+		{Table: "agent_lifecycle_operations", SettingKey: "agent_operation_log.retention_days", DefaultDays: 90, DeleteFn: func(ctx context.Context, days int) (int64, error) {
+			return store.AgentLifecycleOperations().DeleteOlderThan(ctx, days)
+		}},
+		{Table: "traffic_report_dedups", SettingKey: "traffic_report_dedup.retention_days", DefaultDays: 7, DeleteFn: func(ctx context.Context, days int) (int64, error) {
+			return store.TrafficReportDedups().DeleteOlderThan(ctx, days)
+		}},
+		// 注：此处 DefaultDays 语义为「保留最近 N 个 revision」（非天数）
+		{Table: "desired_artifacts", SettingKey: "desired_artifact.retention_revisions", DefaultDays: 10, DeleteFn: func(ctx context.Context, keep int) (int64, error) {
+			return store.DesiredArtifacts().PruneOldRevisions(ctx, keep)
+		}},
+	}, logger)
+	if _, err := scheduler.RegisterOpts("@every 6h", retentionCleanupJob, job.SkipIfBusy(), job.WithTimeout(30*time.Minute)); err != nil {
 		return err
 	}
 	agentHostMetricsFlushJob := job.NewAgentHostMetricsFlushJob(agentHostService)
 	if _, err := scheduler.Register("@every 3s", agentHostMetricsFlushJob); err != nil {
+		return err
+	}
+	// 缓存命中率统计（每 60 秒输出一次 HIT/MISS 指标）
+	cacheStatsJob := job.NewCacheStatsJob(infra.Cache, logger)
+	if _, err := scheduler.Register("@every 1m", cacheStatsJob); err != nil {
 		return err
 	}
 	// Schedule mesh routing table computation and push every 60 seconds
@@ -332,44 +422,51 @@ func runServe(cmd *cobra.Command, args []string) error {
 	scheduler.Start()
 
 	services := api.Services{
-		Config:                  service.NewConfigService(store.Settings(), i18nManager),
-		User:                    service.NewUserService(store.Users(), store.Settings(), infra.Hasher),
-		UserStat:                userStatService,
-		Auth:                    service.NewAuthService(store.Users(), store.Settings(), store.LoginLogs(), store.Tokens(), infra.Hasher, infra.Token, infra.RateLimiter, infra.Audit, infra.Cache),
-		AdminPath:               service.NewAdminPathService(store.Settings()),
-		Install:                 installService,
-		AdminPlan:               adminPlanService,
-		AdminUser:               adminUserService,
-		AdminServer:             adminServerService,
-		AdminStat:               adminStatService,
-		AdminNodeStat:           adminNodeStatService,
-		AdminSystem:             adminSystemService,
-		AdminSystemSettings:     adminSystemSettingsService,
-		AdminNotice:             adminNoticeService,
-		AdminKnowledge:          adminKnowledgeService,
-		UserKnowledge:           userKnowledgeService,
-		UserNotice:              userNoticeService,
-		ServerAuth:              serverAuthService,
-		ServerNode:              serverNodeService,
-		Traffic:                 serverTrafficService,
-		Telemetry:               serverTelemetryService,
-		Verify:                  verifyService,
-		Password:                passwordService,
-		Register:                registrationService,
-		MailLink:                mailLinkService,
-		Comm:                    commService,
-		Plan:                    planService,
-		Server:                  service.NewServerService(store.Users(), store.Servers(), store.Plans()),
-		Subscription:            service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.Plans(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, subscriptionFilterService),
+		Config:              service.NewConfigService(store.Settings(), i18nManager),
+		User:                service.NewUserService(store.Users(), store.Settings(), infra.Hasher),
+		UserStat:            userStatService,
+		Auth:                service.NewAuthService(store.Users(), store.Settings(), store.LoginLogs(), store.Tokens(), infra.Hasher, infra.Token, infra.RateLimiter, infra.Audit, infra.Cache),
+		AdminPath:           service.NewAdminPathService(store.Settings()),
+		Install:             installService,
+		AdminPlan:           adminPlanService,
+		AdminUser:           adminUserService,
+		AdminServer:         adminServerService,
+		AdminStat:           adminStatService,
+		AdminNodeStat:       adminNodeStatService,
+		AdminSystem:         adminSystemService,
+		AdminSystemSettings: adminSystemSettingsService,
+		AdminNotice:         adminNoticeService,
+		AdminKnowledge:      adminKnowledgeService,
+		UserKnowledge:       userKnowledgeService,
+		UserNotice:          userNoticeService,
+		ServerAuth:          serverAuthService,
+		ServerNode:          serverNodeService,
+		Traffic:             serverTrafficService,
+		Telemetry:           serverTelemetryService,
+		Verify:              verifyService,
+		Password:            passwordService,
+		Register:            registrationService,
+		MailLink:            mailLinkService,
+		Comm:                commService,
+		Plan:                planService,
+		Server:              service.NewServerService(store.Users(), store.Servers(), store.Plans()),
+		Subscription: func() service.SubscriptionService {
+			svc := service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.Plans(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, subscriptionFilterService)
+			svc.SetCache(infra.Cache)
+			return svc
+		}(),
 		SubscriptionFilter:      subscriptionFilterService,
 		SubscriptionSource:      subscriptionSourceService,
 		AgentHost:               agentHostService,
+		AgentRelayRoute:         agentRelayRouteService,
 		AgentCore:               agentCoreService,
 		Forwarding:              forwardingService,
 		AccessLog:               accessLogService,
 		UnlockProbe:             unlockProbeService,
 		ExitNodeSet:             exitNodeSetService,
+		AdminRelayPath:          relayPathService,
 		RoutingPolicy:           routingPolicyService,
+		Topology:                topologyService,
 		InboundSpec:             inboundSpecService,
 		CoreConfigItem:          coreConfigItemService,
 		DriftAndDiff:            driftAndDiffService,
@@ -394,6 +491,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		services,
 		cfg.Metrics,
 		api.WithCORSAllowedOrigins(corsOrigins),
+		api.WithTrustedProxies(cfg.Security.TrustedProxies),
 		api.WithAdminUI(api.AdminUIOptions{
 			Enabled:         cfg.UI.Admin.Enabled,
 			Dir:             cfg.UI.Admin.Dir,
@@ -500,9 +598,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 			agentLogCache,
 			logger,
 		)
+		// mesh 网络 ACL：白名单来自配置（空=仅 default）。
+		handler.SetAllowedMeshNetworks(cfg.Mesh.AllowedNetworks)
 
 		grpcCfg := internalgrpc.Config{
-			Address: cfg.GRPC.Addr,
+			Address:               cfg.GRPC.Addr,
+			AccessLogSuccessLevel: os.Getenv("MGPANEL_GRPC_ACCESS_LOG_LEVEL"),
 		}
 		if cfg.GRPC.TLS.Enabled {
 			grpcCfg.TLS = &internalgrpc.TLSConfig{
@@ -616,6 +717,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}()
 
 	wg.Wait()
+
+	// 停机排水：先停 HTTP/gRPC（不再有新入队），再冲刷各异步队列，
+	// 避免缓冲窗口内的日志/通知随进程退出丢失。
+	subLogQueue.Stop()
+	logger.Info("subscription log queue drained")
+	if s, ok := accessLogService.(interface{ Stop() }); ok {
+		s.Stop()
+		logger.Info("access log queue drained")
+	}
+
 	logger.Info("server exited cleanly")
 	return nil
 }

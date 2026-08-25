@@ -35,13 +35,13 @@ export default function StatCard({
       iconWrap: "bg-primary/10 text-primary",
     },
     success: {
-      iconWrap: "bg-emerald-500/10 text-emerald-600",
+      iconWrap: "bg-success/10 text-success",
     },
     warning: {
-      iconWrap: "bg-amber-500/10 text-amber-600",
+      iconWrap: "bg-warning/10 text-warning",
     },
     danger: {
-      iconWrap: "bg-red-500/10 text-red-600",
+      iconWrap: "bg-destructive/10 text-destructive",
     },
   };
 
@@ -60,8 +60,8 @@ export default function StatCard({
 
   const getTrendColor = () => {
     if (!trend) return "";
-    if (trend.value > 0) return "text-emerald-600";
-    if (trend.value < 0) return "text-red-600";
+    if (trend.value > 0) return "text-success";
+    if (trend.value < 0) return "text-destructive";
     return "text-muted-foreground";
   };
 

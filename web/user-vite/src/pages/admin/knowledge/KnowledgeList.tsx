@@ -233,7 +233,6 @@ export default function KnowledgeList() {
     );
   } else if (!listQuery.isLoading) {
     content = (
-      <div className="overflow-x-auto rounded-lg border border-border">
         <Table aria-label={t("admin.knowledge.title")}>
           <TableHeader>
             <TableRow>
@@ -330,8 +329,7 @@ export default function KnowledgeList() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
     );
   }
 

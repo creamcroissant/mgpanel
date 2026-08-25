@@ -193,7 +193,7 @@ function RoutingTabContent({ initialDefaultTemplate, initialRules }: RoutingTabC
             {t("common.create")}
           </Button>
         </div>
-        <div className="overflow-x-auto">
+        <div>
           <Table>
             <TableHeader>
               <TableRow>

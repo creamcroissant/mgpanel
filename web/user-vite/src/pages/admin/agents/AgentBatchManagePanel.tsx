@@ -402,7 +402,7 @@ export default function AgentBatchManagePanel({
           )}
 
           {/* ---- Agent table ---- */}
-          <div className="max-h-[50vh] overflow-auto rounded-md border">
+          <div className="max-h-[50vh] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>

@@ -52,7 +52,7 @@ function renderDriftStateMobileList(
             </div>
             <Badge variant={recovered ? "secondary" : formatDriftVariant(item.drift_type)}>{item.drift_type}</Badge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.tag")}>
               <span className="break-all">{item.tag}</span>
             </ResponsiveListField>
@@ -112,7 +112,7 @@ export default function DriftTab({ selectedHostId, selectedCoreType }: DriftTabP
   const recoveryStates = useMemo(() => recoveryQuery.data?.data ?? [], [recoveryQuery.data?.data]);
 
   return (
-    <TabsContent value="drift" className="space-y-4">
+    <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -220,6 +220,6 @@ export default function DriftTab({ selectedHostId, selectedCoreType }: DriftTabP
           </CardContent>
         </Card>
       </div>
-    </TabsContent>
+    </div>
   );
 }

@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_settings_category ON settings(category);
 INSERT INTO settings(key, value, category)
 VALUES
     ('site_name', 'MGPanel', 'general'),
-    ('default_theme', 'default', 'theme')
+    ('default_theme', 'v2board', 'theme')
 ON CONFLICT(key) DO NOTHING;
 
 -- +goose Down

@@ -5,12 +5,24 @@ package sqlite
 import (
 	"database/sql"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 // Store wires SQLite-backed repository implementations.
 type Store struct {
-	db                     *sql.DB
+	db   *sql.DB
+	cache cache.Store
+
+	// 内部具体类型引用（用于 cache 注入）
+	settingsRepo            *settingRepo
+	serversRepo             *serverRepo
+	usersRepo               *userRepo
+	plansRepo               *planRepo
+	subscriptionSourcesRepo *subscriptionSourceRepo
+	statUsersRepo           *statUserRepo
+	statServersRepo         *statServerRepo
+
 	coreOperations         repository.CoreOperationRepository
 	operationLogs          repository.OperationLogRepository
 	binaryVersionStates    repository.BinaryVersionStateRepository
@@ -48,6 +60,7 @@ type Store struct {
 	unlockProbeResults     repository.UnlockProbeResultRepository
 	exitNodeSets           repository.ExitNodeSetRepository
 	routingPolicies        repository.RoutingPolicyRepository
+	relayPaths             repository.RelayPathRepository
 	inboundSpecs           repository.InboundSpecRepository
 	inboundSpecRevisions   repository.InboundSpecRevisionRepository
 	coreConfigItems        repository.CoreConfigItemRepository
@@ -69,29 +82,77 @@ type Store struct {
 	meshPeers              *agentMeshPeerRepo
 }
 
+// StoreOption configures the SQLite-backed repository store.
+type StoreOption func(*Store)
+
+// WithCache sets the cache store for repository-level caching.
+func WithCache(c cache.Store) StoreOption {
+	return func(s *Store) {
+		s.cache = c
+		if c == nil {
+			return
+		}
+		if s.settingsRepo != nil {
+			s.settingsRepo.cache = c
+		}
+		if s.serversRepo != nil {
+			s.serversRepo.cache = c
+		}
+		if s.usersRepo != nil {
+			s.usersRepo.cache = c
+		}
+		if s.plansRepo != nil {
+			s.plansRepo.cache = c
+		}
+		if s.subscriptionSourcesRepo != nil {
+			s.subscriptionSourcesRepo.cache = c
+		}
+		if s.statUsersRepo != nil {
+			s.statUsersRepo.cache = c
+		}
+		if s.statServersRepo != nil {
+			s.statServersRepo.cache = c
+		}
+	}
+}
+
 // NewStore constructs a SQLite-backed repository store.
-func NewStore(db *sql.DB) *Store {
-	return &Store{
+func NewStore(db *sql.DB, opts ...StoreOption) *Store {
+	usersRepo := &userRepo{db: db}
+	settingsRepo := &settingRepo{db: db}
+	plansRepo := &planRepo{db: db}
+	serversRepo := &serverRepo{db: db}
+	statUsersRepo := &statUserRepo{db: db}
+	statServersRepo := &statServerRepo{db: db}
+	subscriptionSourcesRepo := newSubscriptionSourceRepo(db)
+	s := &Store{
 		db:                     db,
+		usersRepo:              usersRepo,
+		settingsRepo:           settingsRepo,
+		plansRepo:              plansRepo,
+		serversRepo:            serversRepo,
+		statUsersRepo:          statUsersRepo,
+		statServersRepo:        statServersRepo,
+		subscriptionSourcesRepo: subscriptionSourcesRepo,
 		coreOperations:         newCoreOperationRepo(db),
 		operationLogs:          newOperationLogRepo(db),
 		binaryVersionStates:    newBinaryVersionStateRepo(db),
 		agentLifecycleOps:      newAgentLifecycleOperationRepo(db),
 		agentTrafficPolicies:   newAgentTrafficPolicyRepo(db),
 		agentTrafficStates:     newAgentTrafficStateRepo(db),
-		subscriptionSources:    newSubscriptionSourceRepo(db),
+		subscriptionSources:    subscriptionSourcesRepo,
 		subscriptionReasons:    newSubscriptionFilterReasonRepo(db),
-		users:                  &userRepo{db: db},
-		settings:               &settingRepo{db: db},
+		users:                  usersRepo,
+		settings:               settingsRepo,
 		plugins:                &pluginRepo{db: db},
-		plans:                  &planRepo{db: db},
+		plans:                  plansRepo,
 		loginLogs:              &loginLogRepo{db: db},
 		tokens:                 &tokenRepo{db: db},
-		servers:                &serverRepo{db: db},
+		servers:                serversRepo,
 		groups:                 &serverGroupRepo{db: db},
 		routes:                 &serverRouteRepo{db: db},
-		statUsers:              &statUserRepo{db: db},
-		statServers:            &statServerRepo{db: db},
+		statUsers:              statUsersRepo,
+		statServers:            statServersRepo,
 		notices:                &noticeRepo{db: db},
 		knowledge:              &knowledgeRepo{db: db},
 		subLogs:                &subscriptionLogRepo{db: db},
@@ -129,7 +190,12 @@ func NewStore(db *sql.DB) *Store {
 		meshPeers:              NewAgentMeshPeerRepository(db).(*agentMeshPeerRepo),
 		exitNodeSets:           newExitNodeSetRepo(db),
 		routingPolicies:        newRoutingPolicyRepo(db),
+		relayPaths:             newRelayPathRepo(db),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Store) CoreOperations() repository.CoreOperationRepository {
@@ -279,6 +345,10 @@ func (s *Store) ExitNodeSets() repository.ExitNodeSetRepository {
 
 func (s *Store) RoutingPolicies() repository.RoutingPolicyRepository {
 	return s.routingPolicies
+}
+
+func (s *Store) RelayPaths() repository.RelayPathRepository {
+	return s.relayPaths
 }
 
 func (s *Store) InboundSpecs() repository.InboundSpecRepository {

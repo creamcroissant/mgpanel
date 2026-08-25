@@ -148,10 +148,9 @@ export default function NoticeList() {
       />
     );
   } else if (!isLoading && notices.length === 0) {
-    content = <EmptyState title={t("admin.notices.empty")} />;
+    content = <EmptyState title={t("admin.notices.empty")} description={t("admin.notices.emptyDescription")} />;
   } else if (!isLoading) {
     content = (
-      <div className="overflow-x-auto rounded-lg border border-border">
         <Table aria-label={t("admin.notices.title")}>
           <TableHeader>
             <TableRow>
@@ -203,8 +202,7 @@ export default function NoticeList() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
     );
   }
 

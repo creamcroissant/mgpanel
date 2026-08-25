@@ -371,8 +371,7 @@ export default function AccessLogList() {
   } else if (!agentHostsQuery.isLoading && !logsQuery.isLoading) {
     content = (
       <div className="space-y-4">
-        <div className="overflow-x-auto">
-          <Table aria-label={t("admin.accessLogs.title")}>
+        <Table aria-label={t("admin.accessLogs.title")} className="rounded-md border">
             <TableHeader>
               <TableRow>
                 <TableHead>{t("admin.accessLogs.table.time")}</TableHead>
@@ -426,8 +425,7 @@ export default function AccessLogList() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        </div>
+        </Table>
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     );

@@ -103,11 +103,20 @@ type AgentHostStatusRequest struct {
 	DownloadTotal int64 `json:"download_total"`
 }
 
-// ReportStatus handles POST /api/v1/agent/status?token=xxx
+// agentTokenFromRequest 读取 agent 鉴权 token：优先 X-Server-Token header，
+// 回落 query 的 token 参数（兼容旧版 agent）。
+func agentTokenFromRequest(r *http.Request) string {
+	if v := strings.TrimSpace(r.Header.Get("X-Server-Token")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(r.URL.Query().Get("token"))
+}
+
+// ReportStatus handles POST /api/v1/agent/status
 // This endpoint is called by agents to report their status.
 func (h *AgentHostHandler) ReportStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	token := r.URL.Query().Get("token")
+	token := agentTokenFromRequest(r)
 	if token == "" {
 		RespondErrorI18nAction(ctx, w, http.StatusUnauthorized, "agent_host.status", "error.missing_token", h.i18n)
 		return
@@ -154,7 +163,7 @@ func (h *AgentHostHandler) ReportStatus(w http.ResponseWriter, r *http.Request) 
 // Simple heartbeat endpoint for agents.
 func (h *AgentHostHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	token := r.URL.Query().Get("token")
+	token := agentTokenFromRequest(r)
 	if token == "" {
 		RespondErrorI18nAction(ctx, w, http.StatusUnauthorized, "agent_host.heartbeat", "error.missing_token", h.i18n)
 		return
@@ -178,7 +187,7 @@ func (h *AgentHostHandler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 // Agent 周期上报自身公网 IP，面板据此更新 agent_hosts.host（避免 pending-* 占位）。
 func (h *AgentHostHandler) ReportHost(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	token := r.URL.Query().Get("token")
+	token := agentTokenFromRequest(r)
 	if token == "" {
 		RespondErrorI18nAction(ctx, w, http.StatusUnauthorized, "agent_host.host", "error.missing_token", h.i18n)
 		return

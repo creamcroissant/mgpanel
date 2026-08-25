@@ -19,6 +19,15 @@ func newOperationLogRepo(db *sql.DB) *operationLogRepo {
 	return &operationLogRepo{db: db}
 }
 
+func (r *operationLogRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
+	const stmt = `DELETE FROM agent_operation_logs WHERE created_at < unixepoch() - ? * 86400`
+	res, err := r.db.ExecContext(ctx, stmt, days)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *operationLogRepo) Append(ctx context.Context, entry *repository.OperationLogEntry) (*repository.OperationLogEntry, error) {
 	if entry == nil {
 		return nil, errors.New("operation log entry is nil")

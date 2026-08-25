@@ -1,0 +1,61 @@
+/* 拓扑画布 MiniMap：右下角，暗色模式适配（项目 CSS 变量为裸 HSL 三元组） */
+.topology-minimap {
+  background-color: hsl(var(--muted) / 0.6);
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.topology-minimap .react-flow__minimap-mask {
+  fill: hsl(var(--background) / 0.55);
+  stroke: hsl(var(--border));
+  stroke-width: 2;
+}
+
+.topology-minimap svg {
+  background-color: hsl(var(--muted) / 0.4);
+}
+
+.dark .topology-minimap {
+  background-color: hsl(var(--card) / 0.75);
+}
+
+/* 缩放/适配控制按钮：跟随主题（默认是白底+currentColor 图标，dark 下图标变白而按钮仍白 → 看不清） */
+.react-flow__controls {
+  box-shadow: 0 1px 3px 0 hsl(var(--foreground) / 0.1);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: hsl(var(--card));
+}
+
+.react-flow__controls-button {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  width: 28px;
+  height: 28px;
+  transition: background-color 0.15s ease;
+}
+
+.react-flow__controls-button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button svg {
+  fill: hsl(var(--foreground));
+  color: hsl(var(--foreground));
+}
+
+/* 交互开关态（fit 锁定按钮） */
+.react-flow__controls-button.react-flow__controls-interactive.react-flow__controls-interactive-active {
+  background-color: hsl(var(--accent));
+}
+
+.dark .react-flow__controls-button svg {
+  fill: hsl(var(--foreground));
+}

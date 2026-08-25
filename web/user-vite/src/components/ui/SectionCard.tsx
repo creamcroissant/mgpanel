@@ -10,7 +10,7 @@ interface SectionCardProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
 
 export function SectionCard({ title, description, actions, footer, children, className, ...props }: SectionCardProps) {
   return (
-    <section className={cn("min-w-0 rounded-md border bg-card shadow-none", className)} {...props}>
+    <section className={cn("min-w-0 rounded-md border bg-card", className)} {...props}>
       <div className="flex min-w-0 flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
         <div className="min-w-0 space-y-1">
           <h2 className="break-words text-base font-semibold leading-6 text-foreground">{title}</h2>

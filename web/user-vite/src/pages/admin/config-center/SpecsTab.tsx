@@ -108,7 +108,7 @@ export default function SpecsTab({
   );
 
   return (
-    <TabsContent value="specs" className="space-y-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>{t("admin.configCenter.specs.title")}</CardTitle>
@@ -179,7 +179,7 @@ export default function SpecsTab({
                       {renderSpecEnabledBadge(spec.enabled)}
                     </div>
 
-                    <dl className="mt-4 grid grid-cols-2 gap-3">
+                    <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <ResponsiveListField label={t("admin.configCenter.fields.tag")} className="col-span-2">
                         <span className="break-all">{spec.tag}</span>
                       </ResponsiveListField>
@@ -224,7 +224,7 @@ export default function SpecsTab({
                     <TableHead className="hidden lg:table-cell">{t("admin.configCenter.inbound.port")}</TableHead>
                     <TableHead className="hidden xl:table-cell">{t("admin.configCenter.inbound.transportType")}</TableHead>
                     <TableHead className="hidden xl:table-cell">{t("admin.configCenter.inbound.security")}</TableHead>
-                    <TableHead>{t("admin.configCenter.fields.revision")}</TableHead>
+                    <TableHead className="text-right">{t("admin.configCenter.fields.revision")}</TableHead>
                     <TableHead>{t("admin.configCenter.fields.enabled")}</TableHead>
                     <TableHead>{t("admin.configCenter.fields.updatedAt")}</TableHead>
                     <TableHead>{t("common.actions")}</TableHead>
@@ -250,7 +250,7 @@ export default function SpecsTab({
                         <TableCell className="hidden lg:table-cell font-mono text-xs">{info.port === "-" ? "-" : String(info.port)}</TableCell>
                         <TableCell className="hidden xl:table-cell text-xs text-muted-foreground">{info.transport}</TableCell>
                         <TableCell className="hidden xl:table-cell">{info.security !== "-" ? <Badge variant="outline">{info.security}</Badge> : <span className="text-xs text-muted-foreground">-</span>}</TableCell>
-                        <TableCell>{spec.desired_revision}</TableCell>
+                        <TableCell className="text-right tabular-nums">{spec.desired_revision}</TableCell>
                         <TableCell>{renderSpecEnabledBadge(spec.enabled)}</TableCell>
                         <TableCell>{formatDateTime(spec.updated_at)}</TableCell>
                         <TableCell>{renderSpecActions(spec, "desktop")}</TableCell>
@@ -263,6 +263,6 @@ export default function SpecsTab({
           )}
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 }

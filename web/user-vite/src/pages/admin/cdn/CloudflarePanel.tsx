@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Globe, Plus, Trash2 } from "lucide-react";
@@ -185,15 +185,18 @@ export default function CloudflarePanel() {
               </TableHeader>
               <TableBody>
                 {zones.map((zone) => (
-                  <>
+                  <Fragment key={zone.id}>
                     <TableRow
-                      key={zone.id}
                       className="cursor-pointer"
                       onClick={() => toggleExpand(zone.id)}
                       data-testid={`cdn-cloudflare-zone-row-${zone.id}`}
                     >
                       <TableCell className="font-medium">{zone.zone_name}</TableCell>
-                      <TableCell className="font-mono text-xs">{zone.zone_id}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <span className="inline-block max-w-[180px] truncate align-middle" title={zone.zone_id}>
+                          {zone.zone_id}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(zone.status)}>
                           {zone.status}
@@ -216,8 +219,7 @@ export default function CloudflarePanel() {
                       </TableCell>
                     </TableRow>
                     {expandedZone === zone.id && (
-                      <TableRow key={`${zone.id}-dns`} data-testid={`cdn-cloudflare-dns-section-${zone.id}`}>
-                        <TableCell colSpan={6} className="bg-muted/20 p-4">
+                      <TableRow key={`${zone.id}-dns`} data-testid={`cdn-cloudflare-dns-section-${zone.id}`}>                        <TableCell colSpan={6} className="bg-muted/20 p-4">
                           <div className="space-y-2">
                             <h4 className="text-sm font-semibold">
                               {t("admin.cdn.cloudflare.dnsRecords")}
@@ -282,7 +284,7 @@ export default function CloudflarePanel() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>

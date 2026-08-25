@@ -185,7 +185,7 @@ export default function UserList() {
               <TableRow>
                 <TableHead>{t("admin.users.email")}</TableHead>
                 <TableHead>{t("admin.users.plan")}</TableHead>
-                <TableHead>{t("admin.users.traffic")}</TableHead>
+                <TableHead className="text-right">{t("admin.users.traffic")}</TableHead>
                 <TableHead>{t("admin.users.expiredAt")}</TableHead>
                 <TableHead>{t("admin.users.status")}</TableHead>
                 <TableHead>{t("common.actions")}</TableHead>
@@ -214,7 +214,7 @@ export default function UserList() {
                       </div>
                     </TableCell>
                     <TableCell>{user.plan_name || "-"}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-right tabular-nums">
                       {formatBytes(user.u + user.d)} / {formatBytes(user.transfer_enable)}
                     </TableCell>
                     <TableCell>{formatDate(user.expired_at)}</TableCell>
@@ -228,7 +228,7 @@ export default function UserList() {
         </div>
 
         {users.length === 0 ? (
-          <div className="md:hidden rounded-md border bg-card shadow-none">
+          <div className="md:hidden rounded-md border bg-card">
             <EmptyState
               title={t("admin.users.empty")}
               description={t("admin.users.searchPlaceholder")}

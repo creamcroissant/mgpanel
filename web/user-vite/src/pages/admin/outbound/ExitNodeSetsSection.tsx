@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Server } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   listExitNodeSets,
@@ -15,6 +15,7 @@ import { getAgentHosts } from "@/api/admin/agentHost";
 import {
   Badge,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -47,6 +48,13 @@ import type {
  */
 export function ExitNodeSetsSection() {
   const { t } = useTranslation();
+  // 负载均衡策略枚举展示标签（值是 API 协议常量）
+  const strategyLabels: Record<string, string> = {
+    round_robin: t("admin.exitNodeSets.strategies.round_robin"),
+    least_ping: t("admin.exitNodeSets.strategies.least_ping"),
+    random: t("admin.exitNodeSets.strategies.random"),
+    weighted_random: t("admin.exitNodeSets.strategies.weighted_random"),
+  };
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<ExitNodeSetDetail | null>(null);
@@ -160,7 +168,17 @@ export function ExitNodeSetsSection() {
       </div>
 
       {!sets || sets.length === 0 ? (
-        <EmptyState title={t("admin.exitNodeSets.empty")} />
+        <EmptyState
+          icon={<Server className="h-6 w-6" />}
+          title={t("admin.exitNodeSets.empty")}
+          description={t("admin.exitNodeSets.emptyDescription")}
+          action={
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("admin.exitNodeSets.create")}
+            </Button>
+          }
+        />
       ) : (
         <Table>
           <TableHeader>
@@ -184,7 +202,7 @@ export function ExitNodeSetsSection() {
                     ))}
                   </div>
                 </TableCell>
-                <TableCell>{d.set.strategy}</TableCell>
+                <TableCell>{strategyLabels[d.set.strategy] ?? d.set.strategy}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {d.members.map((m) => {
@@ -268,7 +286,7 @@ export function ExitNodeSetsSection() {
                 </SelectTrigger>
                 <SelectContent>
                   {["round_robin", "least_ping", "random", "weighted_random"].map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s} value={s}>{strategyLabels[s] ?? s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -277,12 +295,11 @@ export function ExitNodeSetsSection() {
               <label className="text-sm">{t("admin.exitNodeSets.selectMembers")}</label>
               <div className="max-h-48 overflow-y-auto rounded border p-2">
                 {agents?.data?.map((a: AgentHost) => (
-                  <label key={a.id} className="flex items-center gap-2 py-1 text-sm">
-                    <input
-                      type="checkbox"
+                  <label key={a.id} className="flex cursor-pointer items-center gap-2 py-1 text-sm">
+                    <Checkbox
                       checked={form.agent_host_ids.includes(a.id)}
-                      onChange={(e) => {
-                        const ids = e.target.checked
+                      onCheckedChange={(v) => {
+                        const ids = v
                           ? [...form.agent_host_ids, a.id]
                           : form.agent_host_ids.filter((x) => x !== a.id);
                         setForm({ ...form, agent_host_ids: ids });

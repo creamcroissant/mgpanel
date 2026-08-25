@@ -74,7 +74,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
                 {t("admin.agents.meshTable.total")}: <strong className="text-foreground">{peers.length}</strong>
               </span>
               <span className="flex items-center gap-1">
-                <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                <Wifi className="h-3.5 w-3.5 text-success" />
                 {t("admin.agents.meshTable.online")}: <strong className="text-foreground">{onlineCount}</strong>
               </span>
               <span className="flex items-center gap-1">
@@ -114,7 +114,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
               size="sm"
             />
           ) : (
-            <div className="overflow-x-auto rounded-md border">
+            <div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -139,7 +139,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
                           <div className="flex items-center gap-1">
                             <div
                               className={`h-1.5 w-1.5 rounded-full ${
-                                peer.online ? "bg-emerald-400" : "bg-muted-foreground"
+                                peer.online ? "bg-success" : "bg-muted-foreground"
                               }`}
                             />
                             {peer.online

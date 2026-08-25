@@ -687,9 +687,30 @@ type RoutingPolicy struct {
 	MatchValue  string `json:"match_value"`
 	Action      string `json:"action"`
 	TargetSetID *int64 `json:"target_set_id,omitempty"`
-	Enabled     bool   `json:"enabled"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	// SpecID 非 nil 表示仅对绑定入站生效（入站规则，渲染时排在全局规则之前）；nil 为全局。
+	SpecID    *int64 `json:"spec_id,omitempty"`
+	Enabled   bool   `json:"enabled"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+// RelayPath 是受控服务器之间的多跳中继链路（如 s1→s2→s3），与入口协议配置正交。
+// sequence 0 = 入口，N-1 = 出口；每跳通过 mesh socks 隧道转发到下一跳。
+type RelayPath struct {
+	ID          int64            `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	CoreType    string           `json:"core_type"`
+	Enabled     bool             `json:"enabled"`
+	Nodes       []RelayPathNode  `json:"nodes"`
+	CreatedAt   int64            `json:"created_at"`
+	UpdatedAt   int64            `json:"updated_at"`
+}
+
+// RelayPathNode 是中继链路中的一跳。
+type RelayPathNode struct {
+	Sequence    int   `json:"sequence"`
+	AgentHostID int64 `json:"agent_host_id"`
 }
 
 // AccessLogFilter defines filter conditions for querying access logs.
@@ -718,6 +739,7 @@ type InboundSpec struct {
 	AgentHostID     *int64          `json:"agent_host_id"` // nil = template spec
 	ExitAgentHostID *int64          `json:"exit_agent_host_id,omitempty"` // nil = 直连出网；非 nil = 经 mesh 隧道到该 agent 出网
 	ExitNodeSetID   *int64          `json:"exit_node_set_id,omitempty"`  // nil = 固定出口；非 nil = 从出口集合中选（负载均衡+故障转移）
+	RelayPathID     *int64          `json:"relay_path_id,omitempty"`    // 非 nil = 走多跳中继链路（优先级高于 exit_*）
 	CoreType        string          `json:"core_type"`
 	Tag             string          `json:"tag"`
 	Enabled         bool            `json:"enabled"`

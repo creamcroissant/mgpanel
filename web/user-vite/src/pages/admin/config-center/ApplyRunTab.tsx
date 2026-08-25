@@ -245,7 +245,7 @@ export function ApplyRunTab({
               {item.drift_type}
             </Badge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField
               label={t("admin.configCenter.fields.tag")}
               className="col-span-2"
@@ -353,7 +353,7 @@ export function ApplyRunTab({
                         </div>
                         {renderApplyRunStatusBadge(run.status)}
                       </div>
-                      <dl className="mt-4 grid grid-cols-2 gap-3">
+                      <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <ResponsiveListField
                           label={t("admin.configCenter.fields.runId")}
                           className="col-span-2"

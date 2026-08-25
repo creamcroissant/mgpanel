@@ -29,6 +29,7 @@ type upsertInboundSpecRequest struct {
 	AgentHostID     *int64          `json:"agent_host_id,omitempty"`     // nil = 模板 spec
 	ExitAgentHostID *int64          `json:"exit_agent_host_id,omitempty"` // nil/0 = 直连出网；非 nil = 经 mesh 隧道到该 agent 出网
 	ExitNodeSetID   *int64          `json:"exit_node_set_id,omitempty"`   // nil/0 = 固定出口；非 nil = 出口集合（负载均衡+故障转移）
+	RelayPathID     *int64          `json:"relay_path_id,omitempty"`      // nil/0 = 不走中继；非 nil = 多跳中继链路（优先级最高）
 	CoreType        string          `json:"core_type"`
 	Tag             string          `json:"tag"`
 	Enabled         *bool           `json:"enabled,omitempty"`
@@ -169,6 +170,7 @@ func (h *AdminConfigCenterSpecHandler) upsert(w http.ResponseWriter, r *http.Req
 		AgentHostID:     payload.AgentHostID,
 		ExitAgentHostID: payload.ExitAgentHostID,
 		ExitNodeSetID:   payload.ExitNodeSetID,
+		RelayPathID:     payload.RelayPathID,
 		CoreType:        payload.CoreType,
 		Tag:             payload.Tag,
 		Enabled:         payload.Enabled,

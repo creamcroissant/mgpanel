@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, List, Network, Plus, RefreshCw, Server } from "lucide-react";
+import { Activity, AlertTriangle, List, Network, Plus, RefreshCw, Server, Users, Wifi, WifiOff } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import { getAgentHosts, refreshAgentHosts, updateAgentHost } from "@/api/admin";
 import { fetchSettings, revealKey } from "@/api/admin/settings";
 import { AdminPageShell, AgentStatusCard } from "@/components/admin";
-import { EmptyState, Loading, Card, CardContent, ResponsiveGrid, Input } from "@/components/ui";
+import { EmptyState, Loading, Card, CardContent, ResponsiveGrid, Input, StatCard } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -298,36 +298,11 @@ export default function AgentList() {
 
   const stats = (
     <ResponsiveGrid minColWidth={200} gap={16}>
-      <Card className="shadow-none">
-        <CardContent className="p-5">
-          <p className="text-sm text-muted-foreground">{t("admin.agents.stats.total")}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{agentStats.total}</p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-none">
-        <CardContent className="p-5">
-          <p className="text-sm text-muted-foreground">{t("admin.agents.status.online")}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-emerald-600">{agentStats.online}</p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-none">
-        <CardContent className="p-5">
-          <p className="text-sm text-muted-foreground">{t("admin.agents.status.warning")}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-amber-600">{agentStats.warning}</p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-none">
-        <CardContent className="p-5">
-          <p className="text-sm text-muted-foreground">{t("admin.agents.status.offline")}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-muted-foreground">{agentStats.offline}</p>
-        </CardContent>
-      </Card>
-      <Card className="shadow-none">
-        <CardContent className="p-5">
-          <p className="text-sm text-muted-foreground">{t("admin.agents.stats.realtime")}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-primary">{agentStats.realtime}</p>
-        </CardContent>
-      </Card>
+      <StatCard title={t("admin.agents.stats.total")} value={agentStats.total} icon={<Users />} />
+      <StatCard title={t("admin.agents.status.online")} value={agentStats.online} icon={<Wifi />} variant="success" />
+      <StatCard title={t("admin.agents.status.warning")} value={agentStats.warning} icon={<AlertTriangle />} variant="warning" />
+      <StatCard title={t("admin.agents.status.offline")} value={agentStats.offline} icon={<WifiOff />} />
+      <StatCard title={t("admin.agents.stats.realtime")} value={agentStats.realtime} icon={<Activity />} variant="primary" />
     </ResponsiveGrid>
   );
 
@@ -340,7 +315,7 @@ export default function AgentList() {
   ];
 
   const renderDeployDiagnosticsPanel = () => (
-    <Card className="border-border bg-muted/30 shadow-none">
+    <Card className="border-border bg-muted/30">
       <CardContent className="space-y-3 p-4">
         <div>
           <p className="text-sm font-medium text-foreground">{t("admin.agents.deploy.diagnosticsTitle")}</p>
@@ -447,7 +422,7 @@ export default function AgentList() {
             <DialogTitle>{t("admin.agents.deploy.title")}</DialogTitle>
             <DialogDescription>{t("admin.agents.deploy.description")}</DialogDescription>
           </DialogHeader>
-          <Card className="bg-muted/40 shadow-none">
+          <Card className="bg-muted/40">
             <CardContent className="space-y-3 p-5">
               <p className="text-sm leading-6 text-muted-foreground">{t("admin.agents.deploy.description")}</p>
               <p className="text-sm leading-6 text-muted-foreground">{t("admin.agents.deploy.tokenModel")}</p>
@@ -483,7 +458,7 @@ export default function AgentList() {
               </pre>
             </div>
           ) : (
-            <p className="text-sm text-amber-600">
+            <p className="text-sm text-warning">
               {deployMissingAddress ? t("admin.agents.deploy.missingAddress") : t("admin.agents.deploy.missingCommunicationKey")}
             </p>
           )}

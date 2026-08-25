@@ -39,6 +39,15 @@ func (r *subscriptionLogRepo) Log(ctx context.Context, log *repository.Subscript
 	return nil
 }
 
+func (r *subscriptionLogRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
+	const stmt = `DELETE FROM subscription_logs WHERE created_at < unixepoch() - ? * 86400`
+	res, err := r.db.ExecContext(ctx, stmt, days)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func (r *subscriptionLogRepo) GetRecentLogs(ctx context.Context, userID int64, limit int) ([]*repository.SubscriptionLog, error) {
 	const query = `SELECT
 		id, user_id, client_ip, user_agent, request_type, request_url, created_at

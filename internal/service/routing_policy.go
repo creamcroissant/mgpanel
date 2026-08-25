@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,6 +13,8 @@ import (
 
 // RoutingPolicyService 管理路由策略（geosite/domain → 出口集合）。
 type RoutingPolicyService interface {
+	// SetOnChange 注入变更联动回调（重渲染编排），nil 表示不联动。
+	SetOnChange(fn func(context.Context) error)
 	Create(ctx context.Context, req RoutingPolicyUpsertRequest) (*repository.RoutingPolicy, error)
 	Update(ctx context.Context, req RoutingPolicyUpsertRequest) (*repository.RoutingPolicy, error)
 	Delete(ctx context.Context, id int64) error
@@ -23,25 +26,46 @@ type RoutingPolicyService interface {
 
 // RoutingPolicyUpsertRequest 创建/更新路由策略的请求。
 type RoutingPolicyUpsertRequest struct {
-	ID          int64   `json:"id"`
-	Name        string  `json:"name"`
-	CoreType    string  `json:"core_type"`
-	Priority    int     `json:"priority"`
-	MatchType   string  `json:"match_type"`
-	MatchValue  string  `json:"match_value"`
-	Action      string  `json:"action"`
-	TargetSetID *int64  `json:"target_set_id"`
-	Enabled     *bool   `json:"enabled"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	CoreType    string `json:"core_type"`
+	Priority    int    `json:"priority"`
+	MatchType   string `json:"match_type"`
+	MatchValue  string `json:"match_value"`
+	Action      string `json:"action"`
+	TargetSetID *int64 `json:"target_set_id"`
+	// SpecID 非 nil 表示入站规则（仅对绑定入站生效）；nil 为全局策略。
+	// 更新时 nil 沿用现有值（与 TargetSetID 同语义）。
+	SpecID  *int64 `json:"spec_id"`
+	Enabled *bool  `json:"enabled"`
 }
 
 type routingPolicyService struct {
 	policies repository.RoutingPolicyRepository
-	logger   *slog.Logger
+	// specs 用于校验 SpecID 引用存在性；nil 时跳过校验（测试/旧装配点）。
+	specs   repository.InboundSpecRepository
+	logger  *slog.Logger
+
+	// onChange 策略变更后的联动回调（由装配层注入，用于触发受影响 host 重渲染）；nil 安全。
+	onChange func(context.Context) error
 }
 
-// NewRoutingPolicyService 创建 RoutingPolicyService。
-func NewRoutingPolicyService(policies repository.RoutingPolicyRepository, logger *slog.Logger) RoutingPolicyService {
-	return &routingPolicyService{policies: policies, logger: logger}
+// SetOnChange 注入策略变更联动回调。
+func (s *routingPolicyService) SetOnChange(fn func(context.Context) error) { s.onChange = fn }
+
+// notifyChange 变更成功后通知；回调错误只记录不阻断主流程。
+func (s *routingPolicyService) notifyChange(ctx context.Context) {
+	if s == nil || s.onChange == nil {
+		return
+	}
+	if err := s.onChange(ctx); err != nil {
+		s.logger.Warn("routing policy change re-render failed", "error", err)
+	}
+}
+
+// NewRoutingPolicyService 创建 RoutingPolicyService。specs 允许为 nil（跳过 spec 引用校验）。
+func NewRoutingPolicyService(policies repository.RoutingPolicyRepository, specs repository.InboundSpecRepository, logger *slog.Logger) RoutingPolicyService {
+	return &routingPolicyService{policies: policies, specs: specs, logger: logger}
 }
 
 func normalizeRoutingCoreType(s string) string {
@@ -75,6 +99,9 @@ func (s *routingPolicyService) Create(ctx context.Context, req RoutingPolicyUpse
 	if req.TargetSetID == nil {
 		return nil, fmt.Errorf("routing policy needs target set / 策略必须指定出口集合")
 	}
+	if err := s.validateSpecRef(ctx, policy.SpecID); err != nil {
+		return nil, err
+	}
 	now := time.Now().Unix()
 	policy.CreatedAt = now
 	policy.UpdatedAt = now
@@ -82,7 +109,9 @@ func (s *routingPolicyService) Create(ctx context.Context, req RoutingPolicyUpse
 		return nil, err
 	}
 	s.logger.Info("routing policy created", "policy_id", policy.ID, "name", policy.Name, "core", policy.CoreType, "match", policy.MatchType+":"+policy.MatchValue, "target_set", *req.TargetSetID)
+	s.notifyChange(ctx)
 	return policy, nil
+
 }
 
 func (s *routingPolicyService) Update(ctx context.Context, req RoutingPolicyUpsertRequest) (*repository.RoutingPolicy, error) {
@@ -107,6 +136,12 @@ func (s *routingPolicyService) Update(ctx context.Context, req RoutingPolicyUpse
 	if policy.TargetSetID == nil {
 		policy.TargetSetID = existing.TargetSetID
 	}
+	if policy.SpecID == nil {
+		policy.SpecID = existing.SpecID
+	}
+	if err := s.validateSpecRef(ctx, policy.SpecID); err != nil {
+		return nil, err
+	}
 	if req.Enabled == nil {
 		policy.Enabled = existing.Enabled
 	}
@@ -117,7 +152,9 @@ func (s *routingPolicyService) Update(ctx context.Context, req RoutingPolicyUpse
 		return nil, err
 	}
 	s.logger.Info("routing policy updated", "policy_id", policy.ID, "name", policy.Name)
+	s.notifyChange(ctx)
 	return policy, nil
+
 }
 
 func (s *routingPolicyService) buildPolicy(req RoutingPolicyUpsertRequest) *repository.RoutingPolicy {
@@ -130,15 +167,30 @@ func (s *routingPolicyService) buildPolicy(req RoutingPolicyUpsertRequest) *repo
 		matchType = "geosite"
 	}
 	return &repository.RoutingPolicy{
-		Name:       strings.TrimSpace(req.Name),
-		CoreType:   normalizeRoutingCoreType(req.CoreType),
-		Priority:   req.Priority,
-		MatchType:  matchType,
-		MatchValue: strings.TrimSpace(req.MatchValue),
-		Action:     strings.TrimSpace(req.Action),
+		Name:        strings.TrimSpace(req.Name),
+		CoreType:    normalizeRoutingCoreType(req.CoreType),
+		Priority:    req.Priority,
+		MatchType:   matchType,
+		MatchValue:  strings.TrimSpace(req.MatchValue),
+		Action:      strings.TrimSpace(req.Action),
 		TargetSetID: req.TargetSetID,
-		Enabled:    enabled,
+		SpecID:      req.SpecID,
+		Enabled:     enabled,
 	}
+}
+
+// validateSpecRef 校验策略绑定的 spec 引用存在；specs 仓库未注入时跳过。
+func (s *routingPolicyService) validateSpecRef(ctx context.Context, specID *int64) error {
+	if s == nil || s.specs == nil || specID == nil || *specID <= 0 {
+		return nil
+	}
+	if _, err := s.specs.FindByID(ctx, *specID); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return fmt.Errorf("routing policy bound spec not found / 绑定的入站不存在")
+		}
+		return fmt.Errorf("validate routing policy spec: %w", err)
+	}
+	return nil
 }
 
 func (s *routingPolicyService) Delete(ctx context.Context, id int64) error {
@@ -146,6 +198,7 @@ func (s *routingPolicyService) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	s.logger.Info("routing policy deleted", "policy_id", id)
+	s.notifyChange(ctx)
 	return nil
 }
 
@@ -161,4 +214,3 @@ func (s *routingPolicyService) List(ctx context.Context, coreType string) ([]*re
 func (s *routingPolicyService) Resolve(ctx context.Context, id int64) (*repository.RoutingPolicy, error) {
 	return s.policies.FindByID(ctx, id)
 }
-

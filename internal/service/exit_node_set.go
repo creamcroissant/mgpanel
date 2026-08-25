@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"context"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,8 @@ import (
 
 // ExitNodeSetService 管理出口节点集合（负载均衡/故障转移的成员分组）。
 type ExitNodeSetService interface {
+	// SetOnChange 注入集合变更联动回调（重渲染编排），回调 error 由本服务记录；nil 表示不联动。
+	SetOnChange(fn func(context.Context) error)
 	Create(ctx context.Context, req ExitNodeSetCreateRequest) (*repository.ExitNodeSet, error)
 	Update(ctx context.Context, req ExitNodeSetUpdateRequest) (*repository.ExitNodeSet, error)
 	Delete(ctx context.Context, id int64) error
@@ -25,10 +28,10 @@ type ExitNodeSetService interface {
 
 // ExitNodeSetCreateRequest 创建出口集合的请求。
 type ExitNodeSetCreateRequest struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Tags        []string               `json:"tags"`
-	Strategy    string                 `json:"strategy"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Tags        []string                 `json:"tags"`
+	Strategy    string                   `json:"strategy"`
 	Members     []ExitNodeSetMemberInput `json:"members"`
 }
 
@@ -58,9 +61,12 @@ type ExitNodeSetMemberRequest struct {
 
 // ExitNodeSetDetail 集合详情（含成员）。
 type ExitNodeSetDetail struct {
-	Set      *repository.ExitNodeSet     `json:"set"`
+	Set      *repository.ExitNodeSet         `json:"set"`
 	Members  []*repository.ExitNodeSetMember `json:"members"`
-	HostName map[int64]string `json:"host_name"` // agent_host_id -> host 显示名
+	HostName map[int64]string                `json:"host_name"` // agent_host_id -> host 显示名
+	// UnlockSummary 按 agent_host_id 汇总各成员当前解锁状态（platform -> region/"?"），
+	// 供前端出口集合详情展示与分流策略制定参考。
+	UnlockSummary map[int64]map[string]string `json:"unlock_summary,omitempty"`
 }
 
 type exitNodeSetService struct {
@@ -68,6 +74,22 @@ type exitNodeSetService struct {
 	agentHosts  repository.AgentHostRepository
 	unlockProbe repository.UnlockProbeResultRepository
 	logger      *slog.Logger
+
+	// onChange 集合/成员变更后的联动回调（装配层注入，触发受影响 host 重渲染）；nil 安全。
+	onChange func(context.Context) error
+}
+
+// SetOnChange 注入集合变更联动回调。
+func (s *exitNodeSetService) SetOnChange(fn func(context.Context) error) { s.onChange = fn }
+
+// notifyChange 变更成功后通知；回调失败记录但不阻断。
+func (s *exitNodeSetService) notifyChange(ctx context.Context) {
+	if s == nil || s.onChange == nil {
+		return
+	}
+	if err := s.onChange(ctx); err != nil {
+		s.logger.Warn("exit node set change re-render failed", "error", err)
+	}
 }
 
 // NewExitNodeSetService 创建 ExitNodeSetService。
@@ -107,9 +129,11 @@ func (s *exitNodeSetService) Create(ctx context.Context, req ExitNodeSetCreateRe
 	if set.Name == "" {
 		return nil, fmt.Errorf("exit node set name is required / 出口集合名称不能为空")
 	}
-	// 名称唯一
+	// 名称唯一（非 NotFound 的 DB 错误必须显式失败，避免误判为“名称可用”）
 	if _, err := s.sets.FindByName(ctx, set.Name); err == nil {
 		return nil, fmt.Errorf("exit node set name already exists / 出口集合名称已存在")
+	} else if !errors.Is(err, repository.ErrNotFound) {
+		return nil, fmt.Errorf("check exit node set name: %w", err)
 	}
 	if err := s.sets.Create(ctx, set); err != nil {
 		return nil, err
@@ -131,6 +155,7 @@ func (s *exitNodeSetService) Create(ctx context.Context, req ExitNodeSetCreateRe
 		}
 	}
 	s.logger.Info("exit node set created", "set_id", set.ID, "name", set.Name, "strategy", set.Strategy, "members", len(req.Members))
+	s.notifyChange(ctx)
 	return set, nil
 }
 
@@ -159,6 +184,7 @@ func (s *exitNodeSetService) Update(ctx context.Context, req ExitNodeSetUpdateRe
 		return nil, err
 	}
 	s.logger.Info("exit node set updated", "set_id", set.ID, "name", set.Name)
+	s.notifyChange(ctx)
 	return set, nil
 }
 
@@ -167,6 +193,7 @@ func (s *exitNodeSetService) Delete(ctx context.Context, id int64) error {
 		return err
 	}
 	s.logger.Info("exit node set deleted", "set_id", id)
+	s.notifyChange(ctx)
 	return nil
 }
 
@@ -233,9 +260,10 @@ func (s *exitNodeSetService) buildDetail(ctx context.Context, set *repository.Ex
 		}
 	}
 	return &ExitNodeSetDetail{
-		Set:      set,
-		Members:  members,
-		HostName: hostNames,
+		Set:           set,
+		Members:       members,
+		HostName:      hostNames,
+		UnlockSummary: unlockSummary,
 	}, nil
 }
 
@@ -256,6 +284,7 @@ func (s *exitNodeSetService) AddMember(ctx context.Context, req ExitNodeSetMembe
 		return err
 	}
 	s.logger.Info("exit node set member added", "set_id", req.SetID, "agent_host_id", req.AgentHostID, "weight", weight)
+	s.notifyChange(ctx)
 	return nil
 }
 
@@ -264,17 +293,45 @@ func (s *exitNodeSetService) RemoveMember(ctx context.Context, setID, agentHostI
 		return err
 	}
 	s.logger.Info("exit node set member removed", "set_id", setID, "agent_host_id", agentHostID)
+	s.notifyChange(ctx)
 	return nil
 }
 
 func (s *exitNodeSetService) UpdateMember(ctx context.Context, req ExitNodeSetMemberRequest) error {
 	now := time.Now().Unix()
+
+	// 缺省保留现值：Weight<=0 视为未提供；Enabled 为 nil 视为未提供。
+	weight := 0
+	enabled := false
+	if members, err := s.sets.ListMembers(ctx, req.SetID); err == nil {
+		for _, mcur := range members {
+			if mcur != nil && mcur.AgentHostID == req.AgentHostID {
+				weight = mcur.Weight
+				enabled = mcur.Enabled
+				break
+			}
+		}
+	} else {
+		s.logger.Warn("read current exit set members failed; falling back to request-only update",
+			"set_id", req.SetID, "error", err)
+	}
+	if req.Weight > 0 {
+		weight = req.Weight
+	}
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
 	if err := s.sets.UpdateMember(ctx, &repository.ExitNodeSetMember{
-		SetID: req.SetID, AgentHostID: req.AgentHostID, Weight: req.Weight, Enabled: req.Enabled != nil && *req.Enabled,
+		SetID: req.SetID, AgentHostID: req.AgentHostID, Weight: weight, Enabled: enabled,
 		UpdatedAt: now,
 	}); err != nil {
 		return err
 	}
-	s.logger.Info("exit node set member updated", "set_id", req.SetID, "agent_host_id", req.AgentHostID)
+	s.logger.Info("exit node set member updated",
+		"set_id", req.SetID, "agent_host_id", req.AgentHostID,
+		"weight", weight, "enabled", enabled)
+
+	s.notifyChange(ctx)
 	return nil
 }

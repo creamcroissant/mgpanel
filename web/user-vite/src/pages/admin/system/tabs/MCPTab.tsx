@@ -63,7 +63,7 @@ function MCPTabContent({ initialForm, onSave, isSaving }: MCPTabContentProps) {
       </Button>
 
       {enabled !== initialForm.enabled && (
-        <p className="text-xs text-amber-500">
+        <p className="text-xs text-warning">
           {t("admin.system.settings.messages.mcpRestartHint")}
         </p>
       )}

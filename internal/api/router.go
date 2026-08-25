@@ -99,12 +99,15 @@ type Services struct {
 	AdminSystem             service.AdminSystemService
 	AdminSystemSettings     service.AdminSystemSettingsService
 	AgentHost               service.AgentHostService
+	AgentRelayRoute         service.AgentRelayRouteService
 	AgentCore               service.AgentCoreService
 	Forwarding              service.ForwardingService
 	AccessLog               service.AccessLogService
 	UnlockProbe             service.UnlockProbeService
 	ExitNodeSet             service.ExitNodeSetService
 	RoutingPolicy           service.RoutingPolicyService
+	AdminRelayPath          service.RelayPathService
+	Topology                service.TopologyService
 	InboundSpec             service.InboundSpecService
 	CoreConfigItem          service.CoreConfigItemService
 	DriftAndDiff            service.DriftAndDiffService
@@ -163,7 +166,7 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 		"DriftAndDiff":            services.DriftAndDiff,
 		"Forwarding":              services.Forwarding,
 		"I18n":                    services.I18n,
-		"MCPApiKeys":           services.MCPApiKeys,
+		"MCPApiKeys":              services.MCPApiKeys,
 		"InboundSpec":             services.InboundSpec,
 		"Install":                 services.Install,
 		"MailLink":                services.MailLink,
@@ -215,6 +218,9 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 	}
 
 	rateLimitConfig, rateLimitEnabled := resolveRateLimitConfig()
+
+	// 可信反代必须在 RealIP 中间件之前生效，否则 XFF 解析用不到白名单。
+	middleware.SetTrustedProxies(options.trustedProxies)
 
 	r.Use(
 		chiMiddleware.RequestID,
@@ -276,7 +282,8 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 		if metricsCfg.Token != "" {
 			r.With(middleware.MetricsGuard(metricsCfg.Token)).Handle("/metrics", promhttp.Handler())
 		} else {
-			r.Handle("/metrics", promhttp.Handler())
+			// 无 token 时公开运行时指标存在信息泄露风险：直接不注册。
+			logger.Warn("metrics endpoint disabled: metrics.token not configured")
 		}
 	}
 
@@ -359,7 +366,11 @@ func registerAPIRoutes(root chi.Router, services Services) {
 
 func registerV2Routes(api chi.Router, services Services) {
 	api.Route("/v2", func(v2 chi.Router) {
-		registerV2AdminRoutes(v2, services.Config, services.Auth, services.AdminPath, services.Plan, services.AdminPlan, services.AdminUser, services.AdminServer, services.AdminStat, services.AdminNodeStat, services.AdminSystem, services.AdminSystemSettings, services.AdminNotice, services.AdminKnowledge, services.AgentHost, services.AgentCore, services.AgentLifecycleOperation, services.AgentTrafficLifecycle, services.BinaryVersion, services.Forwarding, services.CDN, services.AccessLog, services.UnlockProbe, services.ExitNodeSet, services.RoutingPolicy, services.InboundSpec, services.CoreConfigItem, services.DriftAndDiff, services.ApplyOrchestrator, services.OperationLog, services.SubscriptionFilter, services.SubscriptionSource, services.MCPApiKeys, services.Mesh, services.I18n)
+		var topologyHandler *handler.TopologyHandler
+		if services.Topology != nil {
+			topologyHandler = handler.NewTopologyHandler(services.Topology, slog.Default())
+		}
+		registerV2AdminRoutes(v2, services.Config, services.Auth, services.AdminPath, services.Plan, services.AdminPlan, services.AdminUser, services.AdminServer, services.AdminStat, services.AdminNodeStat, services.AdminSystem, services.AdminSystemSettings, services.AdminNotice, services.AdminKnowledge, services.AgentHost, services.AgentCore, services.AgentLifecycleOperation, services.AgentTrafficLifecycle, services.BinaryVersion, services.Forwarding, services.CDN, services.AccessLog, services.UnlockProbe, services.ExitNodeSet, services.RoutingPolicy, services.AdminRelayPath, services.InboundSpec, services.CoreConfigItem, services.DriftAndDiff, services.ApplyOrchestrator, services.OperationLog, services.SubscriptionFilter, services.SubscriptionSource, services.MCPApiKeys, services.Mesh, services.I18n, topologyHandler)
 		registerV2UserRoutes(v2, services.User, services.Auth, services.I18n)
 		registerV2PassportRoutes(v2, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
 		registerV2ServerRoutes(v2, services.ServerAuth, services.ServerNode, services.Telemetry, services.Traffic, services.TrafficQueue, services.I18n)
@@ -376,7 +387,7 @@ func registerV2GuestRoutes(v2 chi.Router, i18nManager *i18n.Manager) {
 	})
 }
 
-func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, auth service.AuthService, adminPath service.AdminPathService, plan service.PlanService, adminPlan service.AdminPlanService, adminUser service.AdminUserService, adminServer service.AdminServerService, adminStat service.AdminStatService, adminNodeStat service.AdminNodeStatService, adminSystem service.AdminSystemService, adminSystemSettings service.AdminSystemSettingsService, adminNotice service.AdminNoticeService, adminKnowledge service.AdminKnowledgeService, agentHost service.AgentHostService, agentCore service.AgentCoreService, agentLifecycleOperation service.AgentLifecycleOperationService, agentTrafficLifecycle service.AgentTrafficLifecycleService, binaryVersion service.BinaryVersionService, forwarding service.ForwardingService, cdn service.CDNService, accessLog service.AccessLogService, unlockProbe service.UnlockProbeService, exitNodeSet service.ExitNodeSetService, routingPolicy service.RoutingPolicyService, inboundSpec service.InboundSpecService, coreConfigItem service.CoreConfigItemService, driftAndDiff service.DriftAndDiffService, applyOrchestrator service.ApplyOrchestratorService, operationLog service.OperationLogService, subscriptionFilter service.SubscriptionFilterService, subscriptionSource service.SubscriptionSourceService, mcpApiKeys service.MCPApiKeyService, meshService service.AgentMeshService, i18nManager *i18n.Manager) {
+func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, auth service.AuthService, adminPath service.AdminPathService, plan service.PlanService, adminPlan service.AdminPlanService, adminUser service.AdminUserService, adminServer service.AdminServerService, adminStat service.AdminStatService, adminNodeStat service.AdminNodeStatService, adminSystem service.AdminSystemService, adminSystemSettings service.AdminSystemSettingsService, adminNotice service.AdminNoticeService, adminKnowledge service.AdminKnowledgeService, agentHost service.AgentHostService, agentCore service.AgentCoreService, agentLifecycleOperation service.AgentLifecycleOperationService, agentTrafficLifecycle service.AgentTrafficLifecycleService, binaryVersion service.BinaryVersionService, forwarding service.ForwardingService, cdn service.CDNService, accessLog service.AccessLogService, unlockProbe service.UnlockProbeService, exitNodeSet service.ExitNodeSetService, routingPolicy service.RoutingPolicyService, relayPath service.RelayPathService, inboundSpec service.InboundSpecService, coreConfigItem service.CoreConfigItemService, driftAndDiff service.DriftAndDiffService, applyOrchestrator service.ApplyOrchestratorService, operationLog service.OperationLogService, subscriptionFilter service.SubscriptionFilterService, subscriptionSource service.SubscriptionSourceService, mcpApiKeys service.MCPApiKeyService, meshService service.AgentMeshService, i18nManager *i18n.Manager, topologyHandler *handler.TopologyHandler) {
 	adminHandler := handler.NewAdminHandler(configService)
 	adminPlanHandler := handler.NewAdminPlanHandler(plan, adminPlan, i18nManager)
 	adminUserHandler := handler.NewAdminUserHandler(adminUser)
@@ -394,7 +405,7 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	if cdn != nil {
 		cdnReportHandler = handler.NewAdminCDNReportHandler(cdn, i18nManager)
 	}
-		adminMCPKeyHandler := handler.NewAdminMCPKeyHandler(mcpApiKeys)
+	adminMCPKeyHandler := handler.NewAdminMCPKeyHandler(mcpApiKeys)
 	adminMeshHandler := handler.NewAdminAgentMeshHandler(meshService, i18nManager)
 	adminAgentCoreHandler := handler.NewAdminAgentCoreHandler(agentCore, i18nManager)
 	adminAgentConfigHandler := handler.NewAdminAgentConfigHandler(agentHost, i18nManager)
@@ -531,13 +542,13 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 			cdn.Get("/probe-report", cdnProbeHandler.ProberResults)
 		})
 
-			// Mesh network management endpoints
-			admin.Route("/agent-hosts/{id}/mesh", func(mesh chi.Router) {
-				mesh.Post("/join", adminMeshHandler.Join)
-				mesh.Delete("/leave", adminMeshHandler.Leave)
-				mesh.Get("/status", adminMeshHandler.GetStatus)
-			})
-			admin.Get("/mesh/network/{networkID}", adminMeshHandler.ListNetwork)
+		// Mesh network management endpoints
+		admin.Route("/agent-hosts/{id}/mesh", func(mesh chi.Router) {
+			mesh.Post("/join", adminMeshHandler.Join)
+			mesh.Delete("/leave", adminMeshHandler.Leave)
+			mesh.Get("/status", adminMeshHandler.GetStatus)
+		})
+		admin.Get("/mesh/network/{networkID}", adminMeshHandler.ListNetwork)
 
 		// Forwarding rules management endpoints
 		admin.Route("/forwarding", func(fwd chi.Router) {
@@ -582,6 +593,31 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 			rp.Delete("/{policyID}", exitNodeSetHandler.DeletePolicy)
 		})
 
+		// Relay path endpoints（服务器中继链路，多跳流量走向）
+		if relayPath != nil {
+			relayPathHandler := handler.NewRelayPathHandler(relayPath)
+			admin.Route("/relay-paths", func(rpp chi.Router) {
+				rpp.Get("/", relayPathHandler.List)
+				rpp.Get("/{pathID}", relayPathHandler.Get)
+				rpp.Post("/", relayPathHandler.Create)
+				rpp.Put("/{pathID}", relayPathHandler.Update)
+				rpp.Delete("/{pathID}", relayPathHandler.Delete)
+				rpp.Post("/validate", relayPathHandler.Validate)
+			})
+		}
+
+		// Topology canvas endpoints (docs/plans/20260824-topology-editor.md)
+		// 可选依赖：未装配(topologyHandler==nil)时跳过注册；
+		// reorder 用静态路径注册，chi 静态优先于 {policyID} 参数段。
+		if topologyHandler != nil {
+			adminTopologyHandler := topologyHandler
+			admin.Route("/topology", func(tp chi.Router) {
+				tp.Get("/", adminTopologyHandler.GetTopology)
+				tp.Post("/validate", adminTopologyHandler.ValidateTopology)
+			})
+			admin.Put("/routing-policies/reorder", adminTopologyHandler.ReorderPolicies)
+		}
+
 		// Config center spec endpoints
 		admin.Route("/config-center/specs", func(specs chi.Router) {
 			specs.Get("/", adminConfigCenterSpecHandler.ListSpecs)
@@ -595,13 +631,13 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 			specs.Get("/{id:[0-9]+}/bind", adminConfigCenterSpecHandler.ListBoundHosts)
 		})
 
-			// Config center core config endpoints
-			admin.Route("/config-center/core-configs", func(coreConf chi.Router) {
-				coreConf.Get("/", adminConfigCenterCoreConfigHandler.List)
-				coreConf.Post("/", adminConfigCenterCoreConfigHandler.Create)
-				coreConf.Put("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Update)
-				coreConf.Delete("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Delete)
-			})
+		// Config center core config endpoints
+		admin.Route("/config-center/core-configs", func(coreConf chi.Router) {
+			coreConf.Get("/", adminConfigCenterCoreConfigHandler.List)
+			coreConf.Post("/", adminConfigCenterCoreConfigHandler.Create)
+			coreConf.Put("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Update)
+			coreConf.Delete("/{id:[0-9]+}", adminConfigCenterCoreConfigHandler.Delete)
+		})
 
 		// Config center artifact/diff endpoints
 		admin.Get("/config-center/artifacts", adminConfigCenterDiffHandler.ListArtifacts)
@@ -620,11 +656,11 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		admin.Get("/config-center/apply-runs/{run_id}", adminConfigCenterApplyHandler.GetApplyRunDetail)
 		admin.Post("/config-center/apply-runs/{run_id}/cancel", adminConfigCenterApplyHandler.CancelApplyRun)
 
-			// MCP API key management endpoints
-			admin.Get("/mcp/keys", adminMCPKeyHandler.List)
-			admin.Post("/mcp/keys", adminMCPKeyHandler.Create)
-			admin.Post("/mcp/keys/{id}/revoke", adminMCPKeyHandler.Revoke)
-			admin.Delete("/mcp/keys/{id}", adminMCPKeyHandler.Delete)
+		// MCP API key management endpoints
+		admin.Get("/mcp/keys", adminMCPKeyHandler.List)
+		admin.Post("/mcp/keys", adminMCPKeyHandler.Create)
+		admin.Post("/mcp/keys/{id}/revoke", adminMCPKeyHandler.Revoke)
+		admin.Delete("/mcp/keys/{id}", adminMCPKeyHandler.Delete)
 
 		// Operation log endpoints
 		admin.Get("/operation-logs", operationLogHandler.List)
@@ -643,12 +679,33 @@ func registerV2UserRoutes(v2 chi.Router, userService service.UserService, auth s
 	})
 }
 
+// passport 登录端点的独立限流参数：比全局默认更严格，防撞库/爆破。
+const (
+	passportLoginRateLimit = 20
+	passportLoginWindow    = time.Minute
+)
+
 func registerV2PassportRoutes(v2 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
 	passportHandler := handler.NewPassportHandler(auth, verify, password, register, mailLink, comm, i18nMgr)
+	// 登录端点专用限流（IP 维度，KeyFunc 留空即按 IP）。
+	loginLimiter := middleware.RateLimit(middleware.RateLimitConfig{
+		Limit:  passportLoginRateLimit,
+		Window: passportLoginWindow,
+	})
 	v2.Route("/passport", func(passport chi.Router) {
-		mountHandler(passport, "/auth", passportHandler)
+		mountHandler(passport.With(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// 仅收紧 /auth 下的 login 路径，注册/改密等仍走全局配额
+				if strings.HasSuffix(r.URL.Path, "/login") {
+					loginLimiter(next).ServeHTTP(w, r)
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
+		}), "/auth", passportHandler)
 		mountHandler(passport, "/comm", passportHandler)
 	})
+	slog.Info("passport login rate-limit armed", "limit", passportLoginRateLimit, "window", passportLoginWindow)
 }
 
 func registerV2ServerRoutes(v2 chi.Router, serverAuth service.ServerAuthService, nodes service.ServerNodeService, telemetry service.ServerTelemetryService, traffic service.ServerTrafficService, queue *async.TrafficQueue, i18nManager *i18n.Manager) {
@@ -670,7 +727,7 @@ func registerV1Routes(api chi.Router, services Services) {
 		registerV1GuestRoutes(v1, services.Comm, services.Plan, services.I18n)
 		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
 		registerV1UserRoutes(v1, services.User, services.UserKnowledge, services.UserNotice, services.UserStat, services.Auth, services.Plan, services.Server, services.UserSelection, services.ShortLink, services.Subscription, services.I18n)
-		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.I18n)
+		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.I18n)
 	})
 }
 
@@ -721,8 +778,8 @@ func registerV1UserRoutes(v1 chi.Router, userService service.UserService, knowle
 		// 这里的 mountHandler 会同时绑定 /path 和 /path/*，避免重复写路由。
 		mountHandler(user, "/", userHandler)
 		mountHandler(user, "/notice", userNoticeHandler)
-			// Explicitly register /notice/unread to avoid chi wildcard matching edge cases
-			user.Get("/notice/unread", userNoticeHandler.ServeHTTP)
+		// Explicitly register /notice/unread to avoid chi wildcard matching edge cases
+		user.Get("/notice/unread", userNoticeHandler.ServeHTTP)
 		mountHandler(user, "/server", userServerHandler)
 		mountHandler(user, "/telegram", userHandler)
 		mountHandler(user, "/comm", userHandler)
@@ -761,7 +818,7 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 
 // registerV1AgentRoutes registers agent-related API endpoints.
 // These endpoints are called by agents deployed on edge nodes.
-func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, i18nManager *i18n.Manager) {
+func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, relayRoute service.AgentRelayRouteService, i18nManager *i18n.Manager) {
 	if agentHost == nil {
 		return // Agent host service not configured
 	}
@@ -774,5 +831,10 @@ func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, un
 		agent.Post("/heartbeat", agentHostHandler.Heartbeat)
 		agent.Post("/host", agentHostHandler.ReportHost)
 		agent.Post("/unlock", unlockProbeHandler.ReportUnlock)
+		if relayRoute != nil {
+			agent.Route("/relay-routes", func(rr chi.Router) {
+				rr.Get("/", handler.NewAgentRelayRouteHandler(relayRoute, nil).ServeHTTP)
+			})
+		}
 	})
 }

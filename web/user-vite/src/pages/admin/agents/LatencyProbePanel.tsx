@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Gauge, Wifi } from "lucide-react";
 import { fetchProbeReport, type ProbeReportItem } from "@/api/admin/cdn";
-import { Loading, Card, CardContent, ResponsiveGrid } from "@/components/ui";
+import { Loading, Card, CardContent, ResponsiveGrid, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, EmptyState } from "@/components/ui";
 import {
   Dialog,
   DialogContent,
@@ -19,22 +19,22 @@ interface LatencyProbePanelProps {
 
 function latencyColor(ms: number): string {
   if (ms <= 0) return "text-muted-foreground";
-  if (ms < 50) return "text-emerald-500";
-  if (ms < 150) return "text-amber-500";
-  return "text-red-500";
+  if (ms < 50) return "text-success";
+  if (ms < 150) return "text-warning";
+  return "text-destructive";
 }
 
 function latencyBgColor(ms: number): string {
   if (ms <= 0) return "";
-  if (ms < 50) return "bg-emerald-500/10";
-  if (ms < 150) return "bg-amber-500/10";
-  return "bg-red-500/10";
+  if (ms < 50) return "bg-success/10";
+  if (ms < 150) return "bg-warning/10";
+  return "bg-destructive/10";
 }
 
 function packetLossColor(loss: number): string {
-  if (loss <= 0) return "text-emerald-500";
-  if (loss < 0.05) return "text-amber-500";
-  return "text-red-500";
+  if (loss <= 0) return "text-success";
+  if (loss < 0.05) return "text-warning";
+  return "text-destructive";
 }
 
 function latencyLabel(ms: number): string {
@@ -110,7 +110,7 @@ export default function LatencyProbePanel({ open, onOpenChange }: LatencyProbePa
                 if (!lat) return null;
                 const Icon = ispIcons[isp] || Wifi;
                 return (
-                  <Card key={isp} className={`shadow-none ${latencyBgColor(lat)}`}>
+                  <Card key={isp} className={` ${latencyBgColor(lat)}`}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -128,70 +128,68 @@ export default function LatencyProbePanel({ open, onOpenChange }: LatencyProbePa
             </ResponsiveGrid>
 
             {/* Probe target table */}
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3">{t("admin.probe.label")}</th>
-                    <th className="px-4 py-3">{t("admin.probe.target")}</th>
-                    <th className="px-4 py-3">{t("admin.probe.province")}</th>
-                    <th className="px-4 py-3">{t("admin.probe.isp")}</th>
-                    <th className="px-4 py-3 text-right">{t("admin.probe.latency")}</th>
-                    <th className="px-4 py-3 text-right">{t("admin.probe.packetLoss")}</th>
-                    <th className="px-4 py-3 text-right">{t("admin.probe.probes")}</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("admin.probe.label")}</TableHead>
+                  <TableHead>{t("admin.probe.target")}</TableHead>
+                  <TableHead>{t("admin.probe.province")}</TableHead>
+                  <TableHead>{t("admin.probe.isp")}</TableHead>
+                  <TableHead className="text-right">{t("admin.probe.latency")}</TableHead>
+                  <TableHead className="text-right">{t("admin.probe.packetLoss")}</TableHead>
+                  <TableHead className="text-right">{t("admin.probe.probes")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                   {(data.results ?? []).map((item: ProbeReportItem, i: number) => (
-                    <tr
-                      key={`${item.target}-${i}`}
-                      className="border-b last:border-0 hover:bg-muted/30"
-                    >
-                      <td className="max-w-[160px] truncate px-4 py-3 font-medium">
+                    <TableRow key={`${item.target}-${i}`}>
+                      <TableCell className="max-w-[160px] truncate font-medium">
                         {item.label || "-"}
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-muted-foreground font-mono text-xs">
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate font-mono text-xs text-muted-foreground">
                         {item.target}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {item.province || "-"}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         {item.isp ? (
                           <Badge variant="outline" className="text-xs font-normal">
                             {ispLabel(item.isp)}
                           </Badge>
                         ) : "-"}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-mono text-sm font-medium ${latencyColor(item.avg_latency_ms)}`}>
+                      </TableCell>
+                      <TableCell className={`text-right font-mono font-medium ${latencyColor(item.avg_latency_ms)}`}>
                         <span className={`inline-block rounded px-1.5 py-0.5 ${latencyBgColor(item.avg_latency_ms)}`}>
                           {latencyLabel(item.avg_latency_ms)}
                         </span>
-                      </td>
-                      <td className={`px-4 py-3 text-right font-mono text-sm ${packetLossColor(item.packet_loss)}`}>
+                      </TableCell>
+                      <TableCell className={`text-right font-mono ${packetLossColor(item.packet_loss)}`}>
                         {item.packet_loss > 0
                           ? `${(item.packet_loss * 100).toFixed(1)}%`
                           : item.packet_loss === 0 && item.total_probes > 0
                             ? "0%"
                             : "-"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground font-mono text-xs">
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">
                         {item.total_probes}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
 
                   {(!data.results || data.results.length === 0) && (
-                    <tr>
-                      <td colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                        <Gauge className="mx-auto mb-2 h-6 w-6 opacity-40" />
-                        {t("admin.probe.noData")}
-                      </td>
-                    </tr>
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          icon={<Gauge className="h-full w-full" />}
+                          title={t("admin.probe.noData")}
+                          size="sm"
+                        />
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
-            </div>
+              </TableBody>
+            </Table>
           </div>
         )}
       </DialogContent>

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"runtime/debug"
 
 	"github.com/creamcroissant/mgpanel/internal/geoip"
 	probepkg "github.com/creamcroissant/mgpanel/internal/probe"
@@ -431,6 +432,13 @@ func probeEdges(ctx context.Context, domains []string, timeout time.Duration) (*
 	for _, domain := range domains {
 		domain := domain
 		go func() {
+			// 全局 Recoverer 不覆盖子 goroutine：单个探测 panic 不能打崩进程。
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("cdn edge probe panicked", "domain", domain, "panic", r, "stack", string(debug.Stack()))
+					ch <- &edgeResult{Domain: domain, Err: fmt.Errorf("probe panicked")}
+				}
+			}()
 			start := time.Now()
 			probeCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()

@@ -19,8 +19,15 @@ type Config struct {
 	Scheduler SchedulerConfig `mapstructure:"scheduler"`
 	Cores     []CoreConfig    `mapstructure:"cores"`
 	Nodes     []NodeConfig    `mapstructure:"nodes"`
+	Mesh      MeshConfig      `mapstructure:"mesh"`
 	AgentTask AgentTaskConfig `mapstructure:"agent_task"`
 	MCP       MCPConfig       `mapstructure:"mcp"`
+}
+
+// MeshConfig 定义面板侧 mesh 网络 ACL 配置。
+type MeshConfig struct {
+	// AllowedNetworks 允许 agent 加入的 mesh 网络 ID 白名单；空 = 仅允许 default。
+	AllowedNetworks []string `mapstructure:"allowed_networks"`
 }
 
 // GRPCConfig 定义 Agent 通信所需的 gRPC 服务配置。
@@ -42,6 +49,9 @@ type GRPCTLSConfig struct {
 type SecurityConfig struct {
 	SubscribeObfuscation bool     `mapstructure:"subscribe_obfuscation"`
 	CORSAllowedOrigins   []string `mapstructure:"cors_allowed_origins"`
+	// TrustedProxies 显式可信反代 CIDR 白名单；为空时不信任任何 XFF 头
+	// （客户端 IP 取直连地址）。反向代理部署必须包含代理地址，如 127.0.0.1/32。
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 // MetricsConfig 定义 Prometheus 指标配置。

@@ -43,9 +43,9 @@ func OpenSQLite(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(4)
+	db.SetConnMaxLifetime(5 * time.Minute)
 	if err := WithSQLiteBusyRetry(func() error {
 		_, err := db.Exec("PRAGMA journal_mode=WAL;")
 		return err

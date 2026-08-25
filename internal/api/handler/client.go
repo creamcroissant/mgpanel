@@ -33,6 +33,15 @@ func (h *ClientHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// subscribeClientIP 提取订阅请求的真实客户端 IP（复用 CDN 探针的
+// extractClientIP：XFF 首跳 → X-Real-IP → RemoteAddr），无法解析时返回 unknown。
+func subscribeClientIP(r *http.Request) string {
+	if ip := extractClientIP(r); ip != nil {
+		return ip.String()
+	}
+	return "unknown"
+}
+
 func (h *ClientHandler) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 	if h.Subscription == nil {
 		RespondErrorI18nAction(r.Context(), w, http.StatusServiceUnavailable, "client.subscribe", "error.service_unavailable", h.i18n)
@@ -61,6 +70,7 @@ func (h *ClientHandler) handleSubscribe(w http.ResponseWriter, r *http.Request) 
 		Tags:         r.URL.Query().Get("tags"),
 		ShowUserInfo: r.URL.Query().Get("show_info") == "1" || r.URL.Query().Get("show_info") == "true",
 		TemplateID:   templateID,
+		ClientIP:     subscribeClientIP(r),
 	}
 	result, err := h.Subscription.Subscribe(r.Context(), userRef, params)
 	if err != nil {

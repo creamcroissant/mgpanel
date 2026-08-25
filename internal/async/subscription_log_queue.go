@@ -1,91 +1,78 @@
+// 文件路径: internal/async/subscription_log_queue.go
+// 模块说明: 订阅日志有界队列——批量落库，防止突发订阅日志挤占 DB 资源。
 package async
 
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
-// SubscriptionLogQueue buffers subscription logs before background ingestion.
+// SubscriptionLogQueue 缓冲订阅日志并通过后台 worker 批量落库。
+// 底层基于通用有界 TaskQueue，防止突发订阅日志导致内存/DB 挤占。
 type SubscriptionLogQueue struct {
-	mu     sync.Mutex
-	logs   []*repository.SubscriptionLog
+	queue  *TaskQueue
 	repo   repository.SubscriptionLogRepository
 	logger *slog.Logger
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
-const subscriptionLogWriteTimeout = 3 * time.Second
+const (
+	subscriptionLogCapacity     = 5000
+	subscriptionLogBatchSize    = 200
+	subscriptionLogFlushEvery   = 5 * time.Second
+	subscriptionLogWriteTimeout = 3 * time.Second
+)
 
-// NewSubscriptionLogQueue constructs a buffered queue for subscription logs.
+// NewSubscriptionLogQueue 构建有界订阅日志队列。
 func NewSubscriptionLogQueue(repo repository.SubscriptionLogRepository, logger *slog.Logger) *SubscriptionLogQueue {
-	ctx, cancel := context.WithCancel(context.Background())
-	q := &SubscriptionLogQueue{
-		logs:   make([]*repository.SubscriptionLog, 0),
-		repo:   repo,
-		logger: logger,
-		ctx:    ctx,
-		cancel: cancel,
-	}
-	go q.worker()
+	q := &SubscriptionLogQueue{repo: repo, logger: logger}
+	q.queue = NewTaskQueue(TaskQueueConfig{
+		Capacity:   subscriptionLogCapacity,
+		FlushEvery: subscriptionLogFlushEvery,
+		BatchSize:  subscriptionLogBatchSize,
+		Overflow:   OverflowDropOldest,
+		FlushFn:    q.flush,
+	})
 	return q
 }
 
-// Enqueue appends a subscription log for asynchronous processing.
+// Enqueue 将订阅日志入队。队列满时丢弃最旧条目（日志可容忍丢失）。
 func (q *SubscriptionLogQueue) Enqueue(log *repository.SubscriptionLog) {
-	if q == nil || log == nil {
+	if q == nil || log == nil || q.queue == nil {
 		return
 	}
-	q.mu.Lock()
-	q.logs = append(q.logs, log)
-	q.mu.Unlock()
+	q.queue.Enqueue(log)
 }
 
-// worker periodically flushes logs to the database.
-func (q *SubscriptionLogQueue) worker() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-q.ctx.Done():
-			q.flush()
-			return
-		case <-ticker.C:
-			q.flush()
+// flush 批量写入订阅日志到数据库。
+func (q *SubscriptionLogQueue) flush(ctx context.Context, items []any) {
+	if len(items) == 0 {
+		return
+	}
+	logs := make([]*repository.SubscriptionLog, 0, len(items))
+	for _, item := range items {
+		if log, ok := item.(*repository.SubscriptionLog); ok {
+			logs = append(logs, log)
 		}
 	}
-}
-
-// flush writes all pending logs to the repository.
-func (q *SubscriptionLogQueue) flush() {
-	q.mu.Lock()
-	if len(q.logs) == 0 {
-		q.mu.Unlock()
+	if len(logs) == 0 {
 		return
 	}
-	pending := q.logs
-	q.logs = make([]*repository.SubscriptionLog, 0)
-	q.mu.Unlock()
-
-	for _, log := range pending {
-		logCtx, cancel := context.WithTimeout(q.ctx, subscriptionLogWriteTimeout)
-		err := q.repo.Log(logCtx, log)
-		cancel()
-		if err != nil {
+	for _, log := range logs {
+		logCtx, cancel := context.WithTimeout(ctx, subscriptionLogWriteTimeout)
+		if err := q.repo.Log(logCtx, log); err != nil {
 			q.logger.Error("failed to persist subscription log", "error", err, "user_id", log.UserID)
 		}
+		cancel()
 	}
 }
 
-// Stop gracefully shuts down the queue worker.
+// Stop 优雅停止队列 worker。
 func (q *SubscriptionLogQueue) Stop() {
 	if q == nil {
 		return
 	}
-	q.cancel()
+	q.queue.Stop()
 }

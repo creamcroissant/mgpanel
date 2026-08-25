@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strconv"
@@ -106,10 +107,12 @@ type artifactCompilerService struct {
 	meshPeers       repository.AgentMeshPeerRepository
 	exitNodeSets    repository.ExitNodeSetRepository
 	routingPolicies repository.RoutingPolicyRepository
+	relayPaths      repository.RelayPathRepository
 	renderers       map[string]artifactRenderer
 }
 
 // NewArtifactCompilerService creates ArtifactCompilerService.
+// relayPaths 允许为 nil（向后兼容旧调用点），nil 时跳过中继链路产物渲染。
 func NewArtifactCompilerService(
 	specs repository.InboundSpecRepository,
 	artifacts repository.DesiredArtifactRepository,
@@ -117,6 +120,7 @@ func NewArtifactCompilerService(
 	meshPeers repository.AgentMeshPeerRepository,
 	exitNodeSets repository.ExitNodeSetRepository,
 	routingPolicies repository.RoutingPolicyRepository,
+	relayPaths repository.RelayPathRepository,
 ) ArtifactCompilerService {
 	service := &artifactCompilerService{
 		specs:           specs,
@@ -125,6 +129,7 @@ func NewArtifactCompilerService(
 		meshPeers:       meshPeers,
 		exitNodeSets:    exitNodeSets,
 		routingPolicies: routingPolicies,
+		relayPaths:      relayPaths,
 		renderers:       map[string]artifactRenderer{},
 	}
 
@@ -269,11 +274,11 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 	}
 	artifacts = append(artifacts, meshExitArtifacts...)
 
-	if err := s.artifacts.DeleteByHostCoreRevision(ctx, req.AgentHostID, coreType, req.DesiredRevision, sourceTags...); err != nil {
-		return nil, err
-	}
-	if err := s.artifacts.CreateBatch(ctx, artifacts); err != nil {
-		return nil, err
+	// 中继链路产物已改为 mark 化：入口出站+路由规则由 buildRelaySpecRouting 在 spec 绑定时生成，
+	// 物理路径由 agent 侧 RelayRouteManager 下发的 nftables 策略路由实现。
+
+	if _, err := s.artifacts.ReplaceRevision(ctx, req.AgentHostID, coreType, req.DesiredRevision, artifacts, sourceTags...); err != nil {
+		return nil, fmt.Errorf("replace artifacts: %w", err)
 	}
 
 	return &RenderArtifactsResult{
@@ -390,7 +395,7 @@ func (s *artifactCompilerService) RenderCoreConfigs(ctx context.Context, req Ren
 		}, nil
 	}
 
-	// Delete old artifacts at same revision then create new ones
+	// Atomically replace artifacts at same revision (single transaction)
 	// Collect unique source tags from rendered artifacts to scope deletion
 	sourceTags := make([]string, 0, len(metadata))
 	seenTag := make(map[string]struct{}, len(metadata))
@@ -400,11 +405,8 @@ func (s *artifactCompilerService) RenderCoreConfigs(ctx context.Context, req Ren
 			sourceTags = append(sourceTags, m.SourceTag)
 		}
 	}
-	if err := s.artifacts.DeleteByHostCoreRevision(ctx, req.AgentHostID, coreType, revision, sourceTags...); err != nil {
-		return nil, fmt.Errorf("delete existing artifacts: %w", err)
-	}
-	if err := s.artifacts.CreateBatch(ctx, artifacts); err != nil {
-		return nil, fmt.Errorf("create artifacts: %w", err)
+	if _, err := s.artifacts.ReplaceRevision(ctx, req.AgentHostID, coreType, revision, artifacts, sourceTags...); err != nil {
+		return nil, fmt.Errorf("replace existing artifacts: %w", err)
 	}
 
 	return &RenderArtifactsResult{
@@ -476,6 +478,22 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	for _, spec := range enabledSpecs {
 		specTag := normalizeTag(spec.Tag)
 
+		// 2-0. relay_path_id：多跳中继链路（最高优先级，高于 exit_node_set_id / exit_agent_host_id）
+		if spec.RelayPathID != nil && *spec.RelayPathID > 0 {
+			var handled bool
+			var err error
+			artifacts, handled, err = s.buildRelaySpecRouting(ctx, req, coreType, specTag, *spec.RelayPathID, artifacts)
+			if err != nil {
+				return nil, fmt.Errorf("build relay routing for spec %s: %w", specTag, err)
+			}
+			if handled {
+				continue
+			}
+			// 链路不可用（不存在/禁用/节点不足/下一跳无 mesh IP）→ 回落旧出口逻辑并告警
+			slog.Warn("relay path unavailable for spec, falling back to legacy exit",
+				"spec", specTag, "relay_path_id", *spec.RelayPathID, "agent_host_id", req.AgentHostID)
+		}
+
 		// 2a. exit_node_set_id：出口集合（负载均衡+故障转移）
 		if spec.ExitNodeSetID != nil && *spec.ExitNodeSetID > 0 {
 			var err error
@@ -521,22 +539,24 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	}
 
 	// 3. 应用 routing policies（geosite/domain → 出口集合的自动分流）
-	//    路由策略不依赖具体 spec 的出口设置：按 core_type 查询全局启用的策略，
-	//    每个策略生成一条 route rule，把匹配流量路由到对应出口集合的 selector outbound。
+	//    求值顺序 = [绑定本 agent 所宿入站的 scoped 策略按 priority] ++ [全局策略按 priority]，
+	//    双核均为规则数组序首中即停，天然实现“入站规则优先、全局兜底”。
+	//    绑定到其他 agent 入站的 scoped 策略在编译其它 agent 时才生效，此处排除。
 	if s.routingPolicies != nil {
 		policies, err := s.routingPolicies.ListEnabledByCore(ctx, coreType)
 		if err != nil {
 			return nil, fmt.Errorf("list routing policies: %w", err)
 		}
+		orderedPolicies := orderScopedFirst(policies, enabledSpecs)
 		// 为 geosite 策略生成 rule_set 定义（sing-box）
-		if ruleSetContent := buildMeshRoutingPolicyRuleSet(coreType, policies); len(ruleSetContent) > 0 {
+		if ruleSetContent := buildMeshRoutingPolicyRuleSet(coreType, orderedPolicies); len(ruleSetContent) > 0 {
 			artifacts = append(artifacts, &repository.DesiredArtifact{
 				AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 				Filename: "mesh-rule-sets.json", SourceTag: "rule-sets",
 				Content: ruleSetContent, ContentHash: artifactHash(ruleSetContent),
 			})
 		}
-		for _, p := range policies {
+		for _, p := range orderedPolicies {
 			if p.TargetSetID == nil || *p.TargetSetID <= 0 {
 				continue
 			}
@@ -556,7 +576,7 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	return artifacts, nil
 }
 
-// buildMeshExitSetArtifacts 为出口集合（ExitNodeSetID）生成 
+// buildMeshExitSetArtifacts 为出口集合（ExitNodeSetID）生成
 // selector outbound + 成员 socks outbound + routing rule。
 func (s *artifactCompilerService) buildMeshExitSetArtifacts(
 	ctx context.Context,
@@ -634,6 +654,128 @@ func (s *artifactCompilerService) buildMeshExitSetArtifacts(
 
 	return artifacts, nil
 }
+
+// orderScopedFirst 将策略按求值顺序排列：
+// [绑定本 agent 所宿 spec 的 scoped 策略（保持 priority 序）] ++ [全局策略（保持 priority 序）]。
+// 绑定到其它 agent 入站的 scoped 策略被排除（由宿主 agent 的编译轮次渲染）。
+func orderScopedFirst(policies []*repository.RoutingPolicy, enabledSpecs []*repository.InboundSpec) []*repository.RoutingPolicy {
+	scopedSet := make(map[int64]struct{}, len(enabledSpecs))
+	for _, sp := range enabledSpecs {
+		scopedSet[sp.ID] = struct{}{}
+	}
+	ordered := make([]*repository.RoutingPolicy, 0, len(policies))
+	for _, p := range policies {
+		if p.SpecID != nil {
+			if _, ok := scopedSet[*p.SpecID]; ok {
+				ordered = append(ordered, p)
+			}
+		}
+	}
+	for _, p := range policies {
+		if p.SpecID == nil {
+			ordered = append(ordered, p)
+		}
+	}
+	return ordered
+}
+
+// relayFwmark 中继链路的 fwmark：40000 + pathID（避开系统保留段）。
+// agent 侧 RelayRouteManager 据此下发 ip rule/ip route；路由表号 = 100 + pathID。
+func relayFwmark(pathID int64) int64 { return 40000 + pathID }
+
+// renderRelayMarkOutbound 生成中继出站 artifact：direct/freedom 出站打 fwmark，
+// 由内核策略路由接管物理路径。双核各一分支——这是 L3 与代理核心解耦的唯一耦合点。
+func renderRelayMarkOutbound(coreType string, tag string, pathID int64) []byte {
+	mark := relayFwmark(pathID)
+	var data map[string]any
+	if coreType == "xray" {
+		data = map[string]any{"outbounds": []any{map[string]any{
+			"tag": tag, "protocol": "freedom", "settings": map[string]any{},
+			"streamSettings": map[string]any{"sockopt": map[string]any{"mark": mark}},
+		}}}
+	} else {
+		data = map[string]any{"outbounds": []any{map[string]any{
+			"tag": tag, "type": "direct", "routing_mark": mark,
+		}}}
+	}
+	b, _ := json.Marshal(data)
+	return b
+}
+
+// buildRelaySpecRouting 为绑定中继链路的 spec 生成入口路由规则 + mark 出站。
+// 返回 handled=false 表示链路不可用（不存在/禁用/节点不足/任一跳无 mesh IP），调用方回落旧出口逻辑。
+// 产物（均渲染在入口 agent）：
+//   - mesh-{specTag}-relay-{pathID}.json：inbound[specTag] → relay-mk-{pathID} 路由规则
+//   - relay-{pathID}-out.json：relay-mk-{pathID} direct/freedom 出站带 fwmark=40000+pathID
+//     （物理路径由 agent 侧 RelayRouteManager 下发的 nftables 策略路由实现）
+func (s *artifactCompilerService) buildRelaySpecRouting(
+	ctx context.Context,
+	req RenderArtifactsRequest,
+	coreType, specTag string,
+	pathID int64,
+	artifacts []*repository.DesiredArtifact,
+) ([]*repository.DesiredArtifact, bool, error) {
+	if s.relayPaths == nil || s.meshPeers == nil {
+		return artifacts, false, nil
+	}
+	path, err := s.relayPaths.GetByID(ctx, pathID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return artifacts, false, nil
+		}
+		return artifacts, false, err
+	}
+	if !path.Enabled || len(path.Nodes) < 2 {
+		return artifacts, false, nil
+	}
+	nodes := append([]repository.RelayPathNode(nil), path.Nodes...)
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Sequence < nodes[j].Sequence })
+
+	// 全链路下一跳可达性预检：任一跳缺 mesh IP 则整体回落，避免半成品链路吞流量
+	allPeers, err := s.meshPeers.ListByNetworkID(ctx, "default")
+	if err != nil {
+		return artifacts, false, fmt.Errorf("list mesh peers: %w", err)
+	}
+	peerWGIP := make(map[int64]string, len(allPeers))
+	for _, p := range allPeers {
+		peerWGIP[p.AgentHostID] = p.WGIP
+	}
+	for i := 0; i < len(nodes)-1; i++ {
+		dst := nodes[i+1]
+		ip, ok := peerWGIP[dst.AgentHostID]
+		if !ok || ip == "" {
+			slog.Warn("relay path hop unreachable, falling back to legacy exit",
+				"path_id", pathID, "path_name", path.Name,
+				"next_agent", dst.AgentHostID, "spec", specTag)
+			return artifacts, false, nil
+		}
+	}
+
+	entryOutboundTag := fmt.Sprintf("relay-mk-%d", pathID)
+	ruleContent := renderMeshRoutingRule(coreType, specTag, entryOutboundTag)
+	artifacts = append(artifacts, &repository.DesiredArtifact{
+		AgentHostID:     req.AgentHostID,
+		CoreType:        coreType,
+		DesiredRevision: req.DesiredRevision,
+		Filename:        fmt.Sprintf("mesh-%s-relay-%d.json", specTag, pathID),
+		SourceTag:       fmt.Sprintf("%s-relay-%d", specTag, pathID),
+		Content:         ruleContent,
+		ContentHash:     artifactHash(ruleContent),
+	})
+
+	outContent := renderRelayMarkOutbound(coreType, entryOutboundTag, pathID)
+	artifacts = append(artifacts, &repository.DesiredArtifact{
+		AgentHostID:     req.AgentHostID,
+		CoreType:        coreType,
+		DesiredRevision: req.DesiredRevision,
+		Filename:        fmt.Sprintf("relay-%d-out.json", pathID),
+		SourceTag:       fmt.Sprintf("relay-mk-%d", pathID),
+		Content:         outContent,
+		ContentHash:     artifactHash(outContent),
+	})
+	return artifacts, true, nil
+}
+
 
 // renderMeshSocksInbound 生成 sing-box / Xray 的 socks inbound 配置（监听 WG IP:port）。
 func renderMeshSocksInbound(coreType, listenIP string, port int, tag string) []byte {
@@ -714,8 +856,8 @@ func renderMeshRoutingRule(coreType, inboundTag, outboundTag string) []byte {
 			"routing": map[string]any{
 				"rules": []any{
 					map[string]any{
-						"type":       "field",
-						"inboundTag": []string{inboundTag},
+						"type":        "field",
+						"inboundTag":  []string{inboundTag},
 						"outboundTag": outboundTag,
 					},
 				},
@@ -807,9 +949,9 @@ func buildMeshRoutingPolicyRuleSet(coreType string, policies []*repository.Routi
 			continue
 		}
 		ruleSets = append(ruleSets, map[string]any{
-			"type": "remote",
-			"tag":  fmt.Sprintf("geosite-%s", p.MatchValue),
-			"url":  fmt.Sprintf("https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-%s.srs", p.MatchValue),
+			"type":            "remote",
+			"tag":             fmt.Sprintf("geosite-%s", p.MatchValue),
+			"url":             fmt.Sprintf("https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-%s.srs", p.MatchValue),
 			"download_detour": "direct",
 		})
 	}
@@ -847,15 +989,16 @@ func renderMeshDirectOutbound(coreType string) []byte {
 
 // renderMeshSelectorOutbound 生成 sing-box / Xray 的 selector outbound。
 // sing-box: type=selector（自动故障转移+负载均衡）；Xray: balancing（fallback）。
-func renderMeshSelectorOutbound(coreType, tag string, memberOutboundTags []string) []byte {	if coreType == "xray" {
+func renderMeshSelectorOutbound(coreType, tag string, memberOutboundTags []string) []byte {
+	if coreType == "xray" {
 		// Xray 使用 balancing 策略组做负载均衡 + balancerSettings 做故障转移
 		data := map[string]any{
 			"routing": map[string]any{
 				"balancers": []any{
 					map[string]any{
-						"tag":        tag,
-						"selector":   memberOutboundTags,
-						"strategy":   map[string]any{"type": "roundRobin"},
+						"tag":         tag,
+						"selector":    memberOutboundTags,
+						"strategy":    map[string]any{"type": "roundRobin"},
 						"fallbackTag": firstOrEmpty(memberOutboundTags),
 					},
 				},
@@ -868,10 +1011,10 @@ func renderMeshSelectorOutbound(coreType, tag string, memberOutboundTags []strin
 	data := map[string]any{
 		"outbounds": []any{
 			map[string]any{
-				"type":        "selector",
-				"tag":         tag,
-				"outbounds":   memberOutboundTags,
-				"default":     firstOrEmpty(memberOutboundTags),
+				"type":                        "selector",
+				"tag":                         tag,
+				"outbounds":                   memberOutboundTags,
+				"default":                     firstOrEmpty(memberOutboundTags),
 				"interrupt_exist_connections": false,
 			},
 		},

@@ -10,14 +10,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type planRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func (r *planRepo) ListVisible(ctx context.Context) ([]*repository.Plan, error) {
+	if r.cache != nil {
+		var cached []*repository.Plan
+		if ok, _ := r.cache.Namespace("plan").GetJSON(ctx, "ListVisible", &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	rows, err := r.db.QueryContext(ctx, listVisibleQuery)
 	if err != nil {
 		return nil, err
@@ -37,6 +45,9 @@ func (r *planRepo) ListVisible(ctx context.Context) ([]*repository.Plan, error) 
 		return nil, err
 	}
 
+	if r.cache != nil && len(plans) > 0 {
+		_ = r.cache.Namespace("plan").SetJSON(ctx, "ListVisible", plans, 30*time.Second)
+	}
 	return plans, nil
 }
 
@@ -62,8 +73,17 @@ func (r *planRepo) ListAll(ctx context.Context) ([]*repository.Plan, error) {
 }
 
 func (r *planRepo) FindByID(ctx context.Context, id int64) (*repository.Plan, error) {
+	if r.cache != nil {
+		var cached *repository.Plan
+		if ok, _ := r.cache.Namespace("plan").GetJSON(ctx, "FindByID_"+fmt.Sprint(id), &cached); ok && cached != nil {
+			return cached, nil
+		}
+	}
 	row := r.db.QueryRowContext(ctx, planByIDQuery, id)
 	plan, err := scanPlan(row)
+	if err == nil && r.cache != nil {
+		_ = r.cache.Namespace("plan").SetJSON(ctx, "FindByID_"+fmt.Sprint(id), plan, 30*time.Second)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repository.ErrNotFound

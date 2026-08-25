@@ -21,7 +21,7 @@ export default function AdminPageShell({
 }: AdminPageShellProps) {
   return (
     <div className="space-y-5 lg:space-y-6">
-      <Card className="shadow-none">
+      <Card className="">
         <CardContent className="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>

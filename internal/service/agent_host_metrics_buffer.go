@@ -81,13 +81,18 @@ func (b *agentHostMetricsBuffer) Flush(ctx context.Context) error {
 			b.cache.Delete(ctx, key)
 			continue
 		}
-		// Delete before UpdateMetrics to avoid TOCTOU race with concurrent Enqueue.
-		b.cache.Delete(ctx, key)
+		// 先写库；条目保留在缓存中作为天然重试（失败无需 re-Enqueue）。
 		if err := b.repo.UpdateMetrics(ctx, entry.AgentHostID, entry.Metrics); err != nil {
-			// Re-enqueue on failure so data is retried on next flush cycle
-			_ = b.Enqueue(ctx, entry.AgentHostID, entry.Metrics)
-			b.logger.Error("failed to flush agent host metrics", "agent_host_id", entry.AgentHostID, "error", err)
+			b.logger.Error("failed to flush agent host metrics",
+				"agent_host_id", entry.AgentHostID, "error", err)
 			continue
+		}
+		// 成功后仅当缓存值仍是本次写入的快照时才删除；
+		// 若冲刷期间有更新的 Enqueue 覆盖，保留新值待下轮，
+		// 避免旧值回灌覆盖新值。
+		current := agentHostMetricsBufferEntry{}
+		if curOk, _ := b.cache.GetJSON(ctx, key, &current); !curOk || current.Metrics == entry.Metrics {
+			b.cache.Delete(ctx, key)
 		}
 	}
 	return nil

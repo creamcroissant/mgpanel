@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type subscriptionSourceRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func newSubscriptionSourceRepo(db *sql.DB) *subscriptionSourceRepo {
@@ -120,6 +122,13 @@ func (r *subscriptionSourceRepo) FindByID(ctx context.Context, id int64) (*repos
 }
 
 func (r *subscriptionSourceRepo) List(ctx context.Context, filter repository.SubscriptionSourceFilter) ([]*repository.SubscriptionSource, error) {
+	cacheable := filter.Enabled != nil && *filter.Enabled && filter.Limit == 1000 && filter.Offset == 0 && (filter.Type == nil || *filter.Type == "") 
+	if cacheable && r.cache != nil {
+		var cached []*repository.SubscriptionSource
+		if ok, _ := r.cache.Namespace("subscription_source").GetJSON(ctx, "ListEnabled", &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	query := strings.Builder{}
 	args := make([]any, 0, 8)
 	query.WriteString(`
@@ -145,7 +154,13 @@ func (r *subscriptionSourceRepo) List(ctx context.Context, filter repository.Sub
 		}
 		sources = append(sources, source)
 	}
-	return sources, rows.Err()
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
+	}
+	if cacheable && r.cache != nil && len(sources) > 0 {
+		_ = r.cache.Namespace("subscription_source").SetJSON(ctx, "ListEnabled", sources, 30*time.Second)
+	}
+	return sources, nil
 }
 
 func (r *subscriptionSourceRepo) Count(ctx context.Context, filter repository.SubscriptionSourceFilter) (int64, error) {

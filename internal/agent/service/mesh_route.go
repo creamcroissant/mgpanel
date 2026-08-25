@@ -83,7 +83,9 @@ func (a *Agent) handleSetRoutingTable(ctx context.Context, task command.Task) er
 				PublicKey: r.PeerId,
 			}
 		}
-		a.meshProber.StartKeepalive(ctx, kaRoutes)
+		if _, prober := a.getMesh(); prober != nil {
+			prober.StartKeepalive(ctx, kaRoutes)
+		}
 	}
 
 	return nil

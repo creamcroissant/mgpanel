@@ -68,6 +68,7 @@ ui:
 # ------------------------------------------------------------------------------
 
 grpc:
+  # gRPC 成功请求访问日志级别（环境变量 MGPANEL_GRPC_ACCESS_LOG_LEVEL：debug|info|warn|error，默认 debug）。
   enabled: true                 # Required. Agent only supports gRPC transport.
   addr: "0.0.0.0:8080"       # Same listener as http.addr when reuse_http_port is true
   reuse_http_port: true       # Enable single-port HTTP+gRPC multiplexing on http.addr
@@ -107,3 +108,9 @@ multi_core:
     - instance_id: "singbox-default"
       core_type: "sing-box"
       config_template_id: 1
+
+# Mesh network access control: allowlist of network IDs agents may join
+# via JoinMesh. Empty/absent = only the built-in "default" network.
+# mesh:
+#   allowed_networks:
+#     - "default"

@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/components/ui";
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
 
 interface DnsConfigEditorProps {
   value: string;  // JSON string of dns config_data
@@ -99,7 +109,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
   return (
     <div className="space-y-4">
       {/* Global Settings */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.strategy")}</label>
           <Select value={(config.queryStrategy as string) || (config.strategy as string) || ""} onValueChange={(v) => updateConfig({ queryStrategy: v || undefined, strategy: v || undefined })}>
@@ -117,8 +127,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
       <div className="flex flex-wrap gap-4">
         {boolFields.map((field) => (
           <label key={field} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={(config[field] as boolean) ?? false} className="h-4 w-4"
-              onChange={(e) => updateConfig({ [field]: e.target.checked || undefined })} />
+            <Switch checked={((config[field] as boolean) ?? false)} onCheckedChange={(value) => updateConfig({ [field]: value || undefined })} />
             {field}
           </label>
         ))}
@@ -182,7 +191,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
       {serverDialogOpen && editServer && (
         <div className="rounded-md border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editServerIdx != null ? t("common.edit") : t("admin.configCenter.dns.addServer")}</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.dns.address")}</label>
               <Input value={editServer.address} onChange={(e) => setEditServer({ ...editServer, address: e.target.value })} placeholder="1.1.1.1 / https://..." />
@@ -224,7 +233,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
       {ruleDialogOpen && editRule && (
         <div className="rounded-md border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editRuleIdx != null ? t("common.edit") : t("admin.configCenter.dns.addRule")}</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.inbound.domain")}</label>
               <Input value={stringFromArr(editRule.domain)} onChange={(e) => setEditRule({ ...editRule, domain: arrFromString(e.target.value) })} placeholder="example.com, geosite:cn" />

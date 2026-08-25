@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"log/slog"
+	"sync/atomic"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -25,6 +27,9 @@ type SubscriptionFilterService interface {
 	Filter(ctx context.Context, req SubscriptionFilterRequest) (*SubscriptionFilterResult, error)
 	ListFilterReasons(ctx context.Context, req ListSubscriptionFilterReasonsRequest) (*SubscriptionFilterReasonListResult, error)
 	GetFilterSummary(ctx context.Context, req SubscriptionFilterSummaryRequest) (*SubscriptionFilterSummary, error)
+	// SetPersistReasons 开关过滤原因持久化。订阅热路径固定传 false（写放大
+	// 优化）；需要低频重建原因记录时由运维/装配侧显式开启。
+	SetPersistReasons(enabled bool)
 }
 
 type SubscriptionFilterRequest struct {
@@ -98,12 +103,14 @@ type SubscriptionFilterReasonListResult struct {
 }
 
 type subscriptionFilterService struct {
-	servers   repository.ServerRepository
+	servers         repository.ServerRepository
 	sources   repository.SubscriptionSourceRepository
 	reasons   repository.SubscriptionFilterReasonRepository
 	plans     repository.PlanRepository
 	selection UserServerSelectionService
 	telemetry ServerTelemetryService
+
+	persistReasons atomic.Bool // 低频持久化开关；默认关闭（热路径写放大优化）
 }
 
 type subscriptionFilterExternalReason struct {
@@ -113,7 +120,6 @@ type subscriptionFilterExternalReason struct {
 
 type subscriptionFilterExternalReasons struct {
 	servers map[int64]subscriptionFilterExternalReason
-	sources map[subscriptionSourceNodeKey]subscriptionFilterExternalReason
 }
 
 type subscriptionSourceNodeKey struct {
@@ -130,6 +136,12 @@ type subscriptionFilterSourceReasonGroup struct {
 
 func NewSubscriptionFilterService(servers repository.ServerRepository, sources repository.SubscriptionSourceRepository, reasons repository.SubscriptionFilterReasonRepository, plans repository.PlanRepository, selection UserServerSelectionService, telemetry ServerTelemetryService) SubscriptionFilterService {
 	return &subscriptionFilterService{servers: servers, sources: sources, reasons: reasons, plans: plans, selection: selection, telemetry: telemetry}
+}
+
+// SetPersistReasons 切换过滤原因持久化模式，结构化日志记录变更。
+func (s *subscriptionFilterService) SetPersistReasons(enabled bool) {
+	s.persistReasons.Store(enabled)
+	slog.Info("subscription filter: reason persistence mode updated", "enabled", enabled)
 }
 
 func (s *subscriptionFilterService) Filter(ctx context.Context, req SubscriptionFilterRequest) (*SubscriptionFilterResult, error) {
@@ -167,7 +179,7 @@ func (s *subscriptionFilterService) Filter(ctx context.Context, req Subscription
 	if err != nil {
 		return nil, err
 	}
-	if req.PersistReasons && s.reasons != nil {
+	if (req.PersistReasons || s.persistReasons.Load()) && s.reasons != nil {
 		if err := s.persistFilterReasons(ctx, selfReasons, sourceReasons); err != nil {
 			return nil, err
 		}
@@ -312,7 +324,7 @@ func (s *subscriptionFilterService) filterSourceNodes(ctx context.Context, req S
 		}
 		enabledCount++
 		for _, node := range sourceNodes {
-			if reason := evaluateSourceNode(sourceType, source.ID, node, req, external); reason != nil {
+			if reason := evaluateSourceNode(sourceType, source.ID, node, req); reason != nil {
 				group.reasons = append(group.reasons, reason)
 				continue
 			}
@@ -323,11 +335,9 @@ func (s *subscriptionFilterService) filterSourceNodes(ctx context.Context, req S
 	return nodes, total, enabledCount, reasonGroups, nil
 }
 
-func evaluateSourceNode(sourceType string, sourceID int64, node protocol.Node, req SubscriptionFilterRequest, external subscriptionFilterExternalReasons) *repository.SubscriptionFilterReason {
-	key := subscriptionSourceNodeKey{sourceType: sourceType, sourceID: sourceID, nodeName: strings.TrimSpace(node.Name)}
-	if reason, ok := external.sources[key]; ok {
-		return newSubscriptionFilterReason(sourceType, sourceID, node.ID, node.Name, reason.reason, reason.detail)
-	}
+func evaluateSourceNode(sourceType string, sourceID int64, node protocol.Node, req SubscriptionFilterRequest) *repository.SubscriptionFilterReason {
+	// 注：订阅源节点暂无外部屏蔽原因写入方（agent 流量阈值仅记录 server 维度），
+	// 原先预留的 external.sources 死路径已移除；后续如需源级阈值屏蔽再恢复。
 	if !subscriptionProtocolKnown(node.Type) {
 		return newSubscriptionFilterReason(sourceType, sourceID, node.ID, node.Name, SubscriptionFilterReasonProtocolDisabled, "protocol disabled")
 	}
@@ -356,7 +366,7 @@ func (s *subscriptionFilterService) persistFilterReasons(ctx context.Context, se
 }
 
 func (s *subscriptionFilterService) loadExternalFilterReasons(ctx context.Context) (subscriptionFilterExternalReasons, error) {
-	result := subscriptionFilterExternalReasons{servers: map[int64]subscriptionFilterExternalReason{}, sources: map[subscriptionSourceNodeKey]subscriptionFilterExternalReason{}}
+	result := subscriptionFilterExternalReasons{servers: map[int64]subscriptionFilterExternalReason{}}
 	if s == nil || s.reasons == nil {
 		return result, nil
 	}

@@ -30,6 +30,8 @@ type InboundSpecService interface {
 
 	// SetCDNService 注入 CDN 服务引用，保存 xhttp spec 后自动触发加速部署。
 	SetCDNService(cdn CDNService)
+	// SetRelayPathRepository 注入中继链路仓库，spec 绑定 relay_path_id 时校验存在性与启用状态。
+	SetRelayPathRepository(repo repository.RelayPathRepository)
 }
 
 // UpsertInboundSpecRequest carries create/update fields for one inbound spec.
@@ -38,6 +40,7 @@ type UpsertInboundSpecRequest struct {
 	AgentHostID     *int64 // nil = 模板 spec，非 nil = 绑定到指定主机
 	ExitAgentHostID *int64 // nil = 直连出网；非 nil = 经 mesh 隧道到该 agent 出网
 	ExitNodeSetID   *int64 // nil = 固定出口；非 nil = 从出口集合中选（负载均衡+故障转移）
+	RelayPathID     *int64 // nil/0 = 不走中继；非 nil = 走多跳中继链路（优先级最高）
 	CoreType        string
 	Tag             string
 	Enabled         *bool
@@ -82,6 +85,7 @@ type inboundSpecService struct {
 	revisions      repository.InboundSpecRevisionRepository
 	inboundIndexes repository.InboundIndexRepository
 	bindings       repository.SpecHostBindingRepository
+	relayPaths     repository.RelayPathRepository
 	compiler       ArtifactCompilerService
 	cdn            CDNService
 }
@@ -110,6 +114,34 @@ func NewInboundSpecService(
 // SetCDNService 设置 CDN 服务引用，用于保存 xhttp spec 时自动触发加速部署。
 func (s *inboundSpecService) SetCDNService(cdn CDNService) {
 	s.cdn = cdn
+}
+
+// SetRelayPathRepository 注入中继链路仓库，用于 spec 绑定 relay_path_id 时的存在性/启用校验。
+func (s *inboundSpecService) SetRelayPathRepository(repo repository.RelayPathRepository) {
+	if s != nil {
+		s.relayPaths = repo
+	}
+}
+
+// validateRelayPathBinding 校验 spec 绑定的中继链路存在且启用（高可观测：中文报错直达原因）。
+func (s *inboundSpecService) validateRelayPathBinding(ctx context.Context, pathID int64) error {
+	if s.relayPaths == nil {
+		return fmt.Errorf("中继链路仓库未配置，无法绑定 relay_path_id=%d", pathID)
+	}
+	path, err := s.relayPaths.GetByID(ctx, pathID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return fmt.Errorf("中继链路不存在: id=%d", pathID)
+		}
+		return fmt.Errorf("查询中继链路失败: id=%d, %w", pathID, err)
+	}
+	if !path.Enabled {
+		return fmt.Errorf("中继链路已禁用: id=%d, name=%s", pathID, path.Name)
+	}
+	if len(path.Nodes) < 2 {
+		return fmt.Errorf("中继链路节点不足两跳，无中继意义: id=%d, name=%s", pathID, path.Name)
+	}
+	return nil
 }
 
 // BindSpec 绑定模板 spec 到指定主机并自动渲染 artifact。
@@ -256,6 +288,7 @@ func (s *inboundSpecService) createSpec(ctx context.Context, req UpsertInboundSp
 		AgentHostID:     req.AgentHostID,
 		ExitAgentHostID: req.ExitAgentHostID,
 		ExitNodeSetID:   req.ExitNodeSetID,
+		RelayPathID:     req.RelayPathID,
 		CoreType:        coreType,
 		Tag:             tag,
 		Enabled:         enabled,
@@ -264,6 +297,11 @@ func (s *inboundSpecService) createSpec(ctx context.Context, req UpsertInboundSp
 		DesiredRevision: 1,
 		CreatedBy:       req.OperatorID,
 		UpdatedBy:       req.OperatorID,
+	}
+	if spec.RelayPathID != nil && *spec.RelayPathID > 0 {
+		if err := s.validateRelayPathBinding(ctx, *spec.RelayPathID); err != nil {
+			return 0, 0, err
+		}
 	}
 	if err := s.specs.Create(ctx, spec); err != nil {
 		return 0, 0, err
@@ -345,6 +383,19 @@ func (s *inboundSpecService) updateSpec(ctx context.Context, req UpsertInboundSp
 		}
 	}
 
+	// relay_path_id：三态语义同上（nil=不变，0=清除，>0=设置并校验）
+	relayPathID := existing.RelayPathID
+	if req.RelayPathID != nil {
+		if *req.RelayPathID > 0 {
+			if err := s.validateRelayPathBinding(ctx, *req.RelayPathID); err != nil {
+				return 0, 0, err
+			}
+			relayPathID = req.RelayPathID
+		} else {
+			relayPathID = nil
+		}
+	}
+
 	coreType := existing.CoreType
 	if strings.TrimSpace(req.CoreType) != "" {
 		coreType = req.CoreType
@@ -401,6 +452,7 @@ func (s *inboundSpecService) updateSpec(ctx context.Context, req UpsertInboundSp
 	existing.AgentHostID = agentHostID
 	existing.ExitAgentHostID = exitAgentHostID
 	existing.ExitNodeSetID = exitNodeSetID
+	existing.RelayPathID = relayPathID
 	existing.CoreType = coreType
 	existing.Tag = tag
 	existing.Enabled = enabled

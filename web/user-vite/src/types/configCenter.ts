@@ -84,6 +84,10 @@ export interface UpsertConfigCenterSpecRequest {
   semantic_spec: unknown;
   core_specific: unknown;
   change_note?: string;
+  /** 出口绑定三选一（后端优先级：relay_path_id > exit_node_set_id > exit_agent_host_id）；未选项显式 null 以清除 */
+  exit_agent_host_id?: number | null;
+  exit_node_set_id?: number | null;
+  relay_path_id?: number | null;
 }
 
 export interface UpsertConfigCenterSpecResult {

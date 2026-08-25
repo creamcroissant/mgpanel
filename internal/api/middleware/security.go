@@ -3,6 +3,9 @@
 package middleware
 
 import (
+	"log/slog"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -93,8 +96,14 @@ func DefaultRateLimitConfig() RateLimitConfig {
 		Limit:  60,
 		Window: time.Minute,
 		KeyFunc: func(r *http.Request) string {
-			// 默认按 IP 限流
-			return getClientIP(r)
+			// 默认按 IP + agent token（若有）限流，避免同出口 IP 的
+			// 多个 agent 互相挤占配额；token 哈希后入 key 防内存泄漏明文。
+			key := getClientIP(r)
+			if tk := strings.TrimSpace(r.Header.Get("X-Server-Token")); tk != "" {
+				sum := sha256.Sum256([]byte(tk))
+				key += "|tk:" + hex.EncodeToString(sum[:6])
+			}
+			return key
 		},
 		SkipPaths: []string{"/health", "/healthz", "/_internal/ready"},
 	}
@@ -328,21 +337,64 @@ func parseIP(addr string) string {
 	return trimmed
 }
 
-func isTrustedProxy(remoteIP string) bool {
-	if remoteIP == "127.0.0.1" || remoteIP == "::1" {
-		return true
-	}
-	if strings.HasPrefix(remoteIP, "10.") || strings.HasPrefix(remoteIP, "192.168.") {
-		return true
-	}
-	if strings.HasPrefix(remoteIP, "172.") {
-		parts := strings.Split(remoteIP, ".")
-		if len(parts) > 1 {
-			if second, err := strconv.Atoi(parts[1]); err == nil {
-				if second >= 16 && second <= 31 {
-					return true
-				}
+// trustedProxyCIDRs 显式可信反代列表；空表示不信任任何代理头。
+var trustedProxyState struct {
+	mu   sync.RWMutex
+	nets []*net.IPNet
+	set  bool
+}
+
+// SetTrustedProxies 配置可信反代 CIDR（支持单 IP，自动按 /32、/128 处理）。
+// 必须在路由装配前调用；空列表 = 完全不信任 XFF/X-Real-IP。
+func SetTrustedProxies(raw []string) {
+	nets := make([]*net.IPNet, 0, len(raw))
+	for _, entry := range raw {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		if !strings.Contains(trimmed, "/") {
+			ip := net.ParseIP(trimmed)
+			if ip == nil {
+				slog.Warn("ignored invalid trusted proxy entry", "entry", entry)
+				continue
 			}
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+			continue
+		}
+		_, ipnet, err := net.ParseCIDR(trimmed)
+		if err != nil {
+			slog.Warn("ignored invalid trusted proxy cidr", "entry", entry, "error", err)
+			continue
+		}
+		nets = append(nets, ipnet)
+	}
+	trustedProxyState.mu.Lock()
+	defer trustedProxyState.mu.Unlock()
+	trustedProxyState.nets = nets
+	trustedProxyState.set = true
+}
+
+// isTrustedProxy 仅当显式配置的可信 CIDR 命中直连地址时返回 true。
+// 未配置任何可信代理时不信任一切 XFF/X-Real-IP（含私网与回环），
+// 防止内网直连部署下伪造首跳绕过限流；本机反代需显式配置 127.0.0.1/32。
+func isTrustedProxy(remoteIP string) bool {
+	ip := net.ParseIP(strings.TrimSpace(remoteIP))
+	if ip == nil {
+		return false
+	}
+	trustedProxyState.mu.RLock()
+	defer trustedProxyState.mu.RUnlock()
+	if !trustedProxyState.set {
+		return false
+	}
+	for _, ipnet := range trustedProxyState.nets {
+		if ipnet.Contains(ip) {
+			return true
 		}
 	}
 	return false

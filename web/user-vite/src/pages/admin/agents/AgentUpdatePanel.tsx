@@ -189,7 +189,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
   });
 
   return (
-    <Card className="border border-border shadow-none" data-testid="agent-update-panel">
+    <Card className="border border-border" data-testid="agent-update-panel">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

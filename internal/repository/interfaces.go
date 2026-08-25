@@ -45,6 +45,7 @@ type Store interface {
 	UnlockProbeResults() UnlockProbeResultRepository
 	ExitNodeSets() ExitNodeSetRepository
 	RoutingPolicies() RoutingPolicyRepository
+	RelayPaths() RelayPathRepository
 	InboundSpecs() InboundSpecRepository
 	InboundSpecRevisions() InboundSpecRevisionRepository
 	DesiredArtifacts() DesiredArtifactRepository
@@ -92,6 +93,7 @@ type OperationLogRepository interface {
 	Append(ctx context.Context, entry *OperationLogEntry) (*OperationLogEntry, error)
 	List(ctx context.Context, filter OperationLogFilter) ([]*OperationLogEntry, error)
 	Count(ctx context.Context, filter OperationLogFilter) (int64, error)
+	DeleteOlderThan(ctx context.Context, days int) (int64, error)
 }
 
 // BinaryVersionStateRepository manages agent and core binary version states.
@@ -105,6 +107,7 @@ type BinaryVersionStateRepository interface {
 // AgentLifecycleOperationRepository manages panel-issued agent lifecycle commands.
 type AgentLifecycleOperationRepository interface {
 	Create(ctx context.Context, operation *AgentLifecycleOperation) error
+	DeleteOlderThan(ctx context.Context, days int) (int64, error)
 	UpdateStatus(ctx context.Context, id, status string, resultPayload json.RawMessage, errorMessage string, claimedBy string, claimedAt, startedAt, finishedAt *int64) error
 	UpdateClaimedStatus(ctx context.Context, id, claimedBy, status string, resultPayload json.RawMessage, errorMessage string, startedAt, finishedAt *int64) error
 	FindByID(ctx context.Context, id string) (*AgentLifecycleOperation, error)
@@ -279,6 +282,7 @@ type KnowledgeRepository interface {
 // LoginLogRepository 保存登录日志。
 type LoginLogRepository interface {
 	Create(ctx context.Context, log *LoginLog) error
+	DeleteOlderThan(ctx context.Context, days int) (int64, error)
 }
 
 // TokenRepository 管理访问/刷新令牌。
@@ -293,6 +297,7 @@ type TokenRepository interface {
 type SubscriptionLogRepository interface {
 	Log(ctx context.Context, log *SubscriptionLog) error
 	GetRecentLogs(ctx context.Context, userID int64, limit int) ([]*SubscriptionLog, error)
+	DeleteOlderThan(ctx context.Context, days int) (int64, error)
 }
 
 // StatServerRepository 管理节点维度统计。
@@ -599,12 +604,29 @@ type RoutingPolicyRepository interface {
 	FindByID(ctx context.Context, id int64) (*RoutingPolicy, error)
 	List(ctx context.Context, filter RoutingPolicyFilter) ([]*RoutingPolicy, error)
 	ListEnabledByCore(ctx context.Context, coreType string) ([]*RoutingPolicy, error)
+	// ReorderPriorities 事务内按给定 ID 顺序重写 priority（首项 100，逐项递增 100），
+	// 返回成功更新的行数；ID 不存在时静默跳过（影响 0 行）。
+	ReorderPriorities(ctx context.Context, orderedIDs []int64) (int64, error)
+}
+
+// RelayPathRepository 管理服务器中继链路及其有序节点。
+// nodes 在事务内随 path 整体写（先删后插）。
+type RelayPathRepository interface {
+	Create(ctx context.Context, p *RelayPath) (int64, error)
+	Update(ctx context.Context, p *RelayPath) error
+	Delete(ctx context.Context, id int64) error
+	GetByID(ctx context.Context, id int64) (*RelayPath, error)
+	List(ctx context.Context, coreType string) ([]*RelayPath, error)
 }
 
 // RoutingPolicyFilter 定义路由策略查询过滤条件。
 type RoutingPolicyFilter struct {
 	CoreType *string
 	Enabled  *bool
+	// SpecID 非 nil 时仅返回该 spec 的策略
+	SpecID *int64
+	// OnlyGlobal 为 true 时仅返回全局策略（spec_id IS NULL）
+	OnlyGlobal *bool
 }
 
 // InboundSpecRepository manages desired inbound specs.
@@ -659,10 +681,12 @@ type CoreConfigItemRepository interface {
 type DesiredArtifactRepository interface {
 	CreateBatch(ctx context.Context, artifacts []*DesiredArtifact) error
 	DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, sourceTags ...string) error
+	ReplaceRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, artifacts []*DesiredArtifact, sourceTags ...string) (int64, error)
 	List(ctx context.Context, filter DesiredArtifactFilter) ([]*DesiredArtifact, error)
 	Count(ctx context.Context, filter DesiredArtifactFilter) (int64, error)
 	GetLatestRevision(ctx context.Context, agentHostID int64, coreType string) (int64, error)
 	FindByHostCoreRevisionFilename(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, filename string) (*DesiredArtifact, error)
+	PruneOldRevisions(ctx context.Context, keep int) (int64, error)
 }
 
 // ApplyRunRepository manages apply lifecycle records.
@@ -680,6 +704,7 @@ type ApplyRunRepository interface {
 type TrafficReportDedupRepository interface {
 	// MarkHandled records report_id for an agent host. Returns false if already exists.
 	MarkHandled(ctx context.Context, agentHostID int64, reportID string, handledAt int64) (bool, error)
+	DeleteOlderThan(ctx context.Context, days int) (int64, error)
 }
 
 // AgentConfigInventoryRepository manages applied file inventory.

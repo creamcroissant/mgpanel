@@ -43,7 +43,7 @@ function renderInventoryMobileList(items: ConfigCenterInventory[], t: (key: stri
             <div className="min-w-0 break-all font-medium text-foreground">{item.filename}</div>
             <Badge variant={item.parse_status === "ok" ? "success" : "warning"}>{item.parse_status}</Badge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.source")}>
               <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
             </ResponsiveListField>
@@ -72,7 +72,7 @@ function renderInboundMobileList(items: ConfigCenterInboundIndex[], t: (key: str
             <div className="min-w-0 break-all font-medium text-foreground">{item.tag}</div>
             <Badge variant="secondary">{item.protocol || "-"}</Badge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.source")}>
               <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
             </ResponsiveListField>
@@ -124,7 +124,7 @@ export default function SnapshotTab({ selectedHostId, selectedCoreType }: Snapsh
   );
 
   return (
-    <TabsContent value="snapshot" className="space-y-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>{t("admin.configCenter.snapshot.title")}</CardTitle>
@@ -228,6 +228,6 @@ export default function SnapshotTab({ selectedHostId, selectedCoreType }: Snapsh
           )}
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 }

@@ -106,7 +106,7 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
   const nextResetAt = status?.next_reset_at ? formatDateTime(status.next_reset_at) : t("admin.cores.trafficNoNextReset");
 
   return (
-    <Card className="border border-border shadow-none" data-testid="agent-traffic-cycle-card">
+    <Card className="border border-border" data-testid="agent-traffic-cycle-card">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 shrink">

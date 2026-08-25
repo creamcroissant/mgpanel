@@ -26,7 +26,7 @@ export function ResourceCard({
   return (
     <article
       className={cn(
-        "group min-w-0 rounded-md border bg-card p-4 text-card-foreground shadow-none transition-colors hover:border-primary/30",
+        "group min-w-0 rounded-md border bg-card p-4 text-card-foreground transition-colors hover:border-primary/30",
         className
       )}
       {...props}

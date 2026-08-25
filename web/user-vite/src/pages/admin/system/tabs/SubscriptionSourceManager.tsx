@@ -283,7 +283,7 @@ export default function SubscriptionSourceManager() {
   const sources = sourcesQuery.data?.sources ?? [];
 
   return (
-    <Card className="border border-border shadow-none">
+    <Card className="border border-border">
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle>
@@ -317,7 +317,7 @@ export default function SubscriptionSourceManager() {
             }
           />
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div>
             <Table>
               <TableHeader>
                 <TableRow>

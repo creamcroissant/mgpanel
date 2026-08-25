@@ -1,5 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
 import type { InboundMultiplexSpec } from "@/types/configCenterInbound";
 
 interface InboundMultiplexFieldsProps {
@@ -45,7 +53,7 @@ export function InboundMultiplexFields({ value, onChange, readOnly }: InboundMul
   return (
     <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-multiplex-fields">
       <label className="flex items-center gap-2 text-sm font-medium cursor-pointer" onClick={() => !readOnly && handleToggle(!enabled)}>
-        <input type="checkbox" checked={enabled} onChange={(e) => handleToggle(e.target.checked)} disabled={readOnly} className="h-4 w-4 rounded border-input" />
+        <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableMultiplex")}
       </label>
 
@@ -65,7 +73,7 @@ export function InboundMultiplexFields({ value, onChange, readOnly }: InboundMul
             </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={value?.padding === true} onChange={(e) => set({ padding: e.target.checked || undefined })} disabled={readOnly} className="h-4 w-4 rounded border-input" />
+                <Switch checked={(value?.padding === true)} onCheckedChange={(value) => set({ padding: value || undefined })} disabled={readOnly} />
                 {t("admin.configCenter.inbound.mpPadding")}
               </label>
             </div>
@@ -74,7 +82,7 @@ export function InboundMultiplexFields({ value, onChange, readOnly }: InboundMul
           {/* Brutal congestion control */}
           <div className="space-y-3 rounded-md border border-border/60 bg-background p-3">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={brutalEnabled} onChange={(e) => setBrutalEnabled(e.target.checked)} disabled={readOnly} className="h-4 w-4 rounded border-input" />
+              <Switch checked={(brutalEnabled)} onCheckedChange={(value) => setBrutalEnabled(value)} disabled={readOnly} />
               {t("admin.configCenter.inbound.mpBrutal")}
             </label>
             {brutalEnabled && (

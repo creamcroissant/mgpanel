@@ -142,7 +142,6 @@ export default function SubscriptionWorkspace() {
             emptyLabel={t("subscription.noSubscription")}
             copyLabel={t("subscription.copySubscription")}
             copiedLabel={t("common.copied")}
-            helperText={t("subscription.securityHint")}
             buttonAriaLabel={t("subscription.copySubscription")}
           />
         </SectionCard>

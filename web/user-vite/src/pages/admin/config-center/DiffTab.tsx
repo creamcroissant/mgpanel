@@ -72,7 +72,7 @@ function renderSemanticDiffMobileList(
             <div className="min-w-0 font-medium text-foreground break-all">{item.tag}</div>
             <Badge variant={formatDriftVariant(item.drift_type)}>{item.drift_type}</Badge>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.tag")} className="col-span-2">
               <span className="break-all">{item.tag}</span>
             </ResponsiveListField>
@@ -140,7 +140,7 @@ export default function DiffTab({ selectedHostId, selectedCoreType }: DiffTabPro
   });
 
   return (
-    <TabsContent value="diff" className="space-y-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>{t("admin.configCenter.diff.title")}</CardTitle>
@@ -274,6 +274,6 @@ export default function DiffTab({ selectedHostId, selectedCoreType }: DiffTabPro
           </Tabs>
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 }

@@ -6,18 +6,27 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type serverRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func (r *serverRepo) FindAllVisible(ctx context.Context) ([]*repository.Server, error) {
+	if r.cache != nil {
+		var cached []*repository.Server
+		if ok, _ := r.cache.Namespace("server").GetJSON(ctx, "FindAllVisible", &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	const query = `SELECT id, code, group_id, route_id, parent_id, agent_host_id, tags, name, rate, host, port, server_port,
 		cipher, obfs, obfs_settings, "show", sort, status, type, settings, last_heartbeat_at, created_at, updated_at
         FROM servers
@@ -39,6 +48,9 @@ func (r *serverRepo) FindAllVisible(ctx context.Context) ([]*repository.Server, 
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if r.cache != nil && len(servers) > 0 {
+		_ = r.cache.Namespace("server").SetJSON(ctx, "FindAllVisible", servers, 5*time.Second)
 	}
 	return servers, nil
 }
@@ -85,6 +97,17 @@ func (r *serverRepo) FindByID(ctx context.Context, id int64) (*repository.Server
 }
 
 func (r *serverRepo) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*repository.Server, error) {
+	if r.cache != nil && len(groupIDs) > 0 {
+		// 用 groupIDs 的 hash 做缓存 key（简单拼接为 "FindByGroupIDs:id1_id2"）
+		key := "FindByGroupIDs"
+		for _, id := range groupIDs {
+			key += "_" + fmt.Sprint(id)
+		}
+		var cached []*repository.Server
+		if ok, _ := r.cache.Namespace("server").GetJSON(ctx, key, &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	if len(groupIDs) == 0 {
 		return []*repository.Server{}, nil
 	}
@@ -116,10 +139,26 @@ func (r *serverRepo) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*r
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if r.cache != nil && len(servers) > 0 {
+		key := "FindByGroupIDs"
+		for _, id := range groupIDs {
+			key += "_" + fmt.Sprint(id)
+		}
+		_ = r.cache.Namespace("server").SetJSON(ctx, key, servers, 5*time.Second)
+	}
 	return servers, nil
 }
 
 func (r *serverRepo) Create(ctx context.Context, server *repository.Server) error {
+	if r.cache != nil {
+		r.cache.Namespace("server").Delete(ctx, "FindAllVisible")
+		// 新建可见节点会影响各分组查询结果，与 Update/Delete 一致清理 FindByGroupIDs 前缀键
+		for _, k := range r.cache.Namespace("server").Keys(ctx) {
+			if strings.HasPrefix(k, "FindByGroupIDs") {
+				r.cache.Namespace("server").Delete(ctx, k)
+			}
+		}
+	}
 	const query = `INSERT INTO servers (
 		code, group_id, route_id, parent_id, agent_host_id, tags, name, rate, host, port, server_port,
 		cipher, obfs, obfs_settings, "show", sort, status, type, settings, last_heartbeat_at, created_at, updated_at
@@ -165,6 +204,15 @@ func (r *serverRepo) Create(ctx context.Context, server *repository.Server) erro
 }
 
 func (r *serverRepo) Update(ctx context.Context, server *repository.Server) error {
+	if r.cache != nil {
+		r.cache.Namespace("server").Delete(ctx, "FindAllVisible")
+		// 无法精确知道哪些 groupIDs 受影响，删除所有 FindByGroupIDs 缓存
+		for _, k := range r.cache.Namespace("server").Keys(ctx) {
+			if strings.HasPrefix(k, "FindByGroupIDs") {
+				r.cache.Namespace("server").Delete(ctx, k)
+			}
+		}
+	}
 	const query = `UPDATE servers SET
 		code=?, group_id=?, route_id=?, parent_id=?, agent_host_id=?, tags=?, name=?, rate=?, host=?, port=?, server_port=?,
 		cipher=?, obfs=?, obfs_settings=?, "show"=?, sort=?, status=?, type=?, settings=?, last_heartbeat_at=?, updated_at=?
@@ -209,6 +257,14 @@ func (r *serverRepo) UpdateHeartbeat(ctx context.Context, id int64, heartbeatAt 
 }
 
 func (r *serverRepo) Delete(ctx context.Context, id int64) error {
+	if r.cache != nil {
+		r.cache.Namespace("server").Delete(ctx, "FindAllVisible")
+		for _, k := range r.cache.Namespace("server").Keys(ctx) {
+			if strings.HasPrefix(k, "FindByGroupIDs") {
+				r.cache.Namespace("server").Delete(ctx, k)
+			}
+		}
+	}
 	const query = `DELETE FROM servers WHERE id = ?`
 	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {

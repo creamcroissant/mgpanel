@@ -14,46 +14,38 @@ interface StatusBadgeProps {
 
 const statusConfig: Record<
   StatusType,
-  { variant: BadgeVariant; label: string; dotClass: string }
+  { variant: BadgeVariant; dotClass: string }
 > = {
   online: {
     variant: "success",
-    label: "Online",
     dotClass: "bg-success animate-pulse",
   },
   offline: {
     variant: "destructive",
-    label: "Offline",
     dotClass: "bg-destructive",
   },
   active: {
     variant: "success",
-    label: "Active",
     dotClass: "bg-success",
   },
   inactive: {
     variant: "secondary",
-    label: "Inactive",
     dotClass: "bg-muted-foreground",
   },
   pending: {
     variant: "warning",
-    label: "Pending",
     dotClass: "bg-warning animate-pulse",
   },
   success: {
     variant: "success",
-    label: "Success",
     dotClass: "bg-success",
   },
   warning: {
     variant: "warning",
-    label: "Warning",
     dotClass: "bg-warning",
   },
   error: {
     variant: "destructive",
-    label: "Error",
     dotClass: "bg-destructive",
   },
 };
@@ -66,7 +58,8 @@ export default function StatusBadge({
   icon,
 }: StatusBadgeProps) {
   const config = statusConfig[status];
-  const displayLabel = label || config.label;
+  // 文案由调用方传 t() 结果；未传时回退状态键（避免组件内硬编码英文）
+  const displayLabel = label ?? status;
 
   const dotSizes = {
     sm: "h-1.5 w-1.5",

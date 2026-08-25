@@ -224,7 +224,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
                 <TableHead>{t("admin.configCenter.coreConfig.fields.tag")}</TableHead>
                 <TableHead className="hidden sm:table-cell">{t("admin.configCenter.fields.coreType")}</TableHead>
                 <TableHead>{t("admin.configCenter.fields.enabled")}</TableHead>
-                <TableHead className="hidden lg:table-cell">{t("admin.configCenter.fields.revision")}</TableHead>
+                <TableHead className="hidden lg:table-cell text-right">{t("admin.configCenter.fields.revision")}</TableHead>
                 <TableHead>{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -240,7 +240,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
                       {item.enabled ? t("admin.configCenter.status.enabled") : t("admin.configCenter.status.disabled")}
                     </Badge>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell">{item.desired_revision}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-right tabular-nums">{item.desired_revision}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => openEdit(item)}>
@@ -268,7 +268,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t("admin.configCenter.fields.coreType")}</label>
                 <Select

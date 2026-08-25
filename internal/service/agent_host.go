@@ -729,15 +729,21 @@ func (s *agentHostService) buildTemplateContext(ctx context.Context, host *repos
 	var users []template.UserConfig
 	if len(groupIDs) > 0 {
 		nodeUsers, err := s.users.ListActiveForGroups(ctx, groupIDs, time.Now().Unix())
-		if err == nil {
-			for _, u := range nodeUsers {
-				users = append(users, template.UserConfig{
-					ID:      u.ID,
-					UUID:    u.UUID,
-					Email:   u.Email,
-					Enabled: true,
-				})
-			}
+		if err != nil {
+			// 静默吞错会导致节点配置缺失全部用户凭证(渲染出无人能连的空配置)，必须中断
+			slog.Error("buildTemplateContext: failed to list active users",
+				"agent_host_id", host.ID,
+				"group_ids", groupIDs,
+				"error", err)
+			return nil, fmt.Errorf("list active users for template: %w", err)
+		}
+		for _, u := range nodeUsers {
+			users = append(users, template.UserConfig{
+				ID:      u.ID,
+				UUID:    u.UUID,
+				Email:   u.Email,
+				Enabled: true,
+			})
 		}
 	}
 

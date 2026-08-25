@@ -24,6 +24,8 @@ type Server struct {
 
 // Config 保存 gRPC 服务端配置。
 type Config struct {
+	// AccessLogSuccessLevel gRPC 成功请求访问日志级别（debug|info|warn|error，空=debug）。
+	AccessLogSuccessLevel string
 	Address string
 	TLS     *TLSConfig
 }
@@ -44,18 +46,22 @@ func NewServer(
 ) (*Server, error) {
 	// Interceptor ordering: Recovery (outermost) catches panics from inner
 	// interceptors, Auth runs before Logging so logs carry authenticated identity.
+	var loggingOpts []interceptor.LoggingOption
+	if cfg.AccessLogSuccessLevel != "" {
+		loggingOpts = append(loggingOpts, interceptor.WithSuccessLevel(interceptor.ParseLogLevel(cfg.AccessLogSuccessLevel, slog.LevelDebug, logger)))
+	}
 	opts := []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(16 << 20),
 		grpc.MaxSendMsgSize(16 << 20),
 		grpc.ChainUnaryInterceptor(
 			interceptor.Recovery(logger),
 			authInterceptor.Unary(),
-			interceptor.Logging(logger),
+			interceptor.Logging(logger, loggingOpts...),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptor.StreamRecovery(logger),
 			authInterceptor.Stream(),
-			interceptor.StreamLogging(logger),
+			interceptor.StreamLogging(logger, loggingOpts...),
 		),
 	}
 

@@ -133,8 +133,12 @@ func extractServerCredentials(r *http.Request) (token, nodeID, nodeType string, 
 	if r == nil {
 		return "", "", "", errors.New("request unavailable / 请求不可用")
 	}
+	// 优先读专用 header，避免 token 进入访问日志/URL；query 作为兼容回落。
+	token = strings.TrimSpace(r.Header.Get("X-Server-Token"))
 	query := r.URL.Query()
-	token = strings.TrimSpace(query.Get("token"))
+	if token == "" {
+		token = strings.TrimSpace(query.Get("token"))
+	}
 	nodeID = strings.TrimSpace(query.Get("node_id"))
 	nodeType = strings.TrimSpace(query.Get("node_type"))
 	if shouldParseForm(r) {

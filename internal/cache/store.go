@@ -7,12 +7,43 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
 )
 
 // Store 定义鉴权、限流与验证码流程共用的缓存接口。
+// Metrics exposes cache hit/miss counters for observability.
+type Metrics struct {
+	Hits   atomic.Int64
+	Misses atomic.Int64
+}
+
+func (m *Metrics) Snapshot() (hits, misses int64) {
+	if m == nil {
+		return 0, 0
+	}
+	return m.Hits.Load(), m.Misses.Load()
+}
+
+// StatsGetter is an optional interface that cache implementations
+// may implement to expose hit/miss counters for observability.
+type StatsGetter interface {
+	Stats() *Metrics
+}
+
+// StoreStats returns the cache metrics if the store supports it.
+func StoreStats(s Store) (hits, misses int64, ok bool) {
+	if sg, ok := s.(StatsGetter); ok {
+		m := sg.Stats()
+		if m != nil {
+			return m.Hits.Load(), m.Misses.Load(), true
+		}
+	}
+	return 0, 0, false
+}
+
 type Store interface {
 	Set(ctx context.Context, key string, value any, ttl time.Duration) error
 	SetString(ctx context.Context, key, value string, ttl time.Duration) error
@@ -50,10 +81,12 @@ func NewStore(opts Options) Store {
 	}
 	backend := gocache.New(defaultTTL, cleanup)
 
+	metrics := &Metrics{}
 	return &goCacheStore{
 		backend:    backend,
 		defaultTTL: defaultTTL,
 		prefix:     normalizePrefix(opts.Prefix),
+		metrics:    metrics,
 	}
 }
 
@@ -61,6 +94,7 @@ type goCacheStore struct {
 	backend    *gocache.Cache
 	defaultTTL time.Duration
 	prefix     string
+	metrics    *Metrics
 }
 
 func (s *goCacheStore) Set(_ context.Context, key string, value any, ttl time.Duration) error {
@@ -90,7 +124,15 @@ func (s *goCacheStore) SetJSON(ctx context.Context, key string, value any, ttl t
 }
 
 func (s *goCacheStore) Get(_ context.Context, key string) (any, bool) {
-	return s.backend.Get(s.prefixed(key))
+	v, ok := s.backend.Get(s.prefixed(key))
+	if s.metrics != nil {
+		if ok {
+			s.metrics.Hits.Add(1)
+		} else {
+			s.metrics.Misses.Add(1)
+		}
+	}
+	return v, ok
 }
 
 func (s *goCacheStore) GetString(ctx context.Context, key string) (string, bool) {
@@ -158,6 +200,7 @@ func (s *goCacheStore) Namespace(prefix string) Store {
 		backend:    s.backend,
 		defaultTTL: s.defaultTTL,
 		prefix:     joinPrefixes(s.prefix, prefix),
+		metrics:    s.metrics,
 	}
 }
 
@@ -179,14 +222,22 @@ func (s *goCacheStore) Keys(_ context.Context) []string {
 	return keys
 }
 
+// Stats returns the cache metrics (hit/miss counters) for observability.
+func (s *goCacheStore) Stats() *Metrics {
+	return s.metrics
+}
+
 func (s *goCacheStore) Increment(_ context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
 	trimmed := strings.TrimSpace(key)
 	if trimmed == "" {
 		return 0, nil
 	}
 	normalizedTTL := s.normalizeTTL(ttl)
+	// Miss 时直接写入 delta 并返回，避免 Set(0)+Increment 两步之间
+	// 被并发首击穿插而稀释计数（限流/登录失败锁定依赖该语义）。
 	if _, ok := s.backend.Get(s.prefixed(trimmed)); !ok {
-		s.backend.Set(s.prefixed(trimmed), int64(0), normalizedTTL)
+		s.backend.Set(s.prefixed(trimmed), int64(delta), normalizedTTL)
+		return delta, nil
 	}
 	if err := s.backend.Increment(s.prefixed(trimmed), delta); err != nil {
 		return 0, fmt.Errorf("cache increment failed: %w", err)

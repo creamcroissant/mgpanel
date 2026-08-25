@@ -43,6 +43,39 @@ type MeshPeerLatencyView struct {
 	UpdatedAt   int64   `json:"updated_at"`
 }
 
+// MeshPeerLatencyRecord 带源 agent 的延迟快照记录，供拓扑图重建有向边
+// （MeshPeerLatencyView 丢失了 src 信息，无法定位 from_agent_id）。
+type MeshPeerLatencyRecord struct {
+	SrcAgentID int64
+	PeerWGKey  string
+	LatencyMs  float64
+	PacketLoss float64
+	UpdatedAt  int64
+}
+
+// ListPeerLatencySnapshot 返回全部延迟探测记录的带源快照（含未匹配到网络内 peer 的条目）。
+// 具体类型方法：不进 AgentMeshService 接口，避免 mock 面扩大；拓扑服务以窄接口依赖。
+func (s *agentMeshService) ListPeerLatencySnapshot(ctx context.Context) ([]MeshPeerLatencyRecord, error) {
+	s.peerLatMu.RLock()
+	records := make([]MeshPeerLatencyRecord, 0, len(s.peerLatencies))
+	for key, v := range s.peerLatencies {
+		srcStr, peerKey, _ := strings.Cut(key, ":")
+		src, err := strconv.ParseInt(srcStr, 10, 64)
+		if err != nil {
+			continue // 键格式异常的条目跳过，不阻塞整体快照
+		}
+		records = append(records, MeshPeerLatencyRecord{
+			SrcAgentID: src,
+			PeerWGKey:  peerKey,
+			LatencyMs:  v.LatencyMs,
+			PacketLoss: v.PacketLoss,
+			UpdatedAt:  v.UpdatedAt,
+		})
+	}
+	s.peerLatMu.RUnlock()
+	return records, nil
+}
+
 type agentMeshService struct {
 	peers         repository.AgentMeshPeerRepository
 	hosts         repository.AgentHostRepository

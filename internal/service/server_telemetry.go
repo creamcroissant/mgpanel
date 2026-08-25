@@ -20,7 +20,7 @@ import (
 // ServerTelemetryService tracks node heartbeats, online counts, and load metrics.
 type ServerTelemetryService interface {
 	TrackUserPull(ctx context.Context, server *repository.Server, userCount int) error
-	RecordPush(ctx context.Context, server *repository.Server, samples []TrafficSample) error
+	RecordPush(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error
 	RecordAlive(ctx context.Context, server *repository.Server, payload map[int64][]string) error
 	AliveCounts(ctx context.Context, userIDs []int64) (map[int64]int, error)
 	RecordStatus(ctx context.Context, server *repository.Server, status ServerStatusReport) error
@@ -28,9 +28,9 @@ type ServerTelemetryService interface {
 	RecordHeartbeat(ctx context.Context, server *repository.Server) error
 }
 
-// TrafficSample is an alias to async.TrafficSample for backward compatibility.
+// UniProxyPushSample is an alias to async.UniProxyPushSample for backward compatibility.
 // The canonical definition is in internal/async to avoid import cycles.
-type TrafficSample = async.TrafficSample
+type UniProxyPushSample = async.UniProxyPushSample
 
 // ServerStatusReport describes node load metrics submitted via `/status`.
 type ServerStatusReport struct {
@@ -96,7 +96,7 @@ func (s *serverTelemetryService) TrackUserPull(ctx context.Context, server *repo
 	return s.cache.Set(ctx, key, time.Now().Unix(), nodeCacheTTL)
 }
 
-func (s *serverTelemetryService) RecordPush(ctx context.Context, server *repository.Server, samples []TrafficSample) error {
+func (s *serverTelemetryService) RecordPush(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error {
 	if err := ensureServer(server); err != nil {
 		return err
 	}

@@ -32,6 +32,8 @@ type LocalStatus struct {
 
 // Config holds the configuration for the mesh manager.
 type Config struct {
+	// IPBinary 覆盖 ip(8) 工具路径；空值用 "ip"（测试可指向 stub）。
+	IPBinary string
 	ConfigDir     string
 	InterfaceName string
 	ListenPort    int
@@ -125,6 +127,9 @@ func (m *Manager) RemovePeerConfig(peerID string) error {
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.validateWgBinary(); err != nil {
+		return fmt.Errorf("mesh start: %w", err)
+	}
 
 	if err := m.cm.EnsureDirs(); err != nil {
 		return fmt.Errorf("mesh ensure dirs: %w", err)
@@ -190,6 +195,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 // DumpPeers returns live WireGuard peer status by running `wg show <iface> dump`.
 func (m *Manager) DumpPeers(ctx context.Context) ([]PeerStatus, error) {
+	if err := m.validateWgBinary(); err != nil {
+		return nil, fmt.Errorf("mesh dump peers: %w", err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -266,6 +274,9 @@ func (m *Manager) getPublicKey(ctx context.Context) (string, error) {
 
 // SyncPeers synchronizes the peer list with the provided peers.
 func (m *Manager) SyncPeers(ctx context.Context, peers []PeerConfig) error {
+	if err := m.validateWgBinary(); err != nil {
+		return fmt.Errorf("mesh sync peers: %w", err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -324,16 +335,22 @@ func (m *Manager) SyncPeers(ctx context.Context, peers []PeerConfig) error {
 }
 
 func (m *Manager) createInterface(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "ip", "link", "add", m.cfg.InterfaceName, "type", "wireguard")
+	cmd := exec.CommandContext(ctx, m.ipBinary(), "link", "add", m.cfg.InterfaceName, "type", "wireguard")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		// 接口已存在视为成功：崩溃重启后 wgmesh0 残留时 Start 可幂等恢复，
+		// 后续 SetConfig 会重新下发私钥/端口/地址。
+		if isAlreadyExists(out, err) {
+			m.logger.Info("mesh interface already present, reusing", "iface", m.cfg.InterfaceName)
+			return nil
+		}
 		return fmt.Errorf("ip link add: %w (output: %s)", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
 func (m *Manager) deleteInterface(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "ip", "link", "del", m.cfg.InterfaceName)
+	cmd := exec.CommandContext(ctx, m.ipBinary(), "link", "del", m.cfg.InterfaceName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ip link del: %w (output: %s)", err, strings.TrimSpace(string(out)))
@@ -342,7 +359,7 @@ func (m *Manager) deleteInterface(ctx context.Context) error {
 }
 
 func (m *Manager) interfaceUp(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "ip", "link", "set", m.cfg.InterfaceName, "up")
+	cmd := exec.CommandContext(ctx, m.ipBinary(), "link", "set", m.cfg.InterfaceName, "up")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ip link set up: %w (output: %s)", err, strings.TrimSpace(string(out)))
@@ -351,12 +368,44 @@ func (m *Manager) interfaceUp(ctx context.Context) error {
 }
 
 func (m *Manager) assignIP(ctx context.Context, addr string) error {
-	cmd := exec.CommandContext(ctx, "ip", "addr", "add", addr, "dev", m.cfg.InterfaceName)
+	cmd := exec.CommandContext(ctx, m.ipBinary(), "addr", "add", addr, "dev", m.cfg.InterfaceName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		// 地址已配置同样视为成功（与接口复用同场景的幂等恢复）。
+		if isAlreadyExists(out, err) {
+			m.logger.Info("mesh address already assigned, keeping", "iface", m.cfg.InterfaceName, "addr", addr)
+			return nil
+		}
 		return fmt.Errorf("ip addr add: %w (output: %s)", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// ipBinary 返回 ip 工具路径（默认 "ip"，测试可注入 stub）。
+func (m *Manager) ipBinary() string {
+	if m.cfg.IPBinary != "" {
+		return m.cfg.IPBinary
+	}
+	return "ip"
+}
+
+// validateWgBinary 前置校验 wg 可执行文件可用，避免测试/误配置场景下
+// 以真实网络命令触碰系统（fail-fast + 可观测）。
+func (m *Manager) validateWgBinary() error {
+	if m.cfg.WgBinary == "" {
+		return fmt.Errorf("wg binary not configured")
+	}
+	// 裸命令名（如 "wg"）必须走 $PATH 解析；os.Stat 只查相对/绝对路径，
+	// 会让 PATH 下真实存在的 wg 被误判为缺失。
+	if _, err := exec.LookPath(m.cfg.WgBinary); err != nil {
+		return fmt.Errorf("wg binary unavailable at %s: %w", m.cfg.WgBinary, err)
+	}
+	return nil
+}
+
+// isAlreadyExists 判断 netlink 错误是否为“对象已存在”（幂等恢复判定）。
+func isAlreadyExists(out []byte, err error) bool {
+	return strings.Contains(string(out), "File exists") || strings.Contains(err.Error(), "File exists")
 }
 
 func (m *Manager) buildWGConfig(cfg LocalConfig) string {

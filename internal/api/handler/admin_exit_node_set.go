@@ -27,7 +27,7 @@ func (h *ExitNodeSetHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	details, err := h.exitSvc.List(ctx)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "list_exit_node_sets", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": details})
@@ -46,7 +46,7 @@ func (h *ExitNodeSetHandler) Get(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "get_exit_node_set", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": detail})
@@ -61,7 +61,7 @@ func (h *ExitNodeSetHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	set, err := h.exitSvc.Create(ctx, req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "create_exit_node_set", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"data": set})
@@ -82,7 +82,7 @@ func (h *ExitNodeSetHandler) Update(w http.ResponseWriter, r *http.Request) {
 	req.ID = id
 	set, err := h.exitSvc.Update(ctx, req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "update_exit_node_set", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": set})
@@ -96,7 +96,7 @@ func (h *ExitNodeSetHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.exitSvc.Delete(ctx, id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "delete_exit_node_set", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -118,7 +118,7 @@ func (h *ExitNodeSetHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SetID = setID
 	if err := h.exitSvc.AddMember(ctx, req); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "add_exit_node_set_member", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -133,7 +133,7 @@ func (h *ExitNodeSetHandler) RemoveMember(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := h.exitSvc.RemoveMember(ctx, setID, agentHostID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "remove_exit_node_set_member", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -146,7 +146,7 @@ func (h *ExitNodeSetHandler) ListPolicies(w http.ResponseWriter, r *http.Request
 	coreType := r.URL.Query().Get("core_type")
 	policies, err := h.routingSvc.List(ctx, coreType)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "list_routing_policies", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": policies})
@@ -165,7 +165,7 @@ func (h *ExitNodeSetHandler) GetPolicy(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "get_routing_policy", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": p})
@@ -180,7 +180,7 @@ func (h *ExitNodeSetHandler) CreatePolicy(w http.ResponseWriter, r *http.Request
 	}
 	p, err := h.routingSvc.Create(ctx, req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "create_routing_policy", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"data": p})
@@ -201,7 +201,7 @@ func (h *ExitNodeSetHandler) UpdatePolicy(w http.ResponseWriter, r *http.Request
 	req.ID = id
 	p, err := h.routingSvc.Update(ctx, req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "update_routing_policy", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": p})
@@ -215,7 +215,7 @@ func (h *ExitNodeSetHandler) DeletePolicy(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := h.routingSvc.Delete(ctx, id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "delete_routing_policy", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -225,6 +225,9 @@ func parseID(r *http.Request) int64 {
 	id := chi.URLParam(r, "setID")
 	if id == "" {
 		id = chi.URLParam(r, "policyID")
+	}
+	if id == "" {
+		id = chi.URLParam(r, "pathID")
 	}
 	if id == "" {
 		id = chi.URLParam(r, "id")

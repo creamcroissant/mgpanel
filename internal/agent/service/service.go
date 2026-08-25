@@ -33,6 +33,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/agent/initsys"
 	"github.com/creamcroissant/mgpanel/internal/agent/loguploader"
 	"github.com/creamcroissant/mgpanel/internal/agent/mesh"
+	"github.com/creamcroissant/mgpanel/internal/agent/relayroute"
 	"github.com/creamcroissant/mgpanel/internal/agent/monitor"
 	"github.com/creamcroissant/mgpanel/internal/agent/protocol"
 	"github.com/creamcroissant/mgpanel/internal/agent/protocol/subscribe"
@@ -71,11 +72,16 @@ type Agent struct {
 	cdnManager  *cdn.Manager  // CDN / Caddy manager
 	meshManager *mesh.Manager // WireGuard mesh network manager
 	meshProber  *MeshProber   // Mesh peer latency prober
+	// meshMu 保护 meshManager/meshProber/cachedAdvertiseHost：
+	// OnStateChange 回调 goroutine 与主循环会并发读写这三者，
+	// 所有运行期访问必须经 getMesh/setMesh 等 accessor，禁止直接触字段。
+	meshMu sync.Mutex
 
 	logUploader *loguploader.Uploader // Periodic log uploader
 	unlockMgr   *unlock.Manager       // 流媒体解锁检测管理器
 
 	cachedAdvertiseHost string // 缓存探测到的公网 IP，避免每次 sync 都调外网 API
+	relayRouteMgr       *relayroute.Manager // 中继链路内核路由管理器（惰性构造，meshMu 保护）
 
 	batchApplier              applyBatchRunner
 	inventoryScanner          *configcenter.AgentInventoryScanner
@@ -536,16 +542,17 @@ func (a *Agent) Run(ctx context.Context) {
 		}
 	}
 
-	// Start WireGuard mesh interface
-	if a.meshManager != nil {
-		if err := a.meshManager.Start(ctx); err != nil {
+	// Start WireGuard mesh interface（快照后操作，避免与动态启用竞争）
+	mgr, prober := a.getMesh()
+	if mgr != nil {
+		if err := mgr.Start(ctx); err != nil {
 			slog.Warn("mesh: failed to start WireGuard interface", "error", err)
 		}
 	}
 
 	// Start mesh peer latency prober
-	if a.meshProber != nil {
-		a.meshProber.Start(ctx)
+	if prober != nil {
+		prober.Start(ctx)
 	}
 
 	if a.commandQueue != nil {
@@ -606,14 +613,15 @@ func (a *Agent) Run(ctx context.Context) {
 				_ = a.switcher.Shutdown(shutdownCtx)
 				cancel()
 			}
-			// Stop mesh services
-			if a.meshProber != nil {
-				a.meshProber.Stop()
+			// Stop mesh services（快照后操作）
+			smgr, sprober := a.getMesh()
+			if sprober != nil {
+				sprober.Stop()
 			}
 			// Stop WireGuard mesh interface
-			if a.meshManager != nil {
+			if smgr != nil {
 				stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
-				if err := a.meshManager.Stop(stopCtx); err != nil {
+				if err := smgr.Stop(stopCtx); err != nil {
 					slog.Warn("mesh: failed to stop WireGuard interface", "error", err)
 				}
 				stopCancel()
@@ -662,21 +670,24 @@ func (a *Agent) sync(ctx context.Context) {
 
 func (a *Agent) syncGRPC(ctx context.Context) {
 	a.syncAgentHost(ctx)
+	a.syncRelayRoutes(ctx)
 	a.syncApplyBatch(ctx)
 	a.syncCoreOperations(ctx)
 	a.syncAgentCommands(ctx)
 
 	// Sync mesh configuration — auto-initialize if agent has a mesh record
-	if a.meshManager == nil {
+	mgr, prober := a.getMesh()
+	if mgr == nil {
 		a.tryEnableMesh(ctx)
+		mgr, prober = a.getMesh()
 	}
-	if a.meshManager != nil {
-		a.syncMeshConfig(ctx)
+	if mgr != nil {
+		a.syncMeshConfig(ctx, mgr)
 	}
 
 	// Update mesh probe targets and sync latencies
-	if a.meshProber != nil {
-		a.meshProber.UpdateTargets(ctx)
+	if prober != nil {
+		prober.UpdateTargets(ctx)
 	}
 
 	// NodeID kept for compatibility; gRPC identifies agent host by token
@@ -726,6 +737,85 @@ func (a *Agent) syncGRPC(ctx context.Context) {
 // tryEnableMesh checks if this agent has a mesh peer record on the panel.
 // If yes, it dynamically initializes the mesh manager and prober so the agent
 // can auto-join without requiring mesh.enabled: true in the local config.yml.
+// setMesh 原子更新 mesh 组件对（构造后动态启用场景）。
+func (a *Agent) setMesh(mgr *mesh.Manager, prober *MeshProber) {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	a.meshManager = mgr
+	a.meshProber = prober
+}
+
+// getMesh 返回当前 mesh 组件快照；调用方基于快照操作即可保证一致视图。
+func (a *Agent) getMesh() (*mesh.Manager, *MeshProber) {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	return a.meshManager, a.meshProber
+}
+
+// getRelayRouteMgr 返回中继链路内核路由管理器（惰性构造，与 mesh 共用锁）。
+func (a *Agent) getRelayRouteMgr() *relayroute.Manager {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	if a.relayRouteMgr == nil {
+		a.relayRouteMgr = relayroute.NewManager(relayroute.Config{Logger: slog.Default()})
+	}
+	return a.relayRouteMgr
+}
+
+// syncRelayRoutes 周期拉取本机应生效的中继链路角色并幂等应用。
+// 面板端点:GET /api/v1/agent/relay-routes?token=<host_token>（host_token 复用注册凭据）。
+func (a *Agent) syncRelayRoutes(ctx context.Context) {
+	if a == nil || a.cfg == nil {
+		return
+	}
+	hostToken := strings.TrimSpace(a.cfg.Panel.HostToken)
+	if hostToken == "" {
+		return
+	}
+	base := strings.TrimSuffix(resolvePanelHTTPBase(a.cfg), "/")
+	reqURL := base + "/api/v1/agent/relay-routes?token=" + url.QueryEscape(hostToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Debug("relay-route: fetch skipped", slog.String("err", err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("relay-route: unexpected status", slog.Int("status", resp.StatusCode))
+		return
+	}
+	var payload struct {
+		Data []relayroute.Role `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		slog.Warn("relay-route: decode failed", slog.String("err", err.Error()))
+		return
+	}
+	if err := a.getRelayRouteMgr().Apply(ctx, payload.Data); err != nil {
+		slog.Warn("relay-route: apply failed", slog.String("err", err.Error()))
+		return
+	}
+	slog.Info("relay-route: roles applied", slog.Int("count", len(payload.Data)))
+}
+
+// cachedAdvertiseHost 的并发安全读写。
+func (a *Agent) getCachedAdvertiseHost() string {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	return a.cachedAdvertiseHost
+}
+
+func (a *Agent) setCachedAdvertiseHost(host string) {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	a.cachedAdvertiseHost = host
+}
+
 func (a *Agent) tryEnableMesh(ctx context.Context) {
 	joinCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -741,7 +831,7 @@ func (a *Agent) tryEnableMesh(ctx context.Context) {
 	meshDir := filepath.Join(a.cfg.Core.CoreInstallDir, "..", "mesh")
 	meshDir = filepath.Clean(meshDir)
 
-	a.meshManager = mesh.NewManager(mesh.Config{
+	newMgr := mesh.NewManager(mesh.Config{
 		ConfigDir:     meshDir,
 		InterfaceName: "wgmesh0",
 		ListenPort:    51820,
@@ -749,10 +839,11 @@ func (a *Agent) tryEnableMesh(ctx context.Context) {
 		NetworkCIDR:   "10.144.0.0/24",
 	}, slog.Default())
 
-	a.meshProber = NewMeshProber(a.meshManager, 30*time.Second, 5*time.Second, 10, slog.Default())
+	newProber := NewMeshProber(newMgr, 30*time.Second, 5*time.Second, 10, slog.Default())
+	a.setMesh(newMgr, newProber)
 	// 动态创建后需显式启动 prober，否则 lifecycleCtx 为 nil，keepalive 无法启动。
 	// 必须使用 agent 生命周期上下文（a.ctx），而非本轮 sync 的临时 ctx，避免随 sync 结束被取消。
-	a.meshProber.Start(a.ctx)
+	newProber.Start(a.ctx)
 	slog.Info("mesh: dynamically enabled after discovering panel-side mesh record",
 		"ip", resp.WgIp,
 	)
@@ -1407,10 +1498,11 @@ func (a *Agent) collectRawDownload(ctx context.Context) *agentv1.MetricUInt64Val
 // meshPeerLatenciesProto returns the current mesh peer latency probe results
 // as protobuf OriginLatencyEntry slice for the status report.
 func (a *Agent) meshPeerLatenciesProto() []*agentv1.OriginLatencyEntry {
-	if a.meshProber == nil {
+	_, prober := a.getMesh()
+	if prober == nil {
 		return nil
 	}
-	return a.meshProber.SyncLatencies()
+	return prober.SyncLatencies()
 }
 
 // buildAllCoresProto converts capability.DetectedCoreInfo to agentv1.CoreInfo for gRPC status reporting.
@@ -1444,13 +1536,13 @@ func (a *Agent) syncAgentHost(ctx context.Context) {
 
 	advertiseHost := strings.TrimSpace(a.cfg.Panel.AdvertiseHost)
 	if advertiseHost == "" {
-		advertiseHost = a.cachedAdvertiseHost
+		advertiseHost = a.getCachedAdvertiseHost()
 		if advertiseHost == "" {
 			advertiseHost = config.DetectPublicIP()
 			if advertiseHost == "" {
 				return // 探测失败，等下一次 sync 再试
 			}
-			a.cachedAdvertiseHost = advertiseHost
+			a.setCachedAdvertiseHost(advertiseHost)
 		}
 	}
 

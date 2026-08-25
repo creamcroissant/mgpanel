@@ -21,10 +21,11 @@ import (
 type RouterOption func(*routerOptions)
 
 type routerOptions struct {
-	adminUI           AdminUIOptions
-	userUI            UserUIOptions
-	installUI         InstallUIOptions
+	adminUI            AdminUIOptions
+	userUI             UserUIOptions
+	installUI          InstallUIOptions
 	corsAllowedOrigins []string
+	trustedProxies     []string
 }
 
 // AdminUIOptions 控制管理端前端资源的加载与品牌定制。
@@ -80,6 +81,14 @@ func WithInstallUI(opts InstallUIOptions) RouterOption {
 func WithCORSAllowedOrigins(origins []string) RouterOption {
 	return func(ro *routerOptions) {
 		ro.corsAllowedOrigins = origins
+	}
+}
+
+// WithTrustedProxies 配置可信反代 CIDR 白名单；空切片/nil 表示不信任任何
+// XFF 头（严格模式）。必须在路由中间件装配前应用。
+func WithTrustedProxies(proxies []string) RouterOption {
+	return func(ro *routerOptions) {
+		ro.trustedProxies = proxies
 	}
 }
 

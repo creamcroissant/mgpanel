@@ -14,7 +14,7 @@ import (
 
 // ServerTrafficService 负责持久化节点上报的流量增量。
 type ServerTrafficService interface {
-	Apply(ctx context.Context, server *repository.Server, samples []TrafficSample) error
+	Apply(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error
 }
 
 // serverTrafficService 组合用户仓储与统计收集器。
@@ -34,7 +34,7 @@ func NewServerTrafficService(userRepo repository.UserRepository, collector Traff
 }
 
 // Apply 处理节点上报样本，并按倍率累加到用户流量。
-func (s *serverTrafficService) Apply(ctx context.Context, server *repository.Server, samples []TrafficSample) error {
+func (s *serverTrafficService) Apply(ctx context.Context, server *repository.Server, samples []UniProxyPushSample) error {
 	if err := ensureServer(server); err != nil {
 		return err
 	}
@@ -46,19 +46,38 @@ func (s *serverTrafficService) Apply(ctx context.Context, server *repository.Ser
 	}
 	rate := parseServerRate(server)
 	deltas := aggregateTraffic(samples, rate)
+	// 批量收集增量，先在内存中过滤掉零值
+	batchDeltas := make(map[int64][2]int64, len(deltas))
 	for userID, delta := range deltas {
 		if delta.Upload == 0 && delta.Download == 0 {
 			continue
 		}
-		// 单用户增量写入失败时直接返回，避免统计不一致
-		if err := s.users.IncrementTraffic(ctx, userID, delta.Upload, delta.Download); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				continue
+		batchDeltas[userID] = [2]int64{delta.Upload, delta.Download}
+	}
+	if len(batchDeltas) > 0 {
+		// 单事务批量写入（类型断言，sqlite 实现支持批量）
+		if batchRepo, ok := s.users.(interface{ IncrementTrafficBatch(ctx context.Context, deltas map[int64][2]int64) error }); ok {
+			if err := batchRepo.IncrementTrafficBatch(ctx, batchDeltas); err != nil {
+				return err
 			}
-			return err
+		} else {
+			// 回退到逐条更新（测试 mock 等不支持批量）
+			for userID, delta := range batchDeltas {
+				if err := s.users.IncrementTraffic(ctx, userID, delta[0], delta[1]); err != nil {
+					if errors.Is(err, repository.ErrNotFound) {
+						continue
+					}
+					return err
+				}
+			}
 		}
 		// 将增量交给统计收集器做后续聚合
-		s.collect(userID, delta.Upload, delta.Download)
+		for userID, delta := range deltas {
+			if delta.Upload == 0 && delta.Download == 0 {
+				continue
+			}
+			s.collect(userID, delta.Upload, delta.Download)
+		}
 	}
 	return nil
 }
@@ -78,7 +97,7 @@ type trafficDelta struct {
 }
 
 // aggregateTraffic 将样本按用户聚合，并应用倍率缩放。
-func aggregateTraffic(samples []TrafficSample, rate float64) map[int64]trafficDelta {
+func aggregateTraffic(samples []UniProxyPushSample, rate float64) map[int64]trafficDelta {
 	totals := make(map[int64]trafficDelta, len(samples))
 	for _, sample := range samples {
 		if sample.UserID <= 0 {

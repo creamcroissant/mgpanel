@@ -126,7 +126,7 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
   return (
     <div className="space-y-4">
       {/* Domain Strategy + Final */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("admin.configCenter.routing.domainStrategy")}</label>
           <Select value={domainStrategy ?? "AsIs"} onValueChange={(v) => updateConfig({ domainStrategy: v })}>
@@ -183,7 +183,7 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
       {dialogOpen && editRule && (
         <div className="rounded-md border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editIndex != null ? t("admin.configCenter.routing.editRule") : t("admin.configCenter.routing.addRule")}</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.inbound.domain")}</label>
               <Input value={stringFromArr(editRule.domain)} onChange={(e) => updateEditRuleField("domain", arrFromString(e.target.value))} placeholder="example.com, google.com" />

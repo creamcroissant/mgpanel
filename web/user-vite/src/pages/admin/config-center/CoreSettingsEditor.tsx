@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/components/ui";
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
 import type { PolicyConfig, ExperimentalConfig, NTPConfig, LogConfig, ApiConfig } from "@/types/xray-config";
 
 interface CoreSettingsEditorProps {
@@ -67,8 +77,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
             />
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={(logConfig?.disabled as boolean) ?? false} className="h-4 w-4"
-              onChange={(e) => setSection("log", { ...(logConfig ?? {}), disabled: e.target.checked || undefined })} />
+            <Switch checked={((logConfig?.disabled as boolean) ?? false)} onCheckedChange={(value) => setSection("log", { ...(logConfig ?? {}), disabled: value || undefined })} />
             {t("admin.configCenter.inbound.disabled")}
           </label>
         </div>
@@ -111,8 +120,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
         </summary>
         <div className="space-y-3 p-4 border-t border-border">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={(statsConfig !== undefined)} className="h-4 w-4"
-              onChange={(e) => setSection("stats", e.target.checked ? {} : undefined)} />
+            <Switch checked={((statsConfig !== undefined))} onCheckedChange={(value) => setSection("stats", value ? {} : undefined)} />
             {t("admin.configCenter.inbound.enabled")}
           </label>
         </div>
@@ -141,18 +149,16 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
               })} placeholder="4" />
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={policyConfig?.system?.statsInboundUplink ?? false} className="h-4 w-4"
-              onChange={(e) => setSection("policy", {
+            <Switch checked={(policyConfig?.system?.statsInboundUplink ?? false)} onCheckedChange={(value) => setSection("policy", {
                 ...(policyConfig ?? {}),
-                system: { ...(policyConfig?.system ?? {}), statsInboundUplink: e.target.checked || undefined },
+                system: { ...(policyConfig?.system ?? {}), statsInboundUplink: value || undefined },
               })} />
             statsInboundUplink
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={policyConfig?.system?.statsInboundDownlink ?? false} className="h-4 w-4"
-              onChange={(e) => setSection("policy", {
+            <Switch checked={(policyConfig?.system?.statsInboundDownlink ?? false)} onCheckedChange={(value) => setSection("policy", {
                 ...(policyConfig ?? {}),
-                system: { ...(policyConfig?.system ?? {}), statsInboundDownlink: e.target.checked || undefined },
+                system: { ...(policyConfig?.system ?? {}), statsInboundDownlink: value || undefined },
               })} />
             statsInboundDownlink
           </label>
@@ -166,10 +172,9 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
         </summary>
         <div className="space-y-3 p-4 border-t border-border">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={experimentalConfig?.cache_file?.enabled ?? false} className="h-4 w-4"
-              onChange={(e) => setSection("experimental", {
+            <Switch checked={(experimentalConfig?.cache_file?.enabled ?? false)} onCheckedChange={(value) => setSection("experimental", {
                 ...(experimentalConfig ?? {}),
-                cache_file: { enabled: e.target.checked, path: experimentalConfig?.cache_file?.path },
+                cache_file: { enabled: value, path: experimentalConfig?.cache_file?.path },
               })} />
             {t("admin.configCenter.inbound.enabled")}
           </label>
@@ -193,8 +198,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
         </summary>
         <div className="space-y-3 p-4 border-t border-border">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={(ntpConfig?.enabled as boolean) ?? false} className="h-4 w-4"
-              onChange={(e) => setSection("ntp", { enabled: e.target.checked, server: ntpConfig?.server })} />
+            <Switch checked={((ntpConfig?.enabled as boolean) ?? false)} onCheckedChange={(value) => setSection("ntp", { enabled: value, server: ntpConfig?.server })} />
             {t("admin.configCenter.inbound.enabled")}
           </label>
           {!!ntpConfig?.enabled && (

@@ -904,7 +904,8 @@
       "createError": "创建失败",
       "updateSuccess": "公告更新成功",
       "deleteSuccess": "公告删除成功",
-      "loadError": "加载公告列表失败"
+      "loadError": "加载公告列表失败",
+      "emptyDescription": "暂无公告，创建第一条公告向用户发送通知"
     },
     "knowledge": {
       "title": "知识库管理",
@@ -1776,6 +1777,27 @@
           "resetSuccess": "通信密钥已重置",
           "mcpRestartHint": "此设置重启面板后生效。"
         }
+      },
+      "retention": {
+        "title": "数据保留",
+        "description": "设置各数据表的保留天数，到期数据将被自动清理，防止数据库无限膨胀。",
+        "days": "天",
+        "fields": {
+          "accessLog": "访问日志保留",
+          "subscriptionLog": "订阅日志保留",
+          "loginLog": "登录日志保留",
+          "operationLog": "操作日志保留",
+          "agentOperationLog": "Agent 操作日志保留",
+          "trafficReportDedup": "流量去重记录保留"
+        },
+        "descriptions": {
+          "accessLog": "节点访问日志（可能非常大，建议 7 天）",
+          "subscriptionLog": "订阅访问日志",
+          "loginLog": "登录尝试记录",
+          "operationLog": "Agent 操作日志（agent_operation_logs，面板与 Agent 交互记录）",
+          "agentOperationLog": "Agent 生命周期操作记录（agent_lifecycle_operations）",
+          "trafficReportDedup": "流量报告去重记录（防重复统计）"
+        }
       }
     },
     "mcpKeys": {
@@ -1808,7 +1830,8 @@
       "revokeError": "吊销密钥失败",
       "deleteSuccess": "密钥已删除",
       "deleteError": "删除密钥失败",
-      "confirmDelete": "确定要删除这个密钥吗？"
+      "confirmDelete": "确定要删除这个密钥吗？",
+      "noKeysDescription": "尚无 API 密钥，创建一个用于 MCP 工具接入"
     },
     "exitNodeSets": {
       "title": "出口节点管理",
@@ -1824,6 +1847,13 @@
       "selectMembers": "选择成员",
       "status": "状态",
       "empty": "暂无出口集合",
+      "emptyDescription": "创建出口集合，将多个 Agent 节点组成支持负载均衡与故障转移的出口组",
+      "strategies": {
+        "round_robin": "轮询",
+        "least_ping": "最低延迟",
+        "random": "随机",
+        "weighted_random": "加权随机"
+      },
       "created": "集合创建成功",
       "updated": "集合更新成功",
       "deleted": "集合已删除",
@@ -1846,7 +1876,114 @@
       "created": "策略创建成功",
       "updated": "策略更新成功",
       "deleted": "策略已删除",
-      "confirmDelete": "确认删除此策略？"
+      "confirmDelete": "确认删除此策略？",
+      "emptyDescription": "创建第一条分流策略，按 Geosite/域名/IP 网段将流量路由到指定出口集合",
+      "matchTypes": {
+        "geosite": "Geosite 站点集",
+        "domain": "域名",
+        "ip_cidr": "IP 网段"
+      }
+    },
+    "topology": {
+      "tab": "拓扑",
+      "switch_to_topology": "切换到拓扑视图",
+      "switch_to_list": "切换到列表视图",
+      "toolbar": {
+        "validate": "校验",
+        "validating": "校验中…",
+        "validate_title": "检查悬空引用/端口冲突等问题",
+        "export_png": "导出 PNG",
+        "exporting": "导出中…",
+        "export_done": "已导出 {file}",
+        "export_failed": "导出失败：{err}",
+        "core_type": "核心类型"
+      },
+      "empty": {
+        "title_no_rules": "还没有分流规则与出口集",
+        "title_no_specs": "当前核心暂无入站 spec",
+        "desc_create": "从上方工具条创建第一个分流规则，开始编排流量路径",
+        "desc_specs_first": "请先在配置中心创建入站 spec，再回到这里编排",
+        "action_to_palette": "创建第一个分流规则",
+        "title_no_specs_inbounds": "还没有入站 spec",
+        "desc_no_specs_inbounds": "请先到配置中心创建入站 spec，再回到这里编排入口到出口的路由路径"
+      },
+      "unlock": {
+        "title": "解锁探测",
+        "unlocked": "已解锁",
+        "locked": "未解锁"
+      },
+      "node_names": {
+        "rule": "规则节点",
+        "set": "出口集",
+        "inbound": "入站",
+        "agent": "Agent 出口",
+        "direct": "直连",
+        "fallback": "兜底"
+      },
+      "issues": {
+        "strip_title": "校验发现 {count} 个问题",
+        "all_ok": "校验通过：未发现问题"
+      },
+      "reorder": {
+        "hint": "拖拽调整求值顺序（自上而下依次匹配）"
+      },
+      "config_center_hint": "推荐使用拓扑画布编排路由与出口分流",
+      "filter": {
+        "platform": "按解锁筛选",
+        "all": "全部节点",
+        "matched": "命中 {{count}} 个节点"
+      },
+      "canvas": {
+        "title": "拓扑画布",
+        "rules": "规则分流",
+        "inbounds": "入站路由",
+        "agents": "精确出口",
+        "servers": "服务器链路"
+      },
+      "relay": {
+        "create": "新建链路",
+        "edit": "编辑中继链路",
+        "name": "链路名称",
+        "namePlaceholder": "如 s1-s2-s3",
+        "description": "描述",
+        "enabled": "启用",
+        "hops": "节点序列",
+        "entry": "入口",
+        "exitLabel": "出口",
+        "addHop": "添加服务器…",
+        "noPath": "该服务器尚未加入任何中继链路",
+        "bind": {
+          "bind_title": "出口绑定",
+          "bind_fixed_agent": "固定 Agent",
+          "bind_exit_set": "出口集",
+          "bind_relay": "中继链路",
+          "bind_placeholder": "选择…",
+          "bind_no_paths": "暂无启用的中继链路",
+          "bind_save": "保存绑定",
+          "bound_specs": "{{count}} 个入站绑定此链路"
+        }
+      },
+      "tools": {
+        "select": "选择",
+        "connect": "连线",
+        "delete": "删除",
+        "hint": {
+          "select": "点击节点查看/编辑；拖动调整位置",
+          "connect": "点击入口服务器，再点出口服务器",
+          "delete": "点击中继边两次确认删除",
+          "click_target": "已选入口，请点击目标服务器",
+          "click_again_delete": "再次点击同一边确认删除 {{name}}"
+        }
+      }
+    },
+    "routing": {
+      "scope": {
+        "label": "作用域",
+        "global": "全局",
+        "spec": "指定入站",
+        "specTooltip": "仅对入站 {{tag}} 生效（优先于全局规则）",
+        "hint": "指定入站后，此规则只匹配该入站的流量，且优先于全局规则；未覆盖的域名由全局规则兜底"
+      }
     }
   }
 }

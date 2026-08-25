@@ -34,13 +34,14 @@ func (r *inboundSpecRepo) Create(ctx context.Context, spec *repository.InboundSp
 
 	result, err := r.db.ExecContext(ctx, `
 		INSERT INTO inbound_specs (
-			agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		optionalInt64(spec.AgentHostID),
 		optionalInt64(spec.ExitAgentHostID),
 		optionalInt64(spec.ExitNodeSetID),
+		optionalInt64(spec.RelayPathID),
 		spec.CoreType,
 		spec.Tag,
 		boolToInt(spec.Enabled),
@@ -77,13 +78,14 @@ func (r *inboundSpecRepo) Update(ctx context.Context, spec *repository.InboundSp
 
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE inbound_specs
-		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
+		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, relay_path_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
 			core_specific = ?, desired_revision = ?, created_by = ?, updated_by = ?, updated_at = ?
 		WHERE id = ?
 	`,
 		optionalInt64(spec.AgentHostID),
 		optionalInt64(spec.ExitAgentHostID),
 		optionalInt64(spec.ExitNodeSetID),
+		optionalInt64(spec.RelayPathID),
 		spec.CoreType,
 		spec.Tag,
 		boolToInt(spec.Enabled),
@@ -115,13 +117,14 @@ func (r *inboundSpecRepo) UpdateWithRevision(ctx context.Context, spec *reposito
 
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE inbound_specs
-		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
+		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, relay_path_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
 			core_specific = ?, desired_revision = ?, created_by = ?, updated_by = ?, updated_at = ?
 		WHERE id = ? AND desired_revision = ?
 	`,
 		optionalInt64(spec.AgentHostID),
 		optionalInt64(spec.ExitAgentHostID),
 		optionalInt64(spec.ExitNodeSetID),
+		optionalInt64(spec.RelayPathID),
 		spec.CoreType,
 		spec.Tag,
 		boolToInt(spec.Enabled),
@@ -159,7 +162,7 @@ func (r *inboundSpecRepo) Delete(ctx context.Context, id int64) error {
 func (r *inboundSpecRepo) FindByID(ctx context.Context, id int64) (*repository.InboundSpec, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT
-			id, agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			id, agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
 		FROM inbound_specs
 		WHERE id = ?
@@ -171,7 +174,7 @@ func (r *inboundSpecRepo) FindByID(ctx context.Context, id int64) (*repository.I
 func (r *inboundSpecRepo) FindByHostCoreTag(ctx context.Context, agentHostID int64, coreType, tag string) (*repository.InboundSpec, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT
-			id, agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			id, agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
 		FROM inbound_specs
 		WHERE agent_host_id = ? AND core_type = ? AND tag = ?
@@ -184,7 +187,7 @@ func (r *inboundSpecRepo) FindByHostCoreTag(ctx context.Context, agentHostID int
 func (r *inboundSpecRepo) FindByCoreTag(ctx context.Context, coreType, tag string) (*repository.InboundSpec, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT
-			id, agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			id, agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
 		FROM inbound_specs
 		WHERE core_type = ? AND tag = ?
@@ -200,7 +203,7 @@ func (r *inboundSpecRepo) ListByAgentHost(ctx context.Context, agentHostID int64
 
 	query.WriteString(`
 		SELECT
-			id, agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			id, agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
 		FROM inbound_specs
 		WHERE (agent_host_id = ?`)
@@ -279,7 +282,7 @@ func (r *inboundSpecRepo) List(ctx context.Context, filter repository.InboundSpe
 
 	query.WriteString(`
 		SELECT
-			id, agent_host_id, exit_agent_host_id, exit_node_set_id, core_type, tag, enabled, semantic_spec, core_specific,
+			id, agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
 		FROM inbound_specs
 		WHERE 1 = 1
@@ -369,12 +372,14 @@ func (r *inboundSpecRepo) scanInboundSpec(scanner inboundSpecScanner) (*reposito
 	var agentHostID sql.NullInt64
 	var exitAgentHostID sql.NullInt64
 	var exitNodeSetID sql.NullInt64
+	var relayPathID sql.NullInt64
 
 	err := scanner.Scan(
 		&spec.ID,
 		&agentHostID,
 		&exitAgentHostID,
 		&exitNodeSetID,
+		&relayPathID,
 		&spec.CoreType,
 		&spec.Tag,
 		&enabled,
@@ -401,6 +406,9 @@ func (r *inboundSpecRepo) scanInboundSpec(scanner inboundSpecScanner) (*reposito
 	}
 	if exitNodeSetID.Valid {
 		spec.ExitNodeSetID = &exitNodeSetID.Int64
+	}
+	if relayPathID.Valid {
+		spec.RelayPathID = &relayPathID.Int64
 	}
 	spec.Enabled = enabled != 0
 	spec.SemanticSpec = parseJSONObject(semanticSpec)

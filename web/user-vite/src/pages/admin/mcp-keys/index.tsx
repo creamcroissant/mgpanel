@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2, XCircle, Copy, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, XCircle, Copy, CheckCircle2, KeyRound } from "lucide-react";
+import { AdminPageShell } from "@/components/admin";
 import {
   fetchMCPKeys,
   createMCPKey,
@@ -30,6 +31,7 @@ import {
   TableHeader,
   TableRow,
   Badge,
+  EmptyState,
 } from "@/components/ui";
 
 export default function MCPKeysPage() {
@@ -111,17 +113,17 @@ export default function MCPKeysPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t("admin.mcpKeys.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("admin.mcpKeys.description")}</p>
-        </div>
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("admin.mcpKeys.create")}
-          </Button>
+    <AdminPageShell
+      title={t("admin.mcpKeys.title")}
+      description={t("admin.mcpKeys.description")}
+      actions={
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          {t("admin.mcpKeys.create")}
+        </Button>
+      }
+    >
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("admin.mcpKeys.createTitle")}</DialogTitle>
@@ -142,8 +144,7 @@ export default function MCPKeysPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       {/* New key reveal dialog */}
       <Dialog open={!!newKeyValue && newKeyValue.length > 0} onOpenChange={(open) => { if (!open) { setNewKeyValue(null); setCopied(false); } }}>
@@ -189,17 +190,28 @@ export default function MCPKeysPage() {
             <TableBody>
               {keys.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    {t("admin.mcpKeys.noKeys")}
+                  <TableCell colSpan={6}>
+                    <EmptyState
+                      size="sm"
+                      icon={<KeyRound className="h-6 w-6" />}
+                      title={t("admin.mcpKeys.noKeys")}
+                      description={t("admin.mcpKeys.noKeysDescription")}
+                      action={
+                        <Button onClick={() => setCreateDialogOpen(true)}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          {t("admin.mcpKeys.create")}
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
                 keys.map((key) => (
                   <TableRow key={key.id}>
                     <TableCell className="font-medium">{key.name || "-"}</TableCell>
-                    <TableCell className="font-mono text-sm">{key.prefix}...</TableCell>
+                    <TableCell className="font-mono text-sm">{key.prefix}…</TableCell>
                     <TableCell>
-                      <Badge variant={key.enabled ? "default" : "secondary"}>
+                      <Badge variant={key.enabled ? "success" : "secondary"}>
                         {key.enabled ? t("admin.mcpKeys.enabled") : t("admin.mcpKeys.disabled")}
                       </Badge>
                     </TableCell>
@@ -224,6 +236,6 @@ export default function MCPKeysPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+    </AdminPageShell>
   );
 }

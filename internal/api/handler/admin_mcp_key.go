@@ -32,7 +32,7 @@ func (h *AdminMCPKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID, _ := strconv.ParseInt(claims.ID, 10, 64)
 	result, err := h.svc.Create(r.Context(), req.Name, userID)
 	if err != nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "create_mcp_api_key", err)
 		return
 	}
 	respondJSON(w, http.StatusOK, result)
@@ -42,7 +42,7 @@ func (h *AdminMCPKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *AdminMCPKeyHandler) List(w http.ResponseWriter, r *http.Request) {
 	keys, err := h.svc.List(r.Context())
 	if err != nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "list_mcp_api_keys", err)
 		return
 	}
 	if keys == nil {
@@ -59,7 +59,7 @@ func (h *AdminMCPKeyHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.Revoke(r.Context(), id); err != nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "revoke_mcp_api_key", err)
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"success": true})
@@ -73,7 +73,7 @@ func (h *AdminMCPKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
-		respondJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		respondError(w, http.StatusInternalServerError, "delete_mcp_api_key", err)
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"success": true})

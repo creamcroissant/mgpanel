@@ -365,12 +365,23 @@ func maskSecret(value string, maskRune rune, visibleSuffix int) string {
 // generateCommunicationKey 生成固定长度的随机通讯密钥。
 func generateCommunicationKey() (string, error) {
 	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const alphabetLen = 62 // len(alphabet)
+	// 256 % 62 = 8 → 直接取模会让前 8 个字符出现概率偏高。
+	// rejection sampling：拒绝 b >= 62*(256/62)=248 的字节（拒绝率 8/256），
+	// 使每个字符恰好对应 4 个源字节值，分布均匀。
+	const maxAccept = alphabetLen * (256 / alphabetLen) // 248
 	buf := make([]byte, communicationKeyLength)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	for i, b := range buf {
-		buf[i] = alphabet[int(b)%len(alphabet)]
+	for i := range buf {
+		var b [1]byte
+		for {
+			if _, err := rand.Read(b[:]); err != nil {
+				return "", err
+			}
+			if int(b[0]) < maxAccept {
+				break
+			}
+		}
+		buf[i] = alphabet[int(b[0])%alphabetLen]
 	}
 	return string(buf), nil
 }
@@ -592,37 +603,55 @@ func buildSMTPTestEmail(config SMTPConfig) notifier.EmailRequest {
 }
 
 func ensureSMTPLocalHost(config SMTPConfig) error {
-	host := strings.TrimSpace(config.Host)
+	_, _, err := resolvePublicSMTPHost(config.Host)
+	return err
+}
+
+// resolvePublicSMTPHost 将 SMTP 主机一次性解析并校验为公网 IP，
+// 返回 (校验通过的 IP, 规范化主机名)。调用方必须对该 IP 建立连接
+// （而非重新解析主机名），以消除 DNS 解析 TOCTOU（校验与连接之间
+// DNS 记录被切换为内网地址）。
+func resolvePublicSMTPHost(rawHost string) (net.IP, string, error) {
+	host := strings.TrimSpace(rawHost)
 	if host == "" {
-		return fmt.Errorf("SMTP host is required / SMTP 主机不能为空")
+		return nil, "", fmt.Errorf("SMTP host is required / SMTP 主机不能为空")
 	}
 	if strings.ContainsAny(host, "\r\n\t") {
-		return fmt.Errorf("invalid SMTP host / SMTP 主机非法")
+		return nil, "", fmt.Errorf("invalid SMTP host / SMTP 主机非法")
 	}
 	if strings.Contains(host, "://") {
 		parsed, err := url.Parse(host)
 		if err != nil {
-			return fmt.Errorf("invalid SMTP host / SMTP 主机非法")
+			return nil, "", fmt.Errorf("invalid SMTP host / SMTP 主机非法")
 		}
 		host = parsed.Hostname()
 	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		ips, err := net.LookupIP(host)
-		if err != nil || len(ips) == 0 {
-			return fmt.Errorf("SMTP host resolve failed / SMTP 主机解析失败")
+	rejectPrivate := func(ip net.IP) error {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("SMTP host is private / SMTP 主机为内网地址 (禁止连接内网 SMTP)")
 		}
-		for _, candidate := range ips {
-			if isPrivateIP(candidate) {
-				return fmt.Errorf("SMTP host is private / SMTP 主机为内网地址 (禁止连接内网 SMTP)")
-			}
+		if ip.IsUnspecified() {
+			return fmt.Errorf("SMTP host is unspecified address / SMTP 主机为未指定地址")
 		}
 		return nil
 	}
-	if isPrivateIP(ip) {
-		return fmt.Errorf("SMTP host is private / SMTP 主机为内网地址 (禁止连接内网 SMTP)")
+	ip := net.ParseIP(host)
+	if ip != nil {
+		if err := rejectPrivate(ip); err != nil {
+			return nil, "", err
+		}
+		return ip, host, nil
 	}
-	return nil
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return nil, "", fmt.Errorf("SMTP host resolve failed / SMTP 主机解析失败")
+	}
+	for _, candidate := range ips {
+		if err := rejectPrivate(candidate); err == nil {
+			return candidate, host, nil
+		}
+	}
+	return nil, "", fmt.Errorf("SMTP host is private / SMTP 主机为内网地址 (禁止连接内网 SMTP)")
 }
 
 func isPrivateIP(ip net.IP) bool {
@@ -660,7 +689,13 @@ func (d smtpDialer) Test(ctx context.Context, config SMTPConfig, timeout time.Du
 	if enc == "" {
 		enc = "none"
 	}
-	address := fmt.Sprintf("%s:%d", host, port)
+	// 消除 TOCTOU：对已校验的 IP 直拨，TLS SNI / EHLO 仍用原域名。
+	validatedIP, hostname, rerr := resolvePublicSMTPHost(host)
+	if rerr != nil {
+		return rerr
+	}
+	host = hostname
+	address := fmt.Sprintf("%s:%d", validatedIP.String(), port)
 	dialer := net.Dialer{Timeout: timeout}
 	deadline := time.Now().Add(timeout)
 

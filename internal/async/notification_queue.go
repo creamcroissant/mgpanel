@@ -1,5 +1,5 @@
 // 文件路径: internal/async/notification_queue.go
-// 模块说明: 这是 internal 模块里的 notification_queue 逻辑，下面的注释会用非常通俗的中文帮你理解每一步。
+// 模块说明: 有界通知缓冲队列——防止突发邮件/电报通知导致内存无限增长。
 package async
 
 import (
@@ -9,18 +9,28 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/notifier"
 )
 
-// NotificationQueue buffers outbound email & telegram tasks for background dispatch.
+// NotificationQueue 是有界邮件/电报任务缓冲队列。
+// 队列满载时丢弃最旧条目，防止突发通知挤占内存资源。
 type NotificationQueue struct {
 	mu        sync.Mutex
 	emails    []notifier.EmailRequest
 	telegrams []notifier.TelegramRequest
+	emailCap  int
+	telCap    int
 }
+
+const (
+	defaultEmailQueueCapacity    = 1000
+	defaultTelegramQueueCapacity = 1000
+)
 
 // NewNotificationQueue returns an empty notification queue instance.
 func NewNotificationQueue() *NotificationQueue {
 	return &NotificationQueue{
 		emails:    make([]notifier.EmailRequest, 0),
 		telegrams: make([]notifier.TelegramRequest, 0),
+		emailCap:  defaultEmailQueueCapacity,
+		telCap:    defaultTelegramQueueCapacity,
 	}
 }
 
@@ -30,6 +40,9 @@ func (q *NotificationQueue) EnqueueEmail(req notifier.EmailRequest) {
 		return
 	}
 	q.mu.Lock()
+	if len(q.emails) >= q.emailCap {
+		q.emails = q.emails[1:] // 丢弃最旧
+	}
 	q.emails = append(q.emails, cloneEmailRequest(req))
 	q.mu.Unlock()
 }
@@ -40,6 +53,9 @@ func (q *NotificationQueue) EnqueueTelegram(req notifier.TelegramRequest) {
 		return
 	}
 	q.mu.Lock()
+	if len(q.telegrams) >= q.telCap {
+		q.telegrams = q.telegrams[1:] // 丢弃最旧
+	}
 	q.telegrams = append(q.telegrams, cloneTelegramRequest(req))
 	q.mu.Unlock()
 }
@@ -101,6 +117,9 @@ func (q *NotificationQueue) RequeueEmail(req notifier.EmailRequest) {
 		return
 	}
 	q.mu.Lock()
+	if len(q.emails) >= q.emailCap {
+		q.emails = q.emails[1:] // 满载丢弃最旧（头部），保住最新重试项
+	}
 	q.emails = append([]notifier.EmailRequest{cloneEmailRequest(req)}, q.emails...)
 	q.mu.Unlock()
 }
@@ -111,6 +130,9 @@ func (q *NotificationQueue) RequeueTelegram(req notifier.TelegramRequest) {
 		return
 	}
 	q.mu.Lock()
+	if len(q.telegrams) >= q.telCap {
+		q.telegrams = q.telegrams[1:] // 满载丢弃最旧（头部），保住最新重试项
+	}
 	q.telegrams = append([]notifier.TelegramRequest{cloneTelegramRequest(req)}, q.telegrams...)
 	q.mu.Unlock()
 }

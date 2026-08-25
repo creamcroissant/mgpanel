@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -39,19 +40,60 @@ func NewScheduler(logger *slog.Logger) *Scheduler {
 	return &Scheduler{cron: c, logger: logger}
 }
 
-// Register 绑定 cron 表达式与任务。
+// RegisterOption 配置 RegisterOpts 的行为。
+type RegisterOption func(*registerOptions)
+
+type registerOptions struct {
+	skipIfBusy bool
+	jitterMax  time.Duration
+	timeout    time.Duration // 单次执行的上下文超时；零值回落 defaultJobTimeout
+}
+
+// SkipIfBusy 让任务在上一次执行未完成时跳过本次触发（防止重叠执行）。
+func SkipIfBusy() RegisterOption {
+	return func(o *registerOptions) { o.skipIfBusy = true }
+}
+
+// WithTimeout 覆盖单次任务执行的上下文超时（默认 defaultJobTimeout）。
+// 长耗时任务（如大表清理）应显式设置更长的超时。
+func WithTimeout(d time.Duration) RegisterOption {
+	return func(o *registerOptions) { o.timeout = d }
+}
+
+// WithJitter 让每次触发在执行前随机延迟 [0, jitterMax)，避免多个任务同时爆发。
+func WithJitter(max time.Duration) RegisterOption {
+	return func(o *registerOptions) { o.jitterMax = max }
+}
+
+// Register 绑定 cron 表达式与任务（无选项）。
 func (s *Scheduler) Register(spec string, runnable Runnable) (cron.EntryID, error) {
+	return s.RegisterOpts(spec, runnable)
+}
+
+// RegisterOpts 绑定 cron 表达式与任务，支持并发抑制与错峰选项。
+func (s *Scheduler) RegisterOpts(spec string, runnable Runnable, opts ...RegisterOption) (cron.EntryID, error) {
+	var cfg registerOptions
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	if runnable == nil {
 		return 0, fmt.Errorf("scheduler: runnable is required / runnable 不能为空")
 	}
 	if spec == "" {
 		return 0, fmt.Errorf("scheduler: spec is required / spec 不能为空")
 	}
-	entryID, err := s.cron.AddFunc(spec, s.wrap(runnable))
+	entryID, err := s.cron.AddFunc(spec, s.wrap(runnable, cfg))
 	if err != nil {
 		return 0, err
 	}
-	s.logger.Info("job registered", "job", runnable.Name(), "spec", spec)
+	flags := ""
+	if cfg.skipIfBusy {
+		flags += " skip_if_busy"
+	}
+	if cfg.jitterMax > 0 {
+		flags += " jitter"
+	}
+	s.logger.Info("job registered", "job", runnable.Name(), "spec", spec, "options", flags)
 	return entryID, nil
 }
 
@@ -78,9 +120,32 @@ func (s *Scheduler) Stop() context.Context {
 	return s.cron.Stop()
 }
 
-// wrap 包装任务，提供超时与统一日志。
-func (s *Scheduler) wrap(runnable Runnable) func() {
+// wrap 包装任务，提供超时、统一日志、并发抑制与错峰。
+func (s *Scheduler) wrap(runnable Runnable, cfg registerOptions) func() {
+	var mu sync.Mutex
+	busy := false
 	return func() {
+		if cfg.skipIfBusy {
+			mu.Lock()
+			if busy {
+				mu.Unlock()
+				s.logger.Warn("job skipped (previous run still in progress)", "job", runnable.Name())
+				return
+			}
+			busy = true
+			mu.Unlock()
+			defer func() {
+				mu.Lock()
+				busy = false
+				mu.Unlock()
+			}()
+		}
+		if cfg.jitterMax > 0 {
+			delay := time.Duration(rand.Int63n(int64(cfg.jitterMax)))
+			if delay > 0 {
+				time.Sleep(delay)
+			}
+		}
 		defer func() {
 			if r := recover(); r != nil {
 				s.logger.Error("job panicked",
@@ -93,7 +158,11 @@ func (s *Scheduler) wrap(runnable Runnable) func() {
 		// robfig/cron's shutdown context only completes after all jobs finish,
 		// so using it would prevent jobs from responding to Scheduler.Stop().
 		// Individual jobs should implement their own timeout via context.WithTimeout.
-		ctx, cancel := context.WithTimeout(context.Background(), defaultJobTimeout)
+		timeout := cfg.timeout
+		if timeout <= 0 {
+			timeout = defaultJobTimeout
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		start := time.Now()
 		if err := runnable.Run(ctx); err != nil {

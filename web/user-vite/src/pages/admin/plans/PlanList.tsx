@@ -167,14 +167,13 @@ export default function PlanList() {
     );
   } else if (!isLoading) {
     content = (
-      <div className="overflow-x-auto rounded-lg border border-border">
         <Table aria-label={t("admin.plans.title")}>
           <TableHeader>
             <TableRow className="bg-muted/40">
               <TableHead>{t("admin.plans.name")}</TableHead>
-              <TableHead>{t("admin.plans.traffic")}</TableHead>
-              <TableHead>{t("admin.plans.speedLimit")}</TableHead>
-              <TableHead>{t("admin.plans.deviceLimit")}</TableHead>
+              <TableHead className="text-right">{t("admin.plans.traffic")}</TableHead>
+              <TableHead className="text-right">{t("admin.plans.speedLimit")}</TableHead>
+              <TableHead className="text-right">{t("admin.plans.deviceLimit")}</TableHead>
               <TableHead>{t("admin.plans.status")}</TableHead>
               <TableHead>{t("common.actions")}</TableHead>
             </TableRow>
@@ -183,11 +182,11 @@ export default function PlanList() {
             {plans.map((plan) => (
               <TableRow key={plan.id} className="h-12">
                 <TableCell className="font-medium">{plan.name}</TableCell>
-                <TableCell>{formatBytes(plan.transfer_enable)}</TableCell>
-                <TableCell>
+                <TableCell className="text-right tabular-nums">{formatBytes(plan.transfer_enable)}</TableCell>
+                <TableCell className="text-right tabular-nums">
                   {plan.speed_limit ? `${plan.speed_limit} Mbps` : t("admin.plans.unlimited")}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-right tabular-nums">
                   {plan.device_limit ? plan.device_limit : t("admin.plans.unlimited")}
                 </TableCell>
                 <TableCell>
@@ -222,8 +221,7 @@ export default function PlanList() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
     );
   }
 

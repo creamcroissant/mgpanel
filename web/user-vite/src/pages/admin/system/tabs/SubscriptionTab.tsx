@@ -485,7 +485,7 @@ function SubscriptionSourcesPanel() {
   const sources = sourcesQuery.data?.sources ?? [];
 
   return (
-    <Card className="border border-border shadow-none">
+    <Card className="border border-border">
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle>{t("admin.system.subscription.sourceManagementTitle")}</CardTitle>
@@ -511,70 +511,68 @@ function SubscriptionSourcesPanel() {
             action={<Button onClick={openCreateDialog}>{t("admin.system.subscription.addSource")}</Button>}
           />
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("admin.system.subscription.sourceTableName")}</TableHead>
-                  <TableHead>{t("admin.system.subscription.sourceType")}</TableHead>
-                  <TableHead>{t("admin.system.subscription.sourceMaterial")}</TableHead>
-                  <TableHead>{t("admin.system.subscription.sourceStatus")}</TableHead>
-                  <TableHead>{t("admin.system.subscription.sourceLastSync")}</TableHead>
-                  <TableHead className="text-right">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sources.map((source) => (
-                  <TableRow key={source.id}>
-                    <TableCell className="font-medium">{source.name}</TableCell>
-                    <TableCell>{getSourceTypeLabel(source.type, t)}</TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {getSourceMaterial(source, t)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={source.enabled ? "success" : "secondary"}>
-                        {source.enabled
-                          ? t("admin.system.subscription.sourceEnabled")
-                          : t("admin.system.subscription.sourceDisabled")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {source.last_sync_at
-                        ? formatDateTime(source.last_sync_at)
-                        : t("admin.system.subscription.sourceNeverSynced")}
-                      {source.last_sync_err && (
-                        <p className="mt-1 max-w-64 truncate text-xs text-destructive">
-                          {source.last_sync_err}
-                        </p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("admin.system.subscription.sourceTableName")}</TableHead>
+                <TableHead>{t("admin.system.subscription.sourceType")}</TableHead>
+                <TableHead>{t("admin.system.subscription.sourceMaterial")}</TableHead>
+                <TableHead>{t("admin.system.subscription.sourceStatus")}</TableHead>
+                <TableHead>{t("admin.system.subscription.sourceLastSync")}</TableHead>
+                <TableHead className="text-right">{t("common.actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sources.map((source) => (
+                <TableRow key={source.id}>
+                  <TableCell className="font-medium">{source.name}</TableCell>
+                  <TableCell>{getSourceTypeLabel(source.type, t)}</TableCell>
+                  <TableCell>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {getSourceMaterial(source, t)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={source.enabled ? "success" : "secondary"}>
+                      {source.enabled
+                        ? t("admin.system.subscription.sourceEnabled")
+                        : t("admin.system.subscription.sourceDisabled")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {source.last_sync_at
+                      ? formatDateTime(source.last_sync_at)
+                      : t("admin.system.subscription.sourceNeverSynced")}
+                    {source.last_sync_err && (
+                      <p className="mt-1 max-w-64 truncate text-xs text-destructive">
+                        {source.last_sync_err}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {source.type === "imported_subscription" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => syncSourceMutation.mutate(source.id)}
+                          disabled={syncSourceMutation.isPending}
+                        >
+                          {t("admin.system.subscription.sourceSync")}
+                        </Button>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {source.type === "imported_subscription" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => syncSourceMutation.mutate(source.id)}
-                            disabled={syncSourceMutation.isPending}
-                          >
-                            {t("admin.system.subscription.sourceSync")}
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm" onClick={() => openEditDialog(source)}>
-                          {t("common.edit")}
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(source)}>
-                          {t("common.delete")}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(source)}>
+                        {t("common.edit")}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(source)}>
+                        {t("common.delete")}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
 
@@ -732,7 +730,7 @@ function SubscriptionFilterDiagnosticsPanel() {
     .sort((a, b) => b[1] - a[1]);
 
   return (
-    <Card className="border border-border shadow-none">
+    <Card className="border border-border">
       <CardHeader>
         <CardTitle>{t("admin.system.subscription.filterDiagnosticsTitle")}</CardTitle>
         <CardDescription>{t("admin.system.subscription.filterDiagnosticsDescription")}</CardDescription>
@@ -826,7 +824,7 @@ function SubscriptionFilterDiagnosticsPanel() {
                 description={t("admin.system.subscription.filtersEmptyDescription")}
               />
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-md border border-border">
+              <div className="mt-4">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -913,7 +911,7 @@ export default function SubscriptionTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="border border-border shadow-none">
+      <Card className="border border-border">
         <CardHeader>
           <CardTitle>{t("admin.system.settings.tabs.subscription")}</CardTitle>
           <CardDescription>{t("admin.system.settings.description")}</CardDescription>

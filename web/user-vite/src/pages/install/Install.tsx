@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createAdmin, getInstallStatus } from "@/api/install";
 import { ROUTES } from "@/lib/constants";
-import ThemeToggle from "@/components/ThemeToggle";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 export default function Install() {
   const { t } = useTranslation();
@@ -106,16 +105,8 @@ export default function Install() {
   }, [navigate]);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-48 w-48 rounded-full bg-primary/5 blur-3xl" />
-
-      <div className="absolute right-4 top-4 flex items-center gap-2">
-        <LanguageSwitcher />
-        <ThemeToggle />
-      </div>
-
-      <Card className="w-full max-w-md border border-border/80 shadow-sm">
+    <AuthShell>
+      <Card className="border border-border/80">
         <CardHeader className="items-center space-y-2 pt-8 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10 text-primary font-semibold">
             X
@@ -262,6 +253,6 @@ export default function Install() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

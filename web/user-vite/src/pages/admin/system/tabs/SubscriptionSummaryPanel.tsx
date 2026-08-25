@@ -68,7 +68,7 @@ export default function SubscriptionSummaryPanel() {
     .sort((a, b) => b[1] - a[1]);
 
   return (
-    <Card className="border border-border shadow-none">
+    <Card className="border border-border">
       <CardHeader>
         <CardTitle>
           {t("admin.system.subscription.filterDiagnosticsTitle")}

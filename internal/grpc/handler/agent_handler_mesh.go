@@ -28,6 +28,12 @@ func (h *AgentHandler) JoinMesh(ctx context.Context, req *agentv1.JoinMeshReques
 		networkID = "default"
 	}
 
+	if !isMeshNetworkAllowed(networkID) {
+		h.logger.Warn("mesh join denied: network not in allowlist",
+			"agent_host_id", agentHost.ID, "network_id", networkID)
+		return nil, status.Error(codes.PermissionDenied, "mesh network is not allowed")
+	}
+
 	ip, pub, err := h.meshService.JoinNetwork(ctx, agentHost.ID, networkID)
 	if err != nil {
 		h.logger.Error("failed to join mesh network", "agent_host_id", agentHost.ID, "error", err)
@@ -67,6 +73,24 @@ func (h *AgentHandler) GetMeshPeers(ctx context.Context, req *agentv1.GetMeshPee
 		networkID = "default"
 	}
 
+	// 归属校验：请求者必须已加入目标网络，防止跨网络枚举拓扑/公钥。
+	ownPeer, err := h.meshService.GetMeshPeer(ctx, agentHost.ID)
+	if err != nil || ownPeer == nil {
+		h.logger.Warn("mesh peers denied: requester not in any network",
+			"agent_host_id", agentHost.ID,
+			"network_id", networkID,
+		)
+		return nil, status.Error(codes.PermissionDenied, "not a member of this network")
+	}
+	if ownPeer.NetworkID != networkID {
+		h.logger.Warn("mesh peers denied: cross-network access",
+			"agent_host_id", agentHost.ID,
+			"requester_network", ownPeer.NetworkID,
+			"requested_network", networkID,
+		)
+		return nil, status.Error(codes.PermissionDenied, "not a member of this network")
+	}
+
 	peers, err := h.meshService.ListNetworkPeers(ctx, networkID)
 	if err != nil {
 		h.logger.Error("failed to list mesh peers", "agent_host_id", agentHost.ID, "error", err)
@@ -83,6 +107,11 @@ func (h *AgentHandler) GetMeshPeers(ctx context.Context, req *agentv1.GetMeshPee
 		host, err := h.agentHostService.GetByID(ctx, p.AgentHostID)
 		if err == nil && host != nil && host.Host != "" {
 			endpoint = host.Host + ":" + strconv.Itoa(p.WGListenPort)
+		} else if err != nil {
+			h.logger.Warn("failed to resolve mesh peer endpoint",
+				"peer_agent_host_id", p.AgentHostID,
+				"error", err,
+			)
 		}
 		pbPeers = append(pbPeers, &agentv1.MeshPeerEntry{
 			Id:         "agent-" + strconv.FormatInt(p.AgentHostID, 10),

@@ -119,9 +119,7 @@ export default function CDNSiteList() {
 
   const renderEnabledBadge = (site: CDNSite) =>
     site.enabled ? (
-      <Badge variant="outline" className="text-green-600">
-        {t("admin.cdn.enabled")}
-      </Badge>
+      <Badge variant="success">{t("admin.cdn.enabled")}</Badge>
     ) : (
       <Badge variant="secondary">{t("admin.cdn.disabled")}</Badge>
     );

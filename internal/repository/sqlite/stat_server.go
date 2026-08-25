@@ -3,12 +3,16 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type statServerRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func (r *statServerRepo) Upsert(ctx context.Context, record repository.StatServerRecord) error {
@@ -89,6 +93,13 @@ func (r *statServerRepo) ListByServer(ctx context.Context, serverID int64, recor
 }
 
 func (r *statServerRepo) SumByRange(ctx context.Context, filter repository.StatServerSumFilter) (repository.StatServerSumResult, error) {
+	key := fmt.Sprintf("SumByRange_%d_%v_%d_%d", filter.RecordType, ptrInt64(filter.ServerID), filter.StartAt, filter.EndAt)
+	if r.cache != nil {
+		var cached repository.StatServerSumResult
+		if ok, _ := r.cache.Namespace("stat_server").GetJSON(ctx, key, &cached); ok {
+			return cached, nil
+		}
+	}
 	query := `SELECT COALESCE(SUM(upload), 0) AS upload, COALESCE(SUM(download), 0) AS download
 	          FROM stat_servers
 	          WHERE record_type = ?`
@@ -112,10 +123,20 @@ func (r *statServerRepo) SumByRange(ctx context.Context, filter repository.StatS
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&result.Upload, &result.Download); err != nil {
 		return repository.StatServerSumResult{}, err
 	}
+	if r.cache != nil {
+		_ = r.cache.Namespace("stat_server").SetJSON(ctx, key, result, 15*time.Second)
+	}
 	return result, nil
 }
 
 func (r *statServerRepo) TopByRange(ctx context.Context, filter repository.StatServerTopFilter) ([]repository.StatServerAggregate, error) {
+	key := fmt.Sprintf("TopByRange_%d_%d_%d_%d", filter.RecordType, filter.StartAt, filter.EndAt, filter.Limit)
+	if r.cache != nil {
+		var cached []repository.StatServerAggregate
+		if ok, _ := r.cache.Namespace("stat_server").GetJSON(ctx, key, &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	limit := filter.Limit
 	if limit <= 0 || limit > 100 {
 		limit = 10
@@ -155,6 +176,9 @@ func (r *statServerRepo) TopByRange(ctx context.Context, filter repository.StatS
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if r.cache != nil && len(aggregates) > 0 {
+		_ = r.cache.Namespace("stat_server").SetJSON(ctx, key, aggregates, 15*time.Second)
 	}
 	return aggregates, nil
 }

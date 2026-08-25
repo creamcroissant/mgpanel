@@ -102,7 +102,7 @@ export function OperationLogTimeline({
   );
 
   return (
-    <Card className="border border-border shadow-none">
+    <Card className="border border-border">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

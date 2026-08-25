@@ -3,7 +3,15 @@
  * Stored in _raw.sockopt through the semantic spec.
  */
 import { useTranslation } from "react-i18next";
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
 
 interface InboundSockoptFieldsProps {
   value: Record<string, unknown> | undefined | null;
@@ -42,13 +50,7 @@ export function InboundSockoptFields({
         className="flex items-center gap-2 text-sm font-medium cursor-pointer"
         onClick={() => !readOnly && handleToggle(!enabled)}
       >
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => handleToggle(e.target.checked)}
-          disabled={readOnly}
-          className="h-4 w-4 rounded border-input"
-        />
+        <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.sockopt", "套接字选项")}
       </label>
 
@@ -97,26 +99,14 @@ export function InboundSockoptFields({
 
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={(value?.tcp_fast_open as boolean) === true}
-                  onChange={(e) => set("tcp_fast_open", e.target.checked || undefined)}
-                  disabled={readOnly}
-                  className="h-4 w-4 rounded border-input"
-                />
+                <Switch checked={((value?.tcp_fast_open as boolean) === true)} onCheckedChange={(value) => set("tcp_fast_open", value || undefined)} disabled={readOnly} />
                 {t("admin.configCenter.inbound.tcpFastOpen")}
               </label>
             </div>
 
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={(value?.tcp_mptcp as boolean) === true}
-                  onChange={(e) => set("tcp_mptcp", e.target.checked || undefined)}
-                  disabled={readOnly}
-                  className="h-4 w-4 rounded border-input"
-                />
+                <Switch checked={((value?.tcp_mptcp as boolean) === true)} onCheckedChange={(value) => set("tcp_mptcp", value || undefined)} disabled={readOnly} />
                 {t("admin.configCenter.inbound.tcpMptcp")}
               </label>
             </div>

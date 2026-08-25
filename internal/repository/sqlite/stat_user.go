@@ -5,12 +5,16 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type statUserRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func (r *statUserRepo) Upsert(ctx context.Context, record repository.StatUserRecord) error {
@@ -176,6 +180,13 @@ func (r *statUserRepo) ListByUserSince(ctx context.Context, userID int64, since 
 }
 
 func (r *statUserRepo) SumByRange(ctx context.Context, filter repository.StatUserSumFilter) (repository.StatUserSumResult, error) {
+	key := fmt.Sprintf("SumByRange_%d_%v_%v_%d_%d", filter.RecordType, ptrInt64(filter.UserID), ptrInt64(filter.AgentHostID), filter.StartAt, filter.EndAt)
+	if r.cache != nil {
+		var cached repository.StatUserSumResult
+		if ok, _ := r.cache.Namespace("stat_user").GetJSON(ctx, key, &cached); ok {
+			return cached, nil
+		}
+	}
 	recordType := filter.RecordType
 	if recordType == 0 {
 		recordType = 1 // Default to daily
@@ -205,10 +216,20 @@ func (r *statUserRepo) SumByRange(ctx context.Context, filter repository.StatUse
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&result.Upload, &result.Download); err != nil {
 		return repository.StatUserSumResult{}, err
 	}
+	if r.cache != nil {
+		_ = r.cache.Namespace("stat_user").SetJSON(ctx, key, result, 15*time.Second)
+	}
 	return result, nil
 }
 
 func (r *statUserRepo) TopByRange(ctx context.Context, filter repository.StatUserTopFilter) ([]repository.StatUserAggregate, error) {
+	key := fmt.Sprintf("TopByRange_%d_%v_%d_%d_%d", filter.RecordType, ptrInt64(filter.AgentHostID), filter.StartAt, filter.EndAt, filter.Limit)
+	if r.cache != nil {
+		var cached []repository.StatUserAggregate
+		if ok, _ := r.cache.Namespace("stat_user").GetJSON(ctx, key, &cached); ok && len(cached) > 0 {
+			return cached, nil
+		}
+	}
 	limit := filter.Limit
 	if limit <= 0 || limit > 100 {
 		limit = 10
@@ -253,6 +274,9 @@ func (r *statUserRepo) TopByRange(ctx context.Context, filter repository.StatUse
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	if r.cache != nil && len(aggregates) > 0 {
+		_ = r.cache.Namespace("stat_user").SetJSON(ctx, key, aggregates, 15*time.Second)
 	}
 	return aggregates, nil
 }

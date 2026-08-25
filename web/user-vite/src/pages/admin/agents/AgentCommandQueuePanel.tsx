@@ -153,7 +153,7 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
   const activeOperations = useMemo(() => operations.filter(isActiveOperation), [operations]);
 
   return (
-    <Card className="border border-border shadow-none" data-testid="agent-command-queue-panel">
+    <Card className="border border-border" data-testid="agent-command-queue-panel">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

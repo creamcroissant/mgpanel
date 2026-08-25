@@ -1,5 +1,5 @@
 // 文件路径: internal/async/traffic_queue.go
-// 模块说明: 这是 internal 模块里的 traffic_queue 逻辑，下面的注释会用非常通俗的中文帮你理解每一步。
+// 模块说明: 有界流量缓冲队列——防止突发流量上报导致内存无限增长。
 package async
 
 import (
@@ -8,9 +8,9 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
-// TrafficSample represents a raw `[user_id, traffic]` entry submitted by nodes.
+// UniProxyPushSample represents a raw ` + "`[user_id, traffic]`" + ` entry submitted by nodes.
 // Defined here to avoid import cycle between async and service packages.
-type TrafficSample struct {
+type UniProxyPushSample struct {
 	UserID   int64
 	Upload   int64
 	Download int64
@@ -19,28 +19,39 @@ type TrafficSample struct {
 // TrafficBatch stores a server snapshot with associated traffic samples.
 type TrafficBatch struct {
 	Server  *repository.Server
-	Samples []TrafficSample
+	Samples []UniProxyPushSample
 }
 
-// TrafficQueue buffers push reports before background ingestion.
+// TrafficQueue 是有界流量缓冲队列。
+// 底层使用有界 slice + 溢出丢弃，防止突发上报挤占内存。
 type TrafficQueue struct {
-	mu      sync.Mutex
-	batches []TrafficBatch
+	mu       sync.Mutex
+	batches  []TrafficBatch
+	capacity int
 }
 
-// NewTrafficQueue constructs an empty buffer for traffic samples.
+const defaultTrafficQueueCapacity = 10000
+
+// NewTrafficQueue 构造有界流量缓冲队列。
 func NewTrafficQueue() *TrafficQueue {
-	return &TrafficQueue{batches: make([]TrafficBatch, 0)}
+	return &TrafficQueue{
+		batches:  make([]TrafficBatch, 0, 64),
+		capacity: defaultTrafficQueueCapacity,
+	}
 }
 
 // Enqueue appends a server+sample batch for asynchronous processing.
-func (q *TrafficQueue) Enqueue(server *repository.Server, samples []TrafficSample) {
+func (q *TrafficQueue) Enqueue(server *repository.Server, samples []UniProxyPushSample) {
 	if q == nil || server == nil || len(samples) == 0 {
 		return
 	}
 	q.mu.Lock()
+	defer q.mu.Unlock()
+	// 容量保护：超限时丢弃最旧批次，防止内存无限增长
+	if len(q.batches) >= q.capacity {
+		q.batches = q.batches[1:]
+	}
 	q.batches = append(q.batches, TrafficBatch{Server: cloneServer(server), Samples: cloneSamples(samples)})
-	q.mu.Unlock()
 }
 
 // Drain returns all pending batches and clears the queue.
@@ -51,7 +62,7 @@ func (q *TrafficQueue) Drain() []TrafficBatch {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	drained := q.batches
-	q.batches = make([]TrafficBatch, 0)
+	q.batches = make([]TrafficBatch, 0, 64)
 	return drained
 }
 
@@ -71,8 +82,11 @@ func (q *TrafficQueue) Requeue(batch TrafficBatch) {
 		return
 	}
 	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.batches) >= q.capacity {
+		q.batches = q.batches[1:]
+	}
 	q.batches = append([]TrafficBatch{batch.clone()}, q.batches...)
-	q.mu.Unlock()
 }
 
 func (b TrafficBatch) clone() TrafficBatch {
@@ -87,11 +101,11 @@ func cloneServer(server *repository.Server) *repository.Server {
 	return &snapshot
 }
 
-func cloneSamples(samples []TrafficSample) []TrafficSample {
+func cloneSamples(samples []UniProxyPushSample) []UniProxyPushSample {
 	if len(samples) == 0 {
 		return nil
 	}
-	cloned := make([]TrafficSample, len(samples))
+	cloned := make([]UniProxyPushSample, len(samples))
 	copy(cloned, samples)
 	return cloned
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -168,6 +169,9 @@ func init() {
 			}
 
 			dbPath := cfg.DB.Path
+			// 目标库残留的 -wal/-shm 会在覆盖后被 SQLite 回放，导致恢复出的库损坏或混入旧数据，
+			// 必须在覆盖前清除（P0-3）。
+			targetSidecars := removeSQLiteSidecars(dbPath)
 			// Auto-backup before restore
 			if _, err := os.Stat(dbPath); err == nil {
 				bakPath := dbPath + ".pre_restore_" + time.Now().Format("20060102_150405")
@@ -192,7 +196,14 @@ func init() {
 			if err := copyFile(sourceFile, dbPath); err != nil {
 				return fmt.Errorf("restore failed: %w", err)
 			}
+			// 恢复成功后才清理备份源文件的伴生文件：既防止旧 WAL 被误用回放，
+			// 又避免恢复失败时破坏用户备份产物。
+			sourceSidecars := removeSQLiteSidecars(backupPath)
 
+			slog.Info("database restored",
+				"db_path", dbPath,
+				"removed_target_sidecars", targetSidecars,
+				"removed_backup_sidecars", sourceSidecars)
 			fmt.Println("Database restored successfully.")
 			return nil
 		},
@@ -542,6 +553,23 @@ func getJobs(store *sqlite.Store) map[string]job.Runnable {
 		"notify.email":    job.NewSendEmailJob(notificationQueue, notifierSvc, nil),
 		"notify.telegram": job.NewSendTelegramJob(notificationQueue, notifierSvc, nil),
 	}
+}
+
+// removeSQLiteSidecars 删除 SQLite 数据库文件旁的 -wal / -shm 伴生文件，
+// 返回实际删除的个数。忽略不存在的伴生文件；其它删除错误仅记录日志，不中断恢复流程。
+func removeSQLiteSidecars(path string) int {
+	removed := 0
+	for _, suffix := range []string{"-wal", "-shm"} {
+		sidecar := path + suffix
+		err := os.Remove(sidecar)
+		switch {
+		case err == nil:
+			removed++
+		case !errors.Is(err, os.ErrNotExist):
+			slog.Warn("failed to remove sqlite sidecar", "path", sidecar, "error", err)
+		}
+	}
+	return removed
 }
 
 // File utils

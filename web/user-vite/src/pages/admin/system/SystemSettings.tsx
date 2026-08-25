@@ -2,15 +2,17 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Loading, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import AdminPageShell from "@/components/admin/AdminPageShell";
 
 const GeneralTab = lazy(() => import("./tabs/GeneralTab"));
+const DataTab = lazy(() => import("./tabs/DataTab"));
 const SubscriptionTab = lazy(() => import("./tabs/SubscriptionTab"));
 const NodeTab = lazy(() => import("./tabs/NodeTab"));
 const EmailTab = lazy(() => import("./tabs/EmailTab"));
 const RoutingTab = lazy(() => import("./tabs/RoutingTab"));
 const MCPTab = lazy(() => import("./tabs/MCPTab"));
 
-const SYSTEM_SETTINGS_TABS = ["general", "subscription", "node", "email", "routing", "mcp"] as const;
+const SYSTEM_SETTINGS_TABS = ["general", "subscription", "node", "email", "routing", "mcp", "data"] as const;
 type SystemSettingsTab = (typeof SYSTEM_SETTINGS_TABS)[number];
 
 function parseSystemSettingsTab(value: string | null): SystemSettingsTab {
@@ -33,13 +35,11 @@ export default function SystemSettings() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{t("admin.system.settings.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("admin.system.settings.description")}</p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+    <AdminPageShell
+      title={t("admin.system.settings.title")}
+      description={t("admin.system.settings.description")}
+    >
+    <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex w-full flex-wrap justify-start">
           <TabsTrigger value="general">{t("admin.system.settings.tabs.general")}</TabsTrigger>
           <TabsTrigger value="subscription">{t("admin.system.settings.tabs.subscription")}</TabsTrigger>
@@ -47,6 +47,7 @@ export default function SystemSettings() {
           <TabsTrigger value="email">{t("admin.system.settings.tabs.email")}</TabsTrigger>
           <TabsTrigger value="routing">{t("admin.system.settings.tabs.routing")}</TabsTrigger>
           <TabsTrigger value="mcp">{t("admin.system.settings.tabs.mcp")}</TabsTrigger>
+          <TabsTrigger value="data">{t("admin.system.retention.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -79,7 +80,12 @@ export default function SystemSettings() {
             <MCPTab />
           </Suspense>
         </TabsContent>
+        <TabsContent value="data">
+          <Suspense fallback={<Loading />}>
+            <DataTab />
+          </Suspense>
+        </TabsContent>
       </Tabs>
-    </div>
+    </AdminPageShell>
   );
 }

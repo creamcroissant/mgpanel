@@ -10,22 +10,34 @@ import (
 	"strings"
 	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 // userRepo 负责 users 表的 SQLite 实现。
 type userRepo struct {
 	db *sql.DB
+	cache cache.Store
 }
 
 func (r *userRepo) FindByID(ctx context.Context, id int64) (*repository.User, error) {
+	if r.cache != nil {
+		var cached *repository.User
+		if ok, _ := r.cache.Namespace("user").GetJSON(ctx, "FindByID_"+fmt.Sprint(id), &cached); ok && cached != nil {
+			return cached, nil
+		}
+	}
 	// 按 ID 查询用户。
 	query, err := userSelectBy("id")
 	if err != nil {
 		return nil, err
 	}
 	row := r.db.QueryRowContext(ctx, query, id)
-	return scanUser(row)
+	user, err := scanUser(row)
+	if err == nil && r.cache != nil {
+		_ = r.cache.Namespace("user").SetJSON(ctx, "FindByID_"+fmt.Sprint(id), user, 30*time.Second)
+	}
+	return user, err
 }
 
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*repository.User, error) {
@@ -49,16 +61,42 @@ func (r *userRepo) FindByUsername(ctx context.Context, username string) (*reposi
 }
 
 func (r *userRepo) FindByToken(ctx context.Context, token string) (*repository.User, error) {
+	if r.cache != nil && token != "" {
+		var cached *repository.User
+		if ok, _ := r.cache.Namespace("user").GetJSON(ctx, "FindByToken_"+token, &cached); ok && cached != nil {
+			return cached, nil
+		}
+	}
 	// 按订阅 token 查询用户。
 	query, err := userSelectBy("token")
 	if err != nil {
 		return nil, err
 	}
 	row := r.db.QueryRowContext(ctx, query, token)
-	return scanUser(row)
+	user, err := scanUser(row)
+	if err == nil && r.cache != nil && token != "" {
+		_ = r.cache.Namespace("user").SetJSON(ctx, "FindByToken_"+token, user, 30*time.Second)
+	}
+	return user, err
 }
 
 func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
+	// 换发 Token 时旧订阅地址必须立即失效：先读库中原 Token，新旧双清
+	var oldToken string
+	if r.cache != nil && user.Token != "" {
+		if old, err := r.FindByID(ctx, user.ID); err == nil && old != nil && old.Token != "" && old.Token != user.Token {
+			oldToken = old.Token
+		}
+	}
+	if r.cache != nil {
+		r.cache.Namespace("user").Delete(ctx, "FindByID_"+fmt.Sprint(user.ID))
+		if user.Token != "" {
+			r.cache.Namespace("user").Delete(ctx, "FindByToken_"+user.Token)
+		}
+		if oldToken != "" {
+			r.cache.Namespace("user").Delete(ctx, "FindByToken_"+oldToken)
+		}
+	}
 	// Upsert 用户记录，维护更新时间。
 	const stmt = `INSERT INTO users(
 		id,
@@ -159,6 +197,12 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 }
 
 func (r *userRepo) Create(ctx context.Context, user *repository.User) (*repository.User, error) {
+	if r.cache != nil {
+		r.cache.Namespace("user").Delete(ctx, "FindByID_"+fmt.Sprint(user.ID))
+		if user.Token != "" {
+			r.cache.Namespace("user").Delete(ctx, "FindByToken_"+user.Token)
+		}
+	}
 	// 新增用户记录并回填主键。
 	const stmt = `INSERT INTO users(
 		uuid,
@@ -256,6 +300,30 @@ func (r *userRepo) AdjustBalance(ctx context.Context, userID int64, deltaCents i
 	return affected > 0, nil
 }
 
+// IncrementTrafficBatch 在单个事务内批量累加多个用户的流量增量，
+// 减少逐条 UPDATE 带来的 fsync 次数（写放大优化）。
+func (r *userRepo) IncrementTrafficBatch(ctx context.Context, deltas map[int64][2]int64) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx, `UPDATE users SET u = u + ?, d = d + ? WHERE id = ?`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for userID, delta := range deltas {
+		if _, err := stmt.ExecContext(ctx, delta[0], delta[1], userID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (r *userRepo) IncrementTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error {
 	// NOTE: no RowsAffected check — incrementing traffic is fire-and-forget;
 	// a missing user row is a no-op and not treated as error.
@@ -288,7 +356,7 @@ func (r *userRepo) ListActiveForGroups(ctx context.Context, groupIDs []int64, no
 	// This is tricky: users are related to plans, plans are related to groups (now via junction table).
 	// But `users` table also has `group_id` legacy field?
 	// The requirement is usually: User has Plan -> Plan has Groups -> User can access Groups.
-	// But MGPanel often syncs users to nodes based on Plan/Group permissions.
+	// But V2bX/MGPanel often syncs users to nodes based on Plan/Group permissions.
 	// The original query likely used `users.group_id` or `users.plan_id`.
 	// Let's assume we fetch users whose Plan allows access to any of the groupIDs.
 	// This requires joining users, plans, plan_server_groups.
@@ -568,6 +636,19 @@ func (r *userRepo) GetExceededUserIDs(ctx context.Context) ([]int64, error) {
 
 // Delete removes a user by ID.
 func (r *userRepo) Delete(ctx context.Context, id int64) error {
+	// 删除前先取旧 Token，用于同时失效订阅缓存键，避免被删用户 30s 内仍可拉订阅
+	var oldToken string
+	if r.cache != nil {
+		if old, err := r.FindByID(ctx, id); err == nil && old != nil {
+			oldToken = old.Token
+		}
+	}
+	if r.cache != nil {
+		r.cache.Namespace("user").Delete(ctx, "FindByID_"+fmt.Sprint(id))
+		if oldToken != "" {
+			r.cache.Namespace("user").Delete(ctx, "FindByToken_"+oldToken)
+		}
+	}
 	result, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
 		return err

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Workflow } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   createConfigCenterApplyRun,
@@ -392,6 +392,7 @@ export default function ConfigCenterPage() {
 
         {/* Specs Tab */}
         <TabsContent value="specs" className="space-y-4">
+          <ConfigCenterTopologyHint />
           <SpecsTab
             specs={specs}
             isLoading={specListQuery.isLoading}
@@ -506,5 +507,19 @@ export default function ConfigCenterPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** specs 区块顶部：引流到拓扑画布的共存提示 */
+function ConfigCenterTopologyHint() {
+  const { t } = useTranslation();
+  return (
+    <a
+      href="/routing?tab=topology"
+      className="flex items-center gap-1.5 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+    >
+      <Workflow className="h-3.5 w-3.5" aria-hidden />
+      {t("admin.topology.config_center_hint")}
+    </a>
   );
 }

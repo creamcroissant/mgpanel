@@ -17,6 +17,7 @@ import (
 
 	"github.com/creamcroissant/mgpanel/internal/api/requestctx"
 	"github.com/creamcroissant/mgpanel/internal/async"
+	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/protocol"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 	"github.com/creamcroissant/mgpanel/internal/support/i18n"
@@ -25,6 +26,7 @@ import (
 // SubscriptionService 负责生成客户端订阅响应。
 type SubscriptionService interface {
 	Subscribe(ctx context.Context, userID string, params SubscriptionParams) (*SubscriptionResult, error)
+	SetCache(c cache.Store)
 }
 
 // SubscriptionParams 用于承接客户端传入的过滤参数。
@@ -40,6 +42,7 @@ type SubscriptionParams struct {
 	Tags         string // 按标签过滤节点，逗号分隔
 	ShowUserInfo bool   // 是否在节点名称中显示用户信息
 	TemplateID   int64  // 用户指定的订阅模板ID
+	ClientIP     string // 客户端真实 IP（订阅日志用；空值落 unknown）
 }
 
 // SubscriptionResult 包含订阅内容与元数据。
@@ -51,6 +54,43 @@ type SubscriptionResult struct {
 }
 
 // subscriptionService 负责订阅生成所需的仓储与依赖。
+// subscriptionFilteredResult 是 filterForSubscription 的可序列化输出缓存。
+type subscriptionFilteredResult struct {
+	Servers    []*repository.Server
+	SourceNodes []protocol.Node
+}
+
+// filteredResult 是无缓存实现的内部返回类型。
+type filteredResult struct {
+	servers    []*repository.Server
+	nodes      []protocol.Node
+}
+
+func subscriptionCacheKey(user *repository.User, allowedTypes map[string]struct{}, keywords []string, tagsFilter []string) string {
+	key := "nodes:" + fmt.Sprint(user.ID)
+	if len(allowedTypes) > 0 {
+		types := make([]string, 0, len(allowedTypes))
+		for t := range allowedTypes {
+			types = append(types, t)
+		}
+		sort.Strings(types)
+		key += ":t=" + strings.Join(types, ",")
+	}
+	if len(keywords) > 0 {
+		sorted := make([]string, len(keywords))
+		copy(sorted, keywords)
+		sort.Strings(sorted)
+		key += ":k=" + strings.Join(sorted, ",")
+	}
+	if len(tagsFilter) > 0 {
+		sorted := make([]string, len(tagsFilter))
+		copy(sorted, tagsFilter)
+		sort.Strings(sorted)
+		key += ":tg=" + strings.Join(sorted, ",")
+	}
+	return key
+}
+
 type subscriptionService struct {
 	users     repository.UserRepository
 	servers   repository.ServerRepository
@@ -65,6 +105,12 @@ type subscriptionService struct {
 	obfuscate bool
 	selection UserServerSelectionService
 	i18n      *i18n.Manager
+	cache     cache.Store
+}
+
+// SetCache 注入缓存存储，用于订阅渲染结果的短 TTL 缓存。
+func (s *subscriptionService) SetCache(c cache.Store) {
+	s.cache = c
 }
 
 // protocolSettings 保存订阅模板与前端展示配置。
@@ -141,19 +187,40 @@ func (s *subscriptionService) queryServers(ctx context.Context, user *repository
 }
 
 func (s *subscriptionService) filterForSubscription(ctx context.Context, user *repository.User, allowedTypes map[string]struct{}, keywords []string, tagsFilter []string, lang string) ([]*repository.Server, []protocol.Node, error) {
+	if s.cache != nil {
+		key := subscriptionCacheKey(user, allowedTypes, keywords, tagsFilter)
+		var cached subscriptionFilteredResult
+		if ok, _ := s.cache.Namespace("subscription").GetJSON(ctx, key, &cached); ok && len(cached.Servers) > 0 {
+			return cached.Servers, cached.SourceNodes, nil
+		}
+	}
+	result, err := s.filterForSubscriptionUncached(ctx, user, allowedTypes, keywords, tagsFilter, lang)
+	if err != nil {
+		return nil, nil, err
+	}
+	if s.cache != nil {
+		_ = s.cache.Namespace("subscription").SetJSON(ctx, subscriptionCacheKey(user, allowedTypes, keywords, tagsFilter), subscriptionFilteredResult{Servers: result.servers, SourceNodes: result.nodes}, 3*time.Second)
+	}
+	return result.servers, result.nodes, nil
+}
+
+// filterForSubscriptionUncached 是 filterForSubscription 的无缓存实现。
+func (s *subscriptionService) filterForSubscriptionUncached(ctx context.Context, user *repository.User, allowedTypes map[string]struct{}, keywords []string, tagsFilter []string, lang string) (filteredResult, error) {
 	if s.filter != nil {
-		result, err := s.filter.Filter(ctx, SubscriptionFilterRequest{User: user, AllowedTypes: allowedTypes, Keywords: keywords, Tags: tagsFilter, PersistReasons: true})
+		// 高频轮询路径不持久化过滤原因（写放大优化）；低频重建经
+		// SubscriptionFilterService.SetPersistReasons 显式开启。
+		result, err := s.filter.Filter(ctx, SubscriptionFilterRequest{User: user, AllowedTypes: allowedTypes, Keywords: keywords, Tags: tagsFilter, PersistReasons: false})
 		if err == nil && result != nil {
-			return result.Servers, result.SourceNodes, nil
+			return filteredResult{servers: result.Servers, nodes: result.SourceNodes}, nil
 		}
 		if err != nil && err != ErrNotImplemented {
-			return nil, nil, err
+			return filteredResult{}, err
 		}
 	}
 
 	servers, err := s.queryServers(ctx, user, lang)
 	if err != nil {
-		return nil, nil, err
+		return filteredResult{}, err
 	}
 	if len(tagsFilter) > 0 {
 		servers = filterServersByTags(servers, tagsFilter)
@@ -176,11 +243,11 @@ func (s *subscriptionService) filterForSubscription(ctx context.Context, user *r
 	if s.sources != nil {
 		nodes, err := s.sources.BuildEnabledNodes(ctx)
 		if err != nil {
-			return nil, nil, err
+			return filteredResult{}, err
 		}
 		sourceNodes = filterSubscriptionNodes(nodes, allowedTypes, keywords, tagsFilter)
 	}
-	return filtered, sourceNodes, nil
+	return filteredResult{servers: filtered, nodes: sourceNodes}, nil
 }
 
 // Subscribe 生成用户订阅内容，按类型/关键词/标签过滤并套用协议模板。
@@ -264,9 +331,13 @@ func (s *subscriptionService) Subscribe(ctx context.Context, userID string, para
 
 	// 异步记录订阅访问日志
 	if s.subLogs != nil {
+		clientIP := strings.TrimSpace(params.ClientIP)
+		if clientIP == "" {
+			clientIP = "unknown"
+		}
 		s.subLogs.Enqueue(&repository.SubscriptionLog{
 			UserID:    user.ID,
-			IP:        "127.0.0.1", // TODO: Get real IP from context or params if available
+			IP:        clientIP,
 			UserAgent: params.UserAgent,
 			Type:      clientInfo.Name,
 			URL:       params.URL,

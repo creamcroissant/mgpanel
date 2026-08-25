@@ -32,7 +32,7 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
   const isLoading = peerQuery.isLoading;
 
   const errorTitle = t("admin.agents.mesh.title");
-  const cardClass = "border border-border shadow-none";
+  const cardClass = "border border-border";
 
   if (isLoading) {
     return (
@@ -86,7 +86,7 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
             {/* Joined status */}
             <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
               <div className="flex items-center gap-2">
-                <Wifi className="h-4 w-4 text-emerald-500" />
+                <Wifi className="h-4 w-4 text-success" />
                 <span className="text-sm font-medium">{t("admin.agents.mesh.joined")}</span>
               </div>
               <Badge variant="success">{t("admin.agents.mesh.active")}</Badge>
@@ -133,7 +133,7 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
               </div>
             </div>
             {allPeersQuery.isError && (
-              <div className="text-red-500 text-sm mt-1">{t("admin.agents.meshTable.loadPeersFailed") || "加载组网节点失败"}</div>
+              <div className="text-destructive text-sm mt-1">{t("admin.agents.meshTable.loadPeersFailed") || "加载组网节点失败"}</div>
             )}
 
             {/* Created / Updated */}
