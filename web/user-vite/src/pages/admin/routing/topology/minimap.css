@@ -59,3 +59,9 @@
 .dark .react-flow__controls-button svg {
   fill: hsl(var(--foreground));
 }
+
+/* 泳道/直连节点为纯装饰：不拦截画布点击（曾导致连线第二击失效） */
+.react-flow__node-lane,
+.react-flow__node-direct {
+  pointer-events: none !important;
+}

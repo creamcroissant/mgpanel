@@ -1975,7 +1975,9 @@
           "delete": "Click a relay edge twice to delete",
           "click_target": "Entry selected — click target server",
           "click_again_delete": "Click same edge again to confirm deleting {{name}}"
-        }
+        },
+        "click_target": "Entry selected — now click the exit server",
+        "click_again_delete": "Click again to confirm deleting {name}"
       }
     },
     "routing": {

@@ -17,6 +17,8 @@ import {
   groupIssuesByNode,
 } from "./interactions";
 import { Palette } from "./palette/Palette";
+import { CreateRelayPathDialog } from "./tools/CreateRelayPathDialog";
+import { CreateExitSetDialog, CreatePolicyDialog } from "./tools/CreateEntityDialogs";
 import { SideToolbar, type ToolMode } from "./tools/SideToolbar";
 import { DrawerPanel, type DrawerTarget } from "./drawer/DrawerPanel";
 import { RelayPathDrawer } from "./drawer/RelayPathDrawer";
@@ -68,6 +70,10 @@ export function TopologyTab() {
   };
   // 中继链路抽屉草稿（id=-1 表示新建）
   const [relayDraft, setRelayDraft] = useState<RelayPathFormValues | null>(null);
+  // 连线确认后的初始化弹窗：{srcId,dstId}，保存时才真正 create
+  const [pendingConnect, setPendingConnect] = useState<{ srcId: number; dstId: number } | null>(null);
+  const [createPolicyOpen, setCreatePolicyOpen] = useState(false);
+  const [createSetOpen, setCreateSetOpen] = useState(false);
 
   const graph = useMemo(() => {
     if (!data) return null;
@@ -150,16 +156,8 @@ export function TopologyTab() {
       const a = data.agents.find((x) => x.id === srcId);
       const b = data.agents.find((x) => x.id === dstId);
       if (!a || !b) return;
-      setRelayDraft({
-        id: -1,
-        name: `${a.name}-${b.name}`,
-        description: "",
-        enabled: true,
-        nodes: [
-          { sequence: 0, agent_host_id: srcId },
-          { sequence: 1, agent_host_id: dstId },
-        ],
-      });
+      // 弹窗收集初始化信息，用户确认后才创建（不静默建稿）
+      setPendingConnect({ srcId, dstId });
     },
     [data]
   );
@@ -275,8 +273,8 @@ export function TopologyTab() {
       // 连线模式：两次点击建链路（入口 → 出口）
       if (canvasMode === "agents" && toolMode === "connect" && kind === "agent") {
         if (!pendingSource) {
+          // 侧栏 hint 已提示“点击出口服务器”，不再叠加 toast（避免遮挡画布点击）
           setPendingSource(nodeId);
-          toast.info(t("admin.topology.tools.click_target"));
           return;
         }
         if (pendingSource === nodeId) {
@@ -410,8 +408,8 @@ export function TopologyTab() {
               </Button>
             ) : (
               <Palette
-                onCreateRule={() => setDrawerTarget({ kind: "rule", policy: null })}
-                onCreateSet={() => setDrawerTarget({ kind: "set", set: null })}
+                onCreateRule={() => setCreatePolicyOpen(true)}
+                onCreateSet={() => setCreateSetOpen(true)}
                 canCreateRule={canvasMode === "rules" && (data?.exit_sets.length ?? 0) > 0}
                 disabled={saving}
               />
@@ -616,6 +614,58 @@ export function TopologyTab() {
       />
 
       {/* 连线改绑确认 */}
+      <CreateRelayPathDialog
+        open={pendingConnect != null}
+        sourceName={
+          pendingConnect ? (data?.agents.find((a) => a.id === pendingConnect.srcId)?.name ?? "") : ""
+        }
+        targetName={
+          pendingConnect ? (data?.agents.find((a) => a.id === pendingConnect.dstId)?.name ?? "") : ""
+        }
+        busy={relayMuts.create.isPending}
+        onCancel={() => setPendingConnect(null)}
+        onConfirm={(init) => {
+          if (!pendingConnect) return;
+          relayMuts.create.mutate(
+            {
+              name: init.name,
+              description: init.description,
+              enabled: init.enabled,
+              nodes: [
+                { sequence: 0, agent_host_id: pendingConnect.srcId },
+                { sequence: 1, agent_host_id: pendingConnect.dstId },
+              ],
+            },
+            { onSettled: () => {
+                setPendingConnect(null);
+                setToolMode("select");
+              } }
+          );
+        }}
+      />
+      <CreatePolicyDialog
+        open={createPolicyOpen}
+        sets={(data?.exit_sets ?? []).map((x) => ({ id: x.id, name: x.name }))}
+        busy={muts.createPolicy.isPending}
+        onCancel={() => setCreatePolicyOpen(false)}
+        onConfirm={(v) => {
+          muts.createPolicy.mutate(v, {
+            onSettled: () => setCreatePolicyOpen(false),
+          });
+        }}
+      />
+      <CreateExitSetDialog
+        open={createSetOpen}
+        busy={muts.saveSet.isPending}
+        onCancel={() => setCreateSetOpen(false)}
+        onConfirm={({ name, strategy, enabled }) => {
+          // saveSet 无 id 即创建（SetPayload 契约）；description/members 在编辑抽屉补填
+          muts.saveSet.mutate(
+            { name, description: "", strategy, enabled, members: [] },
+            { onSettled: () => setCreateSetOpen(false) }
+          );
+        }}
+      />
       <ConfirmDialog
         open={rebind != null}
         title="调整分流目标"

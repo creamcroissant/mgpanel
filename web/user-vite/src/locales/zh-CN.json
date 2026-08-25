@@ -1973,7 +1973,9 @@
           "delete": "点击中继边两次确认删除",
           "click_target": "已选入口，请点击目标服务器",
           "click_again_delete": "再次点击同一边确认删除 {{name}}"
-        }
+        },
+        "click_target": "已选入口服务器，请点击出口服务器",
+        "click_again_delete": "再次点击确认删除 {name}"
       }
     },
     "routing": {
