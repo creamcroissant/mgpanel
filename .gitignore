@@ -82,7 +82,7 @@ agent_config_test.yml
 core-switch-*.json
 
 # Test Tools (downloaded binaries)
-tools/
+/tools/
 !internal/mcp/tools/
 
 # Test Data Outputs
