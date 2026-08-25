@@ -255,7 +255,7 @@ export function TopologyTab() {
 
   const handleSaveSet = useCallback(
     (v: SetFormValues & { id: number | null }) => {
-      muts.saveSet.mutate(v, { onSettled: () => setDrawerTarget(null) });
+      muts.saveSet.mutate({ ...v, id: v.id === null ? undefined : v.id }, { onSettled: () => setDrawerTarget(null) });
     },
     [muts]
   );

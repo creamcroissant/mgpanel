@@ -24,7 +24,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TabsContent,
 } from "@/components/ui";
 import type { CoreTypeOption } from "./configCenterPageTypes";
 import { useIsMobileViewport } from "@/hooks";

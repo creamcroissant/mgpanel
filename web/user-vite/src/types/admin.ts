@@ -953,7 +953,7 @@ export interface CreateRoutingPolicyRequest {
   match_type?: string;
   match_value: string;
   action?: string;
-  target_set_id: number;
+  target_set_id?: number;
   spec_id?: number | null;
   enabled?: boolean;
 }

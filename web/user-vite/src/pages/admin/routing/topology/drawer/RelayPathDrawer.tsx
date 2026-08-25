@@ -62,7 +62,7 @@ export function RelayPathDrawer({ target, agents, saving, onClose, onDraftChange
           <label className="text-xs text-muted-foreground">{t("admin.topology.relay.name")}</label>
           <Input
             value={target.name}
-            onChange={(e) => onChange({ ...target, name: e.target.value })}
+            onChange={(e) => onDraftChange({ ...target, name: e.target.value })}
             placeholder={t("admin.topology.relay.namePlaceholder")}
           />
         </div>
@@ -70,12 +70,12 @@ export function RelayPathDrawer({ target, agents, saving, onClose, onDraftChange
           <label className="text-xs text-muted-foreground">{t("admin.topology.relay.description")}</label>
           <Input
             value={target.description}
-            onChange={(e) => onChange({ ...target, description: e.target.value })}
+            onChange={(e) => onDraftChange({ ...target, description: e.target.value })}
           />
         </div>
         <div className="flex items-center justify-between">
           <label className="text-xs text-muted-foreground">{t("admin.topology.relay.enabled")}</label>
-          <Switch checked={target.enabled} onCheckedChange={(v) => onChange({ ...target, enabled: v })} />
+          <Switch checked={target.enabled} onCheckedChange={(v) => onDraftChange({ ...target, enabled: v })} />
         </div>
 
         <div className="space-y-1.5">

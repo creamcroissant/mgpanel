@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import type { TopologySnapshot } from "@/lib/topology/types";
 import {
   addExitNodeSetMember,
   createExitNodeSet,
@@ -424,7 +423,6 @@ export interface SpecExitBindingPayload {
  * 三选一互斥——未选项显式 null 让后端清除旧绑定。
  */
 export function useSaveSpecBinding(coreType: string) {
-  const cache = useSnapshotCache(coreType);
   return useMutation({
     mutationFn: async (v: SpecExitBindingPayload) => {
       const list = await listConfigCenterSpecs({ core_type: coreType as never, limit: 500 });

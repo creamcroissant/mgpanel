@@ -22,7 +22,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TabsContent,
 } from "@/components/ui";
 import { formatCoreType } from "./configCenterPageUtils";
 import type { ApplyFormState } from "./configCenterPageTypes";

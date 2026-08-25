@@ -25,6 +25,7 @@ import {
   type RuleFormValues,
   type SetFormValues,
 } from "./schema";
+import { SpecDrawer, type SpecExitBindingValues } from "./SpecDrawer";
 
 /**
  * 拓扑画布右侧滑出编辑面板。
@@ -85,7 +86,7 @@ export function DrawerPanel({ target, agents, exitSets = [], relayPaths = [], sa
   );
 }
 
-function DrawerBody({ target, agents, exitSets, relayPaths, saving, onClose, onSaveRule, onSaveSet, onSaveSpecBinding, onDelete }: Omit<DrawerPanelProps, "target"> & { target: DrawerTarget }) {
+function DrawerBody({ target, agents = [], exitSets = [], relayPaths = [], saving = false, onClose, onSaveRule, onSaveSet, onSaveSpecBinding, onDelete }: Omit<DrawerPanelProps, "target"> & { target: DrawerTarget }) {
   const tf = useT();
   return (
     <>
@@ -139,13 +140,6 @@ function DrawerBody({ target, agents, exitSets, relayPaths, saving, onClose, onS
 
 // ===== 表单实现 =====
 
-interface FormShellProps {
-  fields: FieldSpec[];
-  errors: Record<string, string>;
-  values: Record<string, unknown>;
-  onChange: (key: string, value: unknown) => void;
-  children?: React.ReactNode; // 追加自定义区块（如成员编辑器）
-}
 
 function FieldRenderer({ field, error, value, onChange }: { field: FieldSpec; error?: string; value: unknown; onChange: (v: unknown) => void }) {
   const tf = useT();

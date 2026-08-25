@@ -24,7 +24,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TabsContent,
 } from "@/components/ui";
 import { formatDriftVariant } from "./configCenterPageUtils";
 import type { CoreTypeOption } from "./configCenterPageTypes";

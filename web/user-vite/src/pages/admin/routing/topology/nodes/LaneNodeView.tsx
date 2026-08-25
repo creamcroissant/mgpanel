@@ -1,5 +1,4 @@
 import { memo } from "react";
-import type { NodeProps } from "@xyflow/react";
 
 /**
  * 物理层泳道底板：纯装饰性分组背景（半透明色带 + 虚线框），
