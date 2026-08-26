@@ -20,8 +20,19 @@ type Role struct {
 	PathID        int64  `json:"path_id"`
 	Mark          int    `json:"mark"`             // 40000 + path_id
 	Table         int    `json:"table"`            // 100 + path_id
-	Role          string `json:"role"`             // "entry" | "mid"
-	NextHopMeshIP string `json:"next_hop_mesh_ip"` // entry 必填：下一跳 mesh WG IP
+	Role          string `json:"role"`             // "entry" | "mid" | "exit"
+	NextHopMeshIP string `json:"next_hop_mesh_ip"` // 兼容字段：entry 时为首跳 mesh IP
+
+	// v2 独立辅助隧道（entry/exit 使用）：
+	// 点对点 wg 接口 xr<pathID>，外层 UDP 走 mesh 骨干（endpoint=对端 mesh WG IP），
+	// 内层 0.0.0.0/0 无冲突归属本接口，彻底消除单接口多 0/0 互抢。
+	IfaceName     string `json:"iface_name"`
+	ListenPort    int    `json:"listen_port"`
+	LocalAddr     string `json:"local_addr"`
+	OwnPrivateKey string `json:"own_private_key"`
+	PeerPublicKey string `json:"peer_public_key"`
+	PeerEndpoint  string `json:"peer_endpoint"`
+	MeshCIDR      string `json:"mesh_cidr"`
 }
 
 const (
@@ -107,7 +118,28 @@ func (m *Manager) Apply(ctx context.Context, desired []Role) error {
 	if err := m.applyEntries(ctx, desired); err != nil {
 		return err
 	}
+	if err := m.applyExitTunnels(ctx, desired); err != nil {
+		return err
+	}
 	return m.applyMidInfra(ctx, desired)
+}
+
+// applyExitTunnels 出口角色：确保对称辅助隧道 + 隧道内转发/NAT 规则（按 iface 动态、幂等）。
+func (m *Manager) applyExitTunnels(ctx context.Context, desired []Role) error {
+	for _, r := range desired {
+		if r.Role != "exit" || r.IfaceName == "" {
+			continue
+		}
+		if err := m.ensureTunnel(ctx, r); err != nil {
+			return fmt.Errorf("ensure tunnel %s: %w", r.IfaceName, err)
+		}
+		if err := m.ensureTunnelForwardNat(ctx, r); err != nil {
+			return fmt.Errorf("tunnel forward/nat %s: %w", r.IfaceName, err)
+		}
+		m.logger.Info("relay-route: exit tunnel ready",
+			slog.String("iface", r.IfaceName), slog.Int("table", r.Table))
+	}
+	return nil
 }
 
 // applyEntries 对账 fwmark 规则与策略路由表（仅 entry 角色）。
@@ -119,8 +151,11 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Role) error {
 	existing, _ := m.runCapture(ctx, ip, "rule", "show")
 	desiredMarks := map[int]bool{}
 	for _, r := range desired {
-		if r.Role != "entry" || r.NextHopMeshIP == "" {
+		if r.Role != "entry" || r.IfaceName == "" {
 			continue
+		}
+		if err := m.ensureTunnel(ctx, r); err != nil {
+			return fmt.Errorf("ensure tunnel %s: %w", r.IfaceName, err)
 		}
 		desiredMarks[r.Mark] = true
 		spec := ruleSpec(r.Mark, r.Table)
@@ -131,13 +166,13 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Role) error {
 			}
 			m.logger.Info("relay-route: fwmark rule added", slog.Int("mark", r.Mark), slog.Int("table", r.Table))
 		}
-		if err := m.run(ctx, ip, "route", "replace", "default", "via", r.NextHopMeshIP,
-			"dev", m.cfg.InterfaceName, "table", strconv.Itoa(r.Table)); err != nil {
+		// v2: 默认路由直接走辅助隧道接口（内层 0/0 归属本隧道 peer，不再 via wgmesh0）
+		if err := m.run(ctx, ip, "route", "replace", "default",
+			"dev", r.IfaceName, "table", strconv.Itoa(r.Table)); err != nil {
 			return fmt.Errorf("replace route table %d: %w", r.Table, err)
 		}
 		m.logger.Info("relay-route: policy route applied",
-				slog.Int("table", r.Table), slog.String("via", r.NextHopMeshIP))
-		m.maybeExpandWGAllowedIPs(ctx, r.NextHopMeshIP)
+				slog.Int("table", r.Table), slog.String("dev", r.IfaceName))
 	}
 	// 清理不再期望的 mark 规则/路由
 	for _, line := range strings.Split(existing, "\n") {
@@ -242,7 +277,6 @@ func parseRuleLine(line string) (mark, table int, ok bool) {
 	return mark, table, ok
 }
 
-// maybeExpandWGAllowedIPs 为入口角色的下一跳 mesh IP 对应的 WG peer 追加 0.0.0.0/0。
 // 这样 marked 流量才能通过该 peer 的隧道出口出网（默认每 peer 只有 /32 授权）。
 func (m *Manager) maybeExpandWGAllowedIPs(ctx context.Context, nextHopMeshIP string) {
 	wg, err := m.bin(m.cfg.WgBinary, "wg set")
@@ -296,4 +330,146 @@ func (m *Manager) maybeExpandWGAllowedIPs(ctx context.Context, nextHopMeshIP str
 // 出口 masquerade 需将发自本网段的包源地址改写为公网。
 func (m *Manager) meshCIDR() string {
 	return "10.144.0.0/24"
+}
+
+// ensureTunnel 幂等建立/刷新点对点辅助 wg 隧道 xr<pathID>：
+//   - 接口不存在: link add(type wireguard) → addr add → wg set(listen-port/private-key/peer) → link set up
+//   - 已存在: 仅刷新 addr(容错已存在) 与 peer(endpoint/allowed-ips/keepalive)
+//
+// 私钥经临时文件传入(wg 不接受 argv 传私钥)，用后即删。
+func (m *Manager) ensureTunnel(ctx context.Context, r Role) error {
+	wg, err := m.bin(m.cfg.WgBinary, "wireguard tunnel")
+	if err != nil {
+		return nil // 降级：无 wg 二进制不 panic
+	}
+	ip, err := m.bin(m.cfg.IPBinary, "wireguard tunnel")
+	if err != nil {
+		return nil
+	}
+	exists := true
+	if _, err := m.runCapture(ctx, ip, "link", "show", r.IfaceName); err != nil {
+		exists = false
+	}
+	if !exists {
+		if err := m.run(ctx, ip, "link", "add", r.IfaceName, "type", "wireguard"); err != nil {
+			return fmt.Errorf("link add %s: %w", r.IfaceName, err)
+		}
+	}
+	keyFile, err := writeTempKeyFile(r.OwnPrivateKey)
+	if err != nil {
+		return fmt.Errorf("write private key file: %w", err)
+	}
+	defer func() { _ = os.Remove(keyFile) }()
+	if !exists {
+		if err := m.run(ctx, wg, "set", r.IfaceName,
+			"listen-port", strconv.Itoa(r.ListenPort),
+			"private-key", keyFile); err != nil {
+			return fmt.Errorf("wg init %s: %w", r.IfaceName, err)
+		}
+	}
+	if err := m.run(ctx, ip, "addr", "add", r.LocalAddr, "dev", r.IfaceName); err != nil {
+		// EEXIST 视为幂等成功；其余错误返回
+		if !strings.Contains(err.Error(), "exists") {
+			return fmt.Errorf("addr add %s: %w", r.IfaceName, err)
+		}
+	}
+	if err := m.run(ctx, wg, "set", r.IfaceName, "peer", r.PeerPublicKey,
+		"endpoint", r.PeerEndpoint,
+		"allowed-ips", "0.0.0.0/0",
+		"persistent-keepalive", "25"); err != nil {
+		return fmt.Errorf("wg peer %s: %w", r.IfaceName, err)
+	}
+	if exists {
+		if err := m.run(ctx, wg, "set", r.IfaceName,
+			"listen-port", strconv.Itoa(r.ListenPort),
+			"private-key", keyFile); err != nil {
+			return fmt.Errorf("wg refresh %s: %w", r.IfaceName, err)
+		}
+	}
+	if err := m.run(ctx, ip, "link", "set", r.IfaceName, "up"); err != nil {
+		return fmt.Errorf("link set up %s: %w", r.IfaceName, err)
+	}
+	m.logger.Info("relay-route: aux tunnel ensured",
+		slog.String("iface", r.IfaceName), slog.Int("port", r.ListenPort), slog.String("local", r.LocalAddr))
+	return nil
+}
+
+// ensureTunnelForwardNat 出口侧隧道内转发/NAT（按 iface 幂等）：
+//   - ip_forward 常驻(sysctl.d，同 mesh mid 基础设施复用)
+//   - nft mgpanel_relay 表内: forward-ok 链 `iifname <iface> accept`
+//     postrouting-nat 链 `ip saddr <tunnelNet> masquerade`
+//
+// 规则以 comment "xr<id>" 打标，存在即跳过。
+func (m *Manager) ensureTunnelForwardNat(ctx context.Context, r Role) error {
+	nft, err := m.bin(m.cfg.NFTBinary, "tunnel forward/nat")
+	if err != nil {
+		return nil
+	}
+	sysctl, err := m.bin(m.cfg.SysctlBinary, "ip_forward")
+	if err != nil {
+		return nil
+	}
+	if err := os.WriteFile(m.cfg.SysctlConfPath, []byte(sysctlConfBody), 0o644); err != nil {
+		return fmt.Errorf("write sysctl conf: %w", err)
+	}
+	if err := m.run(ctx, sysctl, "--system"); err != nil {
+		return fmt.Errorf("sysctl --system: %w", err)
+	}
+	tableOut, err := m.runCapture(ctx, nft, "list", "table", nftTable)
+	if err != nil {
+		// 表不存在则建基础结构
+		base := [][]string{
+			{"add", "table", nftTable},
+			{"add", "chain", nftTable, "forward-ok", "{", "type", "filter", "hook", "forward", "priority", "-100", ";", "policy", "accept", ";", "}"},
+			{"add", "chain", nftTable, "postrouting-nat", "{", "type", "nat", "hook", "postrouting", "priority", "100", ";", "policy", "accept", ";", "}"},
+		}
+		for _, args := range base {
+			if err := m.run(ctx, nft, args...); err != nil {
+				return fmt.Errorf("nft %v: %w", args, err)
+			}
+		}
+		tableOut = ""
+	}
+	tunnelNet := fmt.Sprintf("10.200.%d.0/30", r.PathID%250)
+	comment := fmt.Sprintf("comment \"xr%d\"", r.PathID)
+	var steps [][]string
+	if !strings.Contains(tableOut, `iifname "`+r.IfaceName+`" accept`) && !strings.Contains(tableOut, "iifname "+r.IfaceName+" accept") {
+		steps = append(steps, []string{"add", "rule", nftTable, "forward-ok",
+			"iifname", r.IfaceName, "accept", comment})
+	}
+	if !strings.Contains(tableOut, tunnelNet) {
+		steps = append(steps, []string{"add", "rule", nftTable, "postrouting-nat",
+			"ip", "saddr", tunnelNet, "masquerade", comment})
+	}
+	for _, args := range steps {
+		if err := m.run(ctx, nft, args...); err != nil {
+			return fmt.Errorf("nft %v: %w", args, err)
+		}
+	}
+	if len(steps) > 0 {
+		m.logger.Info("relay-route: tunnel forward/nat rules added",
+			slog.String("iface", r.IfaceName), slog.String("net", tunnelNet))
+	}
+	return nil
+}
+
+// writeTempKeyFile 将 base64 私钥落为 0600 临时文件（wg private-key 参数只收文件路径）。
+func writeTempKeyFile(privB64 string) (string, error) {
+	f, err := os.CreateTemp("", "mgpanel-wg-key-*")
+	if err != nil {
+		return "", err
+	}
+	if err := os.Chmod(f.Name(), 0o600); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	if _, err := f.WriteString(privB64 + "\n"); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
 }

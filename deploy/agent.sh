@@ -1428,5 +1428,60 @@ else
     echo "No supported service manager detected (systemd/openrc). Please manage agent process manually."
 fi
 
+set_stage "post-checks"
+
+# B5: mesh 依赖预检 —— wireguard-tools 缺失时尝试自动安装（失败不阻断 agent 本体）。
+if ! command -v wg >/dev/null 2>&1; then
+    echo "Warning: 'wg' (wireguard-tools) not found; mesh networking will be unavailable."
+    WG_INSTALLED=0
+    if command -v apt-get >/dev/null 2>&1; then
+        run_privileged apt-get install -y wireguard-tools >/dev/null 2>&1 && WG_INSTALLED=1
+    elif command -v dnf >/dev/null 2>&1; then
+        run_privileged dnf install -y wireguard-tools >/dev/null 2>&1 && WG_INSTALLED=1
+    elif command -v yum >/dev/null 2>&1; then
+        run_privileged yum install -y wireguard-tools >/dev/null 2>&1 && WG_INSTALLED=1
+    elif command -v apk >/dev/null 2>&1; then
+        run_privileged apk add wireguard-tools >/dev/null 2>&1 && WG_INSTALLED=1
+    fi
+    if [ "$WG_INSTALLED" = "1" ]; then
+        echo "wireguard-tools installed automatically."
+    else
+        echo "Warning: automatic install failed; install manually: apt/yum/apk install wireguard-tools"
+    fi
+fi
+
+# 结尾健康摘要：任一关键项缺失即整体失败退出，杜绝“半装”假成功。
+HEALTH_OK=1
+echo "---- install health summary ----"
+if [ "$SKIP_SYSTEMD" != "1" ]; then
+    if run_privileged systemctl is-active --quiet mgpanel-agent; then
+        echo "[OK] mgpanel-agent service: active"
+    else
+        echo "[FAIL] mgpanel-agent service: not active (check journalctl -u mgpanel-agent)"
+        HEALTH_OK=0
+    fi
+fi
+if [ -x "${INSTALL_DIR}/agent" ]; then
+    echo "[OK] agent binary: ${INSTALL_DIR}/agent"
+else
+    echo "[FAIL] agent binary missing: ${INSTALL_DIR}/agent"
+    HEALTH_OK=0
+fi
+if [ -f "${CONFIG_PATH}" ]; then
+    echo "[OK] agent config: ${CONFIG_PATH}"
+else
+    echo "[FAIL] agent config missing: ${CONFIG_PATH}"
+    HEALTH_OK=0
+fi
+if command -v wg >/dev/null 2>&1; then
+    echo "[OK] wireguard tools: available"
+else
+    echo "[WARN] wireguard tools: unavailable (mesh disabled until installed)"
+fi
+echo "--------------------------------"
+
 set_stage "completed"
+if [ "$HEALTH_OK" != "1" ]; then
+    fail_stage "install finished with failures (see health summary above)"
+fi
 echo "Agent install completed."

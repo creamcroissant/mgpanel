@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"io"
 	"log/slog"
 	"net/http"
@@ -57,6 +58,8 @@ type InstallerConfig struct {
 	XrayReleaseRepo    string
 	ReleaseBaseURL     string
 	CoreInstallDir     string
+	// UnitDir 存放 systemd 服务单元的目录；空值用 /etc/systemd/system。
+	UnitDir string
 }
 
 type Installer struct {
@@ -108,11 +111,11 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	if err != nil {
 		return nil, err
 	}
-	version := strings.TrimSpace(req.Version)
+	version := normalizeRequestedVersion(req.Version)
 	channel := strings.TrimSpace(req.Channel)
 	flavor := strings.TrimSpace(req.Flavor)
 	if flavor == "" {
-		flavor = FlavorOfficial
+		flavor = defaultFlavor(coreType)
 	}
 
 	lock := i.lockForCore(coreType)
@@ -158,15 +161,28 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 			if err := i.ensureSymlink(targetPath, stablePath); err != nil {
 				i.logger.Warn("failed to update symlink during ensure", "error", err)
 			}
+			// ensure 分支同样补建 unit（B1）：已装核心但缺 unit 是常见半装态
+			if provisionErr := i.ensurePlainServiceUnit(ctx, coreType, stablePath); provisionErr != nil {
+				i.logger.Warn("failed to provision systemd unit during ensure", "error", provisionErr)
+			}
 			cv, detectErr := i.detectVersion(ctx, coreType)
 			if detectErr != nil {
 				i.logger.Warn("failed to detect version after ensure", "error", detectErr)
 			}
-			return &agentv1.InstallCoreResponse{
+			resp := &agentv1.InstallCoreResponse{
 				Success: true, Changed: false, CoreType: string(coreType),
 				Version: cv, PreviousVersion: previousVersion,
 				Message: fmt.Sprintf("Core %s already installed at %s", string(coreType), resolvedTag),
-			}, nil
+			}
+			// ensure 分支同样响应激活请求（此前提前 return 导致 activate 被跳过）
+			if req.Activate {
+				ok, aErr := i.activateCore(ctx, coreType)
+				resp.Activated = ok
+				if aErr != nil {
+					return i.handleActivationFailure(ctx, resp, coreType, previousVersion, previousErr, cv, flavor, aErr), nil
+				}
+			}
+			return resp, nil
 		}
 	}
 
@@ -198,6 +214,12 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	}
 	if err := i.ensureSymlink(targetPath, stablePath); err != nil {
 		return nil, fmt.Errorf("create symlink: %w", err)
+	}
+
+	// B1: 安装完成后补建普通 systemd 服务单元（run -C conf 目录模式），
+	// 否则 activateCore 的 Restart 面对不存在的 unit 必然失败。
+	if provisionErr := i.ensurePlainServiceUnit(ctx, coreType, stablePath); provisionErr != nil {
+		i.logger.Warn("failed to provision systemd unit; activation may fail", "error", provisionErr)
 	}
 
 	cv, currentErr := i.detectVersion(ctx, coreType)
@@ -691,6 +713,83 @@ func (i *Installer) activateCore(ctx context.Context, coreType CoreType) (bool, 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	return true, i.initSys.Restart(ctx, svc)
+}
+
+// normalizeRequestedVersion 归一化版本请求：'latest' 必须走 releases/latest API，
+// 若拼成 tag 会变成 vlatest → 404（B6）。
+func normalizeRequestedVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if strings.EqualFold(v, "latest") {
+		return ""
+	}
+	return v
+}
+
+// defaultFlavor 返回核心默认 flavor：sing-box 默认仓库
+// creamcroissant/sing-box_with_api 只有 with-v2ray-api 扁平产物，
+// official flavor 的 tarball 名不存在会 404（B6）。
+func defaultFlavor(coreType CoreType) string {
+	if coreType == CoreTypeSingBox {
+		return FlavorWithV2rayAPI
+	}
+	return FlavorOfficial
+}
+
+// runSystemctl 为 systemd 命令执行入口，测试中可替换。
+var runSystemctl = func(ctx context.Context, args ...string) error {
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
+}
+
+// defaultSingBoxConfDir 与 SingBoxCore/protocol.Manager 保持一致的运行目录约定。
+const defaultSingBoxConfDir = "/etc/sing-box/conf"
+
+// ensurePlainServiceUnit 为 sing-box 补建普通 systemd 服务单元（ExecStart=<bin> run -C <confDir>），
+// 幂等：unit 已存在且 ExecStart 行一致则跳过重写（B1）。
+func (i *Installer) ensurePlainServiceUnit(ctx context.Context, coreType CoreType, stablePath string) error {
+	if coreType != CoreTypeSingBox {
+		return nil // 目前仅 sing-box 使用 conf 目录合并模式
+	}
+	svc := strings.TrimSpace(i.cfg.ServiceName)
+	if svc == "" {
+		svc = "sing-box"
+	}
+	unitDir := strings.TrimSpace(i.cfg.UnitDir)
+	if unitDir == "" {
+		unitDir = "/etc/systemd/system"
+	}
+	unitPath := filepath.Join(unitDir, svc+".service")
+	execLine := fmt.Sprintf("ExecStart=%s run -C %s\n", stablePath, defaultSingBoxConfDir)
+	if data, err := os.ReadFile(unitPath); err == nil && strings.Contains(string(data), execLine) {
+		i.logger.Info("systemd unit already up-to-date", "path", unitPath)
+		return nil
+	}
+	content := fmt.Sprintf(`[Unit]
+Description=sing-box service (managed by mgpanel agent)
+After=network.target nss-lookup.target network-online.target
+
+[Service]
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStart=%s run -C %s
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10s
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target
+`, stablePath, defaultSingBoxConfDir)
+	if err := os.WriteFile(unitPath, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("write unit %s: %w", unitPath, err)
+	}
+	if err := runSystemctl(ctx, "daemon-reload"); err != nil {
+		i.logger.Warn("systemctl daemon-reload failed", "error", err)
+	}
+	if err := runSystemctl(ctx, "enable", svc); err != nil {
+		i.logger.Warn("systemctl enable failed", "service", svc, "error", err)
+	}
+	i.logger.Info("provisioned systemd service unit", "path", unitPath)
+	return nil
 }
 
 func sanitizeCommandOutput(b []byte) string {

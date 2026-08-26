@@ -1209,7 +1209,8 @@
       },
       "apply": {
         "targetRevision": "目标 revision",
-        "previousRevision": "上一 revision（可选）"
+        "previousRevision": "上一 revision（可选）",
+        "selectHostHint": "请先在右上角选择目标主机（不能为全部主机），再执行下发"
       },
       "applyRuns": {
         "title": "发布记录与诊断",

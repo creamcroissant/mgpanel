@@ -41,6 +41,8 @@ interface SpecsTabProps {
   onApplyFormChange: React.Dispatch<React.SetStateAction<ApplyFormState>>;
   onApply: () => void;
   applyPending: boolean;
+  /** 目标主机是否已选定（all/模板态时为 false，下发被禁用） */
+  hostSelected?: boolean;
 }
 
 function parseSpecProtocolAndPort(spec: ConfigCenterSpec): { protocol: string; port: number | string; transport: string; security: string } {
@@ -79,6 +81,7 @@ export default function SpecsTab({
   onApplyFormChange,
   onApply,
   applyPending,
+  hostSelected,
 }: SpecsTabProps) {
   const { t } = useTranslation();
   const isMobileViewport = useIsMobileViewport();
@@ -135,12 +138,22 @@ export default function SpecsTab({
                 placeholder={t("admin.configCenter.placeholders.optional")}
               />
             </div>
-            <Button onClick={onApply} disabled={applyPending || specs.length === 0}>
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              {applyPending
-                ? t("common.loading")
-                : t("admin.configCenter.actions.apply")}
-            </Button>
+            <div className="space-y-1">
+              <Button
+                onClick={onApply}
+                disabled={applyPending || specs.length === 0 || hostSelected === false}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {applyPending
+                  ? t("common.loading")
+                  : t("admin.configCenter.actions.apply")}
+              </Button>
+              {hostSelected === false ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.configCenter.apply.selectHostHint")}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           {isLoading ? (

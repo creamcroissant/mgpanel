@@ -709,8 +709,12 @@ type RelayPath struct {
 
 // RelayPathNode 是中继链路中的一跳。
 type RelayPathNode struct {
-	Sequence    int   `json:"sequence"`
-	AgentHostID int64 `json:"agent_host_id"`
+	Sequence    int    `json:"sequence"`
+	AgentHostID int64  `json:"agent_host_id"`
+	// wg 隧道密钥（base64）。json:"-"：私钥绝不入 API 响应，
+	// 仅由 agent_relay_route 服务按 host_token 定向下发本机角色时携带。
+	PrivateKey string `json:"-"`
+	PublicKey  string `json:"-"`
 }
 
 // AccessLogFilter defines filter conditions for querying access logs.

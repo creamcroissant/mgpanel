@@ -1211,7 +1211,8 @@
       },
       "apply": {
         "targetRevision": "Target revision",
-        "previousRevision": "Previous revision (optional)"
+        "previousRevision": "Previous revision (optional)",
+        "selectHostHint": "Select a target host (not \"All hosts\") before deploying."
       },
       "applyRuns": {
         "title": "Apply Runs and Diagnostics",

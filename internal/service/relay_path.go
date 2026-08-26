@@ -2,10 +2,14 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
+
+	"golang.org/x/crypto/curve25519"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
@@ -56,6 +60,9 @@ func (s *relayPathService) Create(ctx context.Context, req RelayPathUpsertReques
 	}
 	now := time.Now().Unix()
 	p := req.toRelayPath(now, now)
+	if err := s.ensureNodeKeys(ctx, p, nil); err != nil {
+		return nil, err
+	}
 	id, err := s.repo.Create(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("create relay path: %w", err)
@@ -74,6 +81,10 @@ func (s *relayPathService) Update(ctx context.Context, id int64, req RelayPathUp
 	}
 	p := req.toRelayPath(existing.CreatedAt, time.Now().Unix())
 	p.ID = id
+	// 已有钥不覆盖：按 agent_host_id 继承旧钥（序列可重排、增删节点只影响新成员）
+	if err := s.ensureNodeKeys(ctx, p, existing.Nodes); err != nil {
+		return nil, err
+	}
 	if err := s.repo.Update(ctx, p); err != nil {
 		return nil, fmt.Errorf("update relay path %d: %w", id, err)
 	}
@@ -167,4 +178,48 @@ func (req RelayPathUpsertRequest) toRelayPath(createdAt, updatedAt int64) *repos
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
 	}
+}
+
+// ensureNodeKeys 为缺钥节点生成 wg 密钥对；oldNodes 中同 agent_host_id 的
+// 已有密钥优先继承（更新重排/增删节点时不破坏既有隧道身份）。
+func (s *relayPathService) ensureNodeKeys(ctx context.Context, p *repository.RelayPath, oldNodes []repository.RelayPathNode) error {
+	_ = ctx
+	old := make(map[int64]repository.RelayPathNode, len(oldNodes))
+	for _, n := range oldNodes {
+		old[n.AgentHostID] = n
+	}
+	for i := range p.Nodes {
+		n := &p.Nodes[i]
+		if n.PrivateKey != "" && n.PublicKey != "" {
+			continue
+		}
+		if o, ok := old[n.AgentHostID]; ok && o.PrivateKey != "" && o.PublicKey != "" {
+			n.PrivateKey, n.PublicKey = o.PrivateKey, o.PublicKey
+			continue
+		}
+		priv, pub, err := generateWGKeypair()
+		if err != nil {
+			return fmt.Errorf("generate wg keypair for agent %d: %w", n.AgentHostID, err)
+		}
+		n.PrivateKey, n.PublicKey = priv, pub
+	}
+	return nil
+}
+
+// generateWGKeypair 产生 WireGuard 格式密钥对：
+// 私钥 = 32B 随机数经 wg clamp（key[0]&=248; key[31]&=127; key[31]|=64），
+// 公钥 = curve25519.X25519(priv, basepoint)，均为 base64(std)。
+func generateWGKeypair() (privB64, pubB64 string, err error) {
+	priv := make([]byte, 32)
+	if _, err = rand.Read(priv); err != nil {
+		return "", "", err
+	}
+	priv[0] &= 248
+	priv[31] &= 127
+	priv[31] |= 64
+	pub, err := curve25519.X25519(priv, curve25519.Basepoint)
+	if err != nil {
+		return "", "", err
+	}
+	return base64.StdEncoding.EncodeToString(priv), base64.StdEncoding.EncodeToString(pub), nil
 }

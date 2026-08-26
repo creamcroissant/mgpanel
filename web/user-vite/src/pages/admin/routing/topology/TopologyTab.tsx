@@ -73,6 +73,7 @@ export function TopologyTab() {
   // 连线确认后的初始化弹窗：{srcId,dstId}，保存时才真正 create
   const [pendingConnect, setPendingConnect] = useState<{ srcId: number; dstId: number } | null>(null);
   const [createPolicyOpen, setCreatePolicyOpen] = useState(false);
+  const [createRelayOpen, setCreateRelayOpen] = useState(false);
   const [createSetOpen, setCreateSetOpen] = useState(false);
 
   const graph = useMemo(() => {
@@ -400,9 +401,7 @@ export function TopologyTab() {
                 variant="outline"
                 size="sm"
                 disabled={saving || (data?.agents.length ?? 0) < 2}
-                onClick={() =>
-                  setRelayDraft({ id: -1, name: "", description: "", enabled: true, nodes: [] })
-                }
+                onClick={() => setCreateRelayOpen(true)}
               >
                 + {t("admin.topology.relay.create")}
               </Button>
@@ -615,31 +614,32 @@ export function TopologyTab() {
 
       {/* 连线改绑确认 */}
       <CreateRelayPathDialog
-        open={pendingConnect != null}
+        open={pendingConnect != null || createRelayOpen}
         sourceName={
           pendingConnect ? (data?.agents.find((a) => a.id === pendingConnect.srcId)?.name ?? "") : ""
         }
         targetName={
           pendingConnect ? (data?.agents.find((a) => a.id === pendingConnect.dstId)?.name ?? "") : ""
         }
+        agents={(data?.agents ?? []).map((a) => ({ id: a.id, name: a.name }))}
+        fixed={pendingConnect}
         busy={relayMuts.create.isPending}
-        onCancel={() => setPendingConnect(null)}
-        onConfirm={(init) => {
-          if (!pendingConnect) return;
+        onCancel={() => {
+          setPendingConnect(null);
+          setCreateRelayOpen(false);
+        }}
+        onConfirm={({ name, description, enabled, srcId, dstId }) => {
           relayMuts.create.mutate(
             {
-              name: init.name,
-              description: init.description,
-              enabled: init.enabled,
+              name,
+              description,
+              enabled,
               nodes: [
-                { sequence: 0, agent_host_id: pendingConnect.srcId },
-                { sequence: 1, agent_host_id: pendingConnect.dstId },
+                { sequence: 0, agent_host_id: srcId },
+                { sequence: 1, agent_host_id: dstId },
               ],
             },
-            { onSettled: () => {
-                setPendingConnect(null);
-                setToolMode("select");
-              } }
+            { onSettled: () => { setPendingConnect(null); setCreateRelayOpen(false); } }
           );
         }}
       />

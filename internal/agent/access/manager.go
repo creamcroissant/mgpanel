@@ -120,9 +120,12 @@ func (m *Manager) Stop() {
 	})
 }
 
-// reloadSingBox 发送 SIGHUP 让 sing-box 重新加载配置（含 experimental.json）。
+// reloadSingBox 让 sing-box 重新加载配置（含 experimental.json）。
+// start-if-inactive：服务未运行时 reload 必然失败，改为直接 start（B2）。
 func (m *Manager) reloadSingBox(ctx context.Context) error {
-	// 默认 sing-box 服务名
+	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "sing-box").Run(); err != nil {
+		return exec.CommandContext(ctx, "systemctl", "start", "sing-box").Run()
+	}
 	return exec.CommandContext(ctx, "systemctl", "reload", "sing-box").Run()
 }
 

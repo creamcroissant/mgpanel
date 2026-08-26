@@ -407,6 +407,7 @@ export default function ConfigCenterPage() {
             onApplyFormChange={setApplyForm}
             onApply={handleApply}
             applyPending={applyMutation.isPending}
+            hostSelected={selectedHostId !== null}
           />
         </TabsContent>
 

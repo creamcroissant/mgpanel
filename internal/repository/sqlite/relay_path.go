@@ -143,7 +143,7 @@ func (r *relayPathRepo) List(ctx context.Context, coreType string) ([]*repositor
 
 func (r *relayPathRepo) listNodes(ctx context.Context, pathID int64) ([]repository.RelayPathNode, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT sequence, agent_host_id FROM relay_path_nodes WHERE path_id = ? ORDER BY sequence
+		SELECT sequence, agent_host_id, private_key, public_key FROM relay_path_nodes WHERE path_id = ? ORDER BY sequence
 	`, pathID)
 	if err != nil {
 		return nil, err
@@ -153,7 +153,7 @@ func (r *relayPathRepo) listNodes(ctx context.Context, pathID int64) ([]reposito
 	nodes := []repository.RelayPathNode{}
 	for rows.Next() {
 		var n repository.RelayPathNode
-		if err := rows.Scan(&n.Sequence, &n.AgentHostID); err != nil {
+		if err := rows.Scan(&n.Sequence, &n.AgentHostID, &n.PrivateKey, &n.PublicKey); err != nil {
 			return nil, err
 		}
 		nodes = append(nodes, n)
@@ -165,8 +165,9 @@ func (r *relayPathRepo) listNodes(ctx context.Context, pathID int64) ([]reposito
 func insertRelayNodes(ctx context.Context, tx *sql.Tx, pathID int64, nodes []repository.RelayPathNode) error {
 	for _, n := range nodes {
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO relay_path_nodes (path_id, sequence, agent_host_id) VALUES (?, ?, ?)
-		`, pathID, n.Sequence, n.AgentHostID)
+			INSERT INTO relay_path_nodes (path_id, sequence, agent_host_id, private_key, public_key)
+			VALUES (?, ?, ?, ?, ?)
+		`, pathID, n.Sequence, n.AgentHostID, n.PrivateKey, n.PublicKey)
 		if err != nil {
 			return fmt.Errorf("insert relay node seq=%d: %w", n.Sequence, err)
 		}

@@ -119,6 +119,24 @@ func NewManager(cfg Config, initSys initsys.InitSystem) *Manager {
 	}
 }
 
+// EnsureServiceRunning 确保受管服务处于运行态；inactive 则先 Start。
+// 背景：systemctl reload/restart 语义下，首次启用场景（服务从未运行）
+// 仅靠 apply 流程无法把核心拉起（B2 修复）。
+func (m *Manager) EnsureServiceRunning(ctx context.Context) error {
+	running, err := m.init.Status(ctx, m.cfg.ServiceName)
+	if err == nil && running {
+		return nil
+	}
+	if err != nil {
+		slog.Warn("service status check failed; will attempt start", "service", m.cfg.ServiceName, "error", err)
+	}
+	if err := m.init.Start(ctx, m.cfg.ServiceName); err != nil {
+		return fmt.Errorf("start inactive service: %w", err)
+	}
+	slog.Info("inactive service started ahead of reload", "service", m.cfg.ServiceName)
+	return nil
+}
+
 // InitSystemType 返回当前使用的 init 系统类型。
 func (m *Manager) InitSystemType() string {
 	return m.init.Type()
@@ -296,6 +314,14 @@ func (m *Manager) reloadServiceWithValidationDir(ctx context.Context, validateDi
 
 	if err := m.ValidateConfigInDir(ctx, validateDir); err != nil {
 		return fmt.Errorf("config validation failed: %w", err)
+	}
+
+	// start-if-inactive: Reload/Restart 对未运行的服务无法完成首次启用（B2），
+	// 先确保服务处于运行态再执行原动作。
+	if action != NoneServiceAction {
+		if err := m.EnsureServiceRunning(ctx); err != nil {
+			return fmt.Errorf("ensure service running: %w", err)
+		}
 	}
 
 	switch action {
