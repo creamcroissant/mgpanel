@@ -95,7 +95,7 @@ export default function SpecsTab({
   );
 
   const renderSpecActions = (spec: ConfigCenterSpec, layout: "desktop" | "mobile") => (
-    <div className={layout === "mobile" ? "mt-4 grid grid-cols-2 gap-2" : "flex flex-wrap gap-2"}>
+    <div className={layout === "mobile" ? "mt-4 grid grid-cols-2 gap-2" : "flex flex-nowrap items-center gap-1"}>
       <Button size={layout === "mobile" ? "default" : "sm"} variant="outline" onClick={() => onEditSpec(spec)}>
         {t("common.edit")}
       </Button>
