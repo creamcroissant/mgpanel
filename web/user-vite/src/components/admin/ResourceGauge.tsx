@@ -23,9 +23,9 @@ function getUsageColor(percentage: number): "success" | "warning" | "danger" {
 }
 
 const colorClasses: Record<"success" | "warning" | "danger", string> = {
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-red-500",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-destructive",
 };
 
 export default function ResourceGauge({

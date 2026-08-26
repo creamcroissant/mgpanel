@@ -472,7 +472,7 @@ export function ApplyRunTab({
                             {applyDetail.issues.map((item, index) => (
                               <div
                                 key={`${item.code}-${index}`}
-                                className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3"
+                                className="rounded-md border border-warning/30 bg-warning/5 p-3"
                               >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Badge variant="warning">

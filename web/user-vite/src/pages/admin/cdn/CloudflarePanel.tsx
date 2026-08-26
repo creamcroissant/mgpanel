@@ -130,9 +130,9 @@ export default function CloudflarePanel() {
   }
 
   const dnsTypeColors: Record<string, string> = {
-    A: "text-blue-600 dark:text-blue-400",
-    AAAA: "text-indigo-600 dark:text-indigo-400",
-    CNAME: "text-green-600 dark:text-green-400",
+    A: "text-primary",
+    AAAA: "text-violet-600 dark:text-violet-400",
+    CNAME: "text-success",
     MX: "text-orange-600 dark:text-orange-400",
     TXT: "text-purple-600 dark:text-purple-400",
     NS: "text-rose-600 dark:text-rose-400",

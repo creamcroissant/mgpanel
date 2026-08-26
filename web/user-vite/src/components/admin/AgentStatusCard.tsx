@@ -82,9 +82,9 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
               <span
                 className={`h-2.5 w-2.5 rounded-full ${
                   agent.status === AgentStatus.Online
-                    ? "bg-emerald-500"
+                    ? "bg-success"
                     : agent.status === AgentStatus.Warning
-                      ? "bg-amber-500"
+                      ? "bg-warning"
                       : "bg-muted-foreground"
                 }`}
               />
@@ -159,7 +159,7 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-md border bg-background p-3">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <div className="flex items-center gap-2 text-success">
                 <ArrowUp className="h-4 w-4" />
                 <span className="text-xs font-medium uppercase tracking-[0.08em]">{t("traffic.upload")}</span>
               </div>
@@ -195,7 +195,7 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
         </div>
 
         {agent.last_restart_at != null && agent.last_restart_at > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground/90 dark:text-warning">
             <RotateCw className="h-3.5 w-3.5" />
             <span>{t("admin.agents.restartDetected", { time: formatRelativeTime(agent.last_restart_at, t) })}</span>
           </div>

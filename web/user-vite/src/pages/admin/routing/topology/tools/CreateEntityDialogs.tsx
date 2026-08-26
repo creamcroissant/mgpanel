@@ -153,7 +153,7 @@ export function CreatePolicyDialog({
             <label className="mb-1 block text-xs text-muted-foreground">规则名称</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">匹配类型</label>
               <Select value={matchType} onValueChange={setMatchType}>
