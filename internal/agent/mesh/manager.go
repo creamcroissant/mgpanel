@@ -213,26 +213,32 @@ func (m *Manager) DumpPeers(ctx context.Context) ([]PeerStatus, error) {
 	}
 
 	// First line is interface info: private_key, public_key, listen_port, fwmark
-	// Following lines are peers: public_key, endpoint, allowed_ips, latest_handshake, transfer_rx, transfer_tx, persistent_keepalive
+	// Following lines are peers (wg(8) dump layout, 8 tab-separated fields):
+	//   public_key, preshared_key, endpoint, allowed_ips, latest_handshake,
+	//   transfer_rx, transfer_tx, persistent_keepalive
+	// NOTE: the preshared_key field MUST be skipped — earlier code indexed
+	// endpoint/allowed-ips off by one, so AllowedIPs held the peer's public
+	// endpoint and ICMP probing targeted "host:port", failing resolve with
+	// "no such host" (mesh latency always packet_loss=1).
 	var statuses []PeerStatus
 	for i, line := range lines {
 		if i == 0 {
 			continue // skip interface line
 		}
 		parts := strings.Split(strings.TrimSpace(line), "\t")
-		if len(parts) < 6 {
+		if len(parts) < 8 {
 			continue
 		}
 
-		hs, _ := strconv.ParseInt(parts[3], 10, 64)
-		rx, _ := strconv.ParseInt(parts[4], 10, 64)
-		tx, _ := strconv.ParseInt(parts[5], 10, 64)
+		hs, _ := strconv.ParseInt(parts[4], 10, 64)
+		rx, _ := strconv.ParseInt(parts[5], 10, 64)
+		tx, _ := strconv.ParseInt(parts[6], 10, 64)
 		now := time.Now().Unix()
 
 		statuses = append(statuses, PeerStatus{
 			PublicKey:       parts[0],
-			Endpoint:        parts[1],
-			AllowedIPs:      parts[2],
+			Endpoint:        parts[2],
+			AllowedIPs:      parts[3],
 			LatestHandshake: hs,
 			TransferRx:      rx,
 			TransferTx:      tx,

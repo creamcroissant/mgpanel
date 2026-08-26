@@ -125,36 +125,64 @@ func ICMPPing(ctx context.Context, addr string, timeout time.Duration) (time.Dur
 		return 0, fmt.Errorf("icmp ping %s: write: %w", addr, err)
 	}
 
-	// Read reply
+	// Read reply. raw ICMP sockets on 0.0.0.0 receive EVERY echo reply
+	// arriving on the host, including replies meant for other concurrent
+	// probes — so we must ignore non-matching IDs and keep reading until
+	// our own reply arrives or the deadline fires (system ping behaves
+	// the same way). Treating a mismatched reply as a hard error caused
+	// constant packet_loss=1 whenever probing multiple peers in parallel
+	// (BatchProbe runs one goroutine per target).
+	latency, err := readEchoReply(conn, reqID, start, ctx)
+	if err != nil {
+		return 0, fmt.Errorf("icmp ping %s: %w", addr, err)
+	}
+	return latency, nil
+}
+
+// connReader is the minimal read surface ICMPPing needs, kept as an
+// interface so the reply-loop can be unit-tested against a canned stream.
+type connReader interface {
+	ReadFrom(b []byte) (int, net.Addr, error)
+}
+
+// readEchoReply reads from conn until an ICMP echo reply with the given
+// request ID arrives (or the deadline/context fires). Replies carrying a
+// different ID — i.e. echoes belonging to other concurrent probes sharing
+// the raw socket domain — are silently discarded and the loop continues.
+func readEchoReply(conn connReader, reqID int, start time.Time, ctx context.Context) (time.Duration, error) {
 	reply := make([]byte, 1500)
-	n, _, err := conn.ReadFrom(reply)
-	if err != nil {
-		return 0, fmt.Errorf("icmp ping %s: read: %w", addr, err)
-	}
-	// Check context cancellation after blocking ReadFrom
-	if ctx.Err() != nil {
-		return 0, fmt.Errorf("icmp ping %s: context cancelled: %w", addr, ctx.Err())
-	}
+	for {
+		n, _, err := conn.ReadFrom(reply)
+		if err != nil {
+			return 0, fmt.Errorf("read: %w", err)
+		}
+		// Check context cancellation after blocking ReadFrom
+		if ctx.Err() != nil {
+			return 0, fmt.Errorf("context cancelled: %w", ctx.Err())
+		}
 
-	// Parse reply
-	parsed, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply[:n])
-	if err != nil {
-		return 0, fmt.Errorf("icmp ping %s: parse: %w", addr, err)
-	}
+		// Parse reply
+		parsed, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply[:n])
+		if err != nil {
+			continue // garbage frame, keep waiting
+		}
 
-	if parsed.Type != ipv4.ICMPTypeEchoReply {
-		return 0, fmt.Errorf("icmp ping %s: unexpected reply type %v", addr, parsed.Type)
-	}
+		if parsed.Type != ipv4.ICMPTypeEchoReply {
+			continue // not an echo reply, keep waiting
+		}
 
-	echoReply, ok := parsed.Body.(*icmp.Echo)
-	if !ok {
-		return 0, fmt.Errorf("icmp ping %s: unexpected reply body type %T", addr, parsed.Body)
-	}
-	if echoReply.ID != reqID {
-		return 0, fmt.Errorf("icmp ping %s: echo id mismatch (got %d, want %d)", addr, echoReply.ID, reqID)
-	}
+		echoReply, ok := parsed.Body.(*icmp.Echo)
+		if !ok {
+			continue // malformed body, keep waiting
+		}
+		if echoReply.ID != reqID {
+			// Echo reply destined for another concurrent probe — ignore
+			// and keep reading until our own reply arrives.
+			continue
+		}
 
-	return time.Since(start), nil
+		return time.Since(start), nil
+	}
 }
 
 // ProbeConfig defines a single probe configuration.

@@ -47,9 +47,30 @@ func NewMeshProber(meshMgr *mesh.Manager, interval, timeout time.Duration, windo
 // Start begins the background probing loop.
 // ctx is propagated to the underlying BackgroundProber which respects
 // cancellation in the probe loop and in each BatchProbe call.
-func (mp *MeshProber) Start(ctx context.Context) {
+// 探针目标每 tickReload 自行从 mesh.Manager.DumpPeers 刷新，与 syncGRPC
+// 解耦：即使面板同步链路在弱网下卡住，探测仍持续刷新并上报延迟。
+func (mp *MeshProber) Start(ctx context.Context, tickReload ...time.Duration) {
 	mp.lifecycleCtx = ctx
 	go mp.prober.Start(ctx)
+
+	interval := 35 * time.Second
+	if len(tickReload) > 0 && tickReload[0] > 0 {
+		interval = tickReload[0]
+	}
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		// 立即做一次刷新，让首次探测尽快开始（不等 syncGRPC 首个周期）
+		mp.UpdateTargets(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				mp.UpdateTargets(ctx)
+			}
+		}
+	}()
 }
 
 // Stop signals the probing loop to stop.
@@ -96,7 +117,12 @@ func (mp *MeshProber) UpdateTargets(ctx context.Context) {
 	mp.mu.Unlock()
 
 	mp.prober.SetTargets(targets)
-	mp.logger.Debug("mesh probe targets updated", "count", len(targets))
+	mp.logger.Debug("mesh probe targets updated", "count", len(targets), "first_target", func() string {
+		if len(targets) > 0 {
+			return targets[0].Target
+		}
+		return ""
+	}())
 }
 
 // SyncLatencies returns the current probe results as protobuf OriginLatencyEntry slices.

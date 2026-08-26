@@ -282,6 +282,8 @@ func (p *BackgroundProber) probeAll(ctx context.Context) {
 	}
 
 	p.mu.Lock()
+	var failedCount int
+	var firstErrs []string
 	for i, res := range results {
 		key := targetKey(targets[i])
 		h, ok := p.history[key]
@@ -297,11 +299,22 @@ func (p *BackgroundProber) probeAll(ctx context.Context) {
 		h.LastProbeAt = time.Now().UnixMilli()
 		if !res.Success {
 			h.FailedProbes++
+			failedCount++
+			if len(firstErrs) < 3 {
+				firstErrs = append(firstErrs, fmt.Sprintf("%s: %s", key, res.Error))
+			}
 		}
 		// Recompute metrics
 		h.computeMetrics()
 	}
 	p.mu.Unlock()
+
+	if failedCount > 0 {
+		p.logger.Warn("probe batch had failures",
+			"total", len(results),
+			"failed", failedCount,
+			"sample_errors", firstErrs)
+	}
 }
 
 func (h *TargetHistory) computeMetrics() {
