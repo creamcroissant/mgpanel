@@ -18,6 +18,12 @@ func NewSwitcher(opts SwitcherOptions) (*Switcher, error) {
 	if opts.CoreManager == nil {
 		return nil, fmt.Errorf("core manager is required")
 	}
+	// 未配置输出目录时默认落到临时目录而非当前工作目录：
+	// 防止配置产物写进 CWD（曾污染仓库工作区/在只读环境失败），
+	// 也避免测试触碰宿主真实路径。
+	if strings.TrimSpace(opts.OutputPath) == "" {
+		opts.OutputPath = filepath.Join(os.TempDir(), fmt.Sprintf("mgpanel-switch-%d", os.Getpid()))
+	}
 	logger := opts.Logger
 	if logger == nil {
 		logger = slog.Default()

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
@@ -67,13 +68,25 @@ func (m *Manager) Start() {
 	go m.run()
 }
 
-// ensureClashAPIConfig 在 sing-box 配置目录创建 experimental.json，
-// 使 sing-box 暴露 Clash API（/connections），供访问日志收集器读取。
-func (m *Manager) ensureClashAPIConfig() error {
+// clashConfigDir 返回 sing-box 配置目录。configDir 为空时默认 /etc/sing-box/conf；
+// 但在 go test 测试模式下禁止落真实系统路径（曾导致宿主 sing-box 的
+// experimental.json 被改写并触发 reload，见 coding.md 2026-08-26 事故记录）。
+func (m *Manager) clashConfigDir() string {
 	dir := m.singboxConfigDir
 	if dir == "" {
 		dir = "/etc/sing-box/conf"
+		if testing.Testing() {
+			dir = filepath.Join(os.TempDir(), fmt.Sprintf("singbox-conf-test-%d", os.Getpid()))
+			_ = os.MkdirAll(dir, 0o755)
+		}
 	}
+	return dir
+}
+
+// ensureClashAPIConfig 在 sing-box 配置目录创建 experimental.json，
+// 使 sing-box 暴露 Clash API（/connections），供访问日志收集器读取。
+func (m *Manager) ensureClashAPIConfig() error {
+	dir := m.clashConfigDir()
 	target := filepath.Join(dir, "experimental.json")
 	secret := m.loadOrCreateSecret(filepath.Join(dir, ".access_secret"))
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -123,6 +136,10 @@ func (m *Manager) Stop() {
 // reloadSingBox 让 sing-box 重新加载配置（含 experimental.json）。
 // start-if-inactive：服务未运行时 reload 必然失败，改为直接 start（B2）。
 func (m *Manager) reloadSingBox(ctx context.Context) error {
+	// 测试模式下禁止操作宿主 systemd 服务（曾因此触发宿主 sing-box 重启）
+	if testing.Testing() {
+		return nil
+	}
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "sing-box").Run(); err != nil {
 		return exec.CommandContext(ctx, "systemctl", "start", "sing-box").Run()
 	}
@@ -149,10 +166,7 @@ func (m *Manager) run() {
 
 // EnsureClashAPIConfig 幂等地确保 experimental.json 存在；缺失时才重建并 reload。
 func (m *Manager) EnsureClashAPIConfig() error {
-	dir := m.singboxConfigDir
-	if dir == "" {
-		dir = "/etc/sing-box/conf"
-	}
+	dir := m.clashConfigDir()
 	target := filepath.Join(dir, "experimental.json")
 	if _, err := os.Stat(target); err == nil {
 		return nil // 已存在，不需重建

@@ -108,10 +108,15 @@ func (mp *MeshProber) UpdateTargets(ctx context.Context) {
 		mp.targetToPeer[wgIP] = p.PublicKey
 		// 用 ICMP ping 探测对端 WG IP（mesh 内网互联），而非 tcpping 公网 UDP 端口（51820）——
 		// WireGuard 是 UDP，TCP 探测必然失败导致 packet_loss 恒 1、latency 缺失。
+		// Label 仅作展示用：对短于 16 字符的畸形公钥安全截断，避免切片越界 panic。
+		label := p.PublicKey
+		if len(label) > 16 {
+			label = label[:16]
+		}
 		targets = append(targets, probepkg.ProbeTargetConfig{
 			Type:   "icmpping",
 			Target: wgIP,
-			Label:  p.PublicKey[:16],
+			Label:  label,
 		})
 	}
 	mp.mu.Unlock()
