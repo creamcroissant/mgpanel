@@ -141,6 +141,9 @@ export interface TopoNodeData extends Record<string, unknown> {
   priority?: number;
   /** agent(画布C)：作为中继链路入口时绑定的入站数量角标 */
   relayBoundCount?: number;
+  /** agent(画布mesh)：mesh WG 地址与探测计数 */
+  wgIp?: string;
+  probes?: number;
   /** validate 注入的节点级问题（f4 交互层写入，节点视图渲染角标） */
   issues?: { severity: string; message: string }[];
 }

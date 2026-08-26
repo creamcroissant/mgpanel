@@ -1941,7 +1941,8 @@
         "rules": "Rules",
         "inbounds": "Inbounds",
         "agents": "Exit Routes",
-        "servers": "Server Links"
+        "servers": "Server Links",
+        "mesh": "Mesh Network"
       },
       "relay": {
         "create": "New Link",

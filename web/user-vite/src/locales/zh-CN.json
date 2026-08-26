@@ -1939,7 +1939,8 @@
         "rules": "规则分流",
         "inbounds": "入站路由",
         "agents": "精确出口",
-        "servers": "服务器链路"
+        "servers": "服务器链路",
+        "mesh": "Mesh 组网"
       },
       "relay": {
         "create": "新建链路",
