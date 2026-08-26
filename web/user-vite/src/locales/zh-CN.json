@@ -535,7 +535,8 @@
         "view": {
           "table": "表格视图",
           "topology": "拓扑视图"
-        }
+        },
+        "topologyHint": "点击服务器查看它到各节点的延迟 · 节点可拖动"
       },
       "config": {
         "title": "Agent 配置",

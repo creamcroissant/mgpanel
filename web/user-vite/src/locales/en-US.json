@@ -535,7 +535,8 @@
         "view": {
           "table": "Table View",
           "topology": "Topology View"
-        }
+        },
+        "topologyHint": "Click a server to see its latency to each peer · drag to rearrange"
       },
       "config": {
         "title": "Agent Configuration",

@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { ReactFlow, Background, Controls, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { MeshPeer } from "@/api/admin/mesh";
+import { fetchTopology } from "@/lib/topology/api";
 
 interface MeshTopologyViewProps {
   peers: MeshPeer[];
@@ -13,12 +15,28 @@ interface MeshTopologyViewProps {
 const NODE_W = 176;
 
 /**
- * Mesh 组网拓扑视图：全互联 wgmesh0 隧道。
- * 节点 = peer（名称/WG地址/延迟），边 = C(n,2) 全互联；
- * 布局采用等分圆环（mesh 为对称全互联模型，圆环最直观且零依赖）。
+ * Mesh 组网拓扑视图（全互联 wgmesh0）：
+ * - 直线连线、节点可拖动
+ * - 点击节点：高亮其所有连线，并标注「该节点实测」到各邻居的有向延迟
+ *   （数据源 /admin/topology 的 mesh.edges: from→to 单向探测值）
  */
 export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
   const { t } = useTranslation();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // 逐对有向延迟（from_agent 实测 → to_agent）
+  const topoQuery = useQuery({
+    queryKey: ["admin", "mesh-topo-edges"],
+    queryFn: () => fetchTopology("sing-box"),
+    staleTime: 30_000,
+  });
+  const dirLatency = useMemo(() => {
+    const m = new Map<string, number | null>();
+    for (const e of topoQuery.data?.mesh?.edges ?? []) {
+      m.set(`${e.from_agent_id}-${e.to_agent_id}`, e.latency_ms);
+    }
+    return m;
+  }, [topoQuery.data]);
 
   const { nodes, edges } = useMemo(() => {
     const n = peers.length;
@@ -29,10 +47,7 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
     const nodes: Node[] = peers.map((p, i) => {
       const angle = (2 * Math.PI * i) / Math.max(n, 1) - Math.PI / 2;
       const label = nameById?.[p.agent_host_id] ?? `agent-${p.agent_host_id}`;
-      const latency =
-        typeof p.latency_ms === "number" && p.packet_loss !== 1
-          ? `${Math.round(p.latency_ms)}ms`
-          : undefined;
+      const isSel = selectedId === `mp-${p.agent_host_id}`;
       return {
         id: `mp-${p.agent_host_id}`,
         position: {
@@ -46,24 +61,23 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
           borderRadius: 10,
           fontSize: 12,
           background: p.online ? "hsl(var(--card))" : "hsl(var(--muted))",
-          border: p.online
-            ? "1px solid hsl(var(--success))"
-            : "1px dashed hsl(var(--muted-foreground))",
+          border: isSel
+            ? "2px solid hsl(var(--primary))"
+            : p.online
+              ? "1px solid hsl(var(--success))"
+              : "1px dashed hsl(var(--muted-foreground))",
           color: "hsl(var(--foreground))",
+          boxShadow: isSel ? "0 0 0 3px hsl(var(--primary) / 0.25)" : undefined,
         },
-        // 延迟信息挂到节点副标题
-        ...(latency ? {} : {}),
-      } satisfies Node & { __latency?: string };
+      };
     });
 
-    const latencyOf = new Map<number, string | undefined>(
-      peers.map((p) => [
-        p.agent_host_id,
-        typeof p.latency_ms === "number" && p.packet_loss !== 1
-          ? `${Math.round(p.latency_ms)}ms`
-          : undefined,
-      ])
-    );
+    const fmt = (v: number | null | undefined) =>
+      v == null ? "—" : `${Math.round(v)}ms`;
+
+    const other = (a: number, b: string) => Number(b.replace("mp-", "")) === a
+      ? null
+      : Number(b.replace("mp-", ""));
 
     const edges: Edge[] = [];
     for (let i = 0; i < peers.length; i++) {
@@ -71,25 +85,57 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
         const a = peers[i];
         const b = peers[j];
         const up = a.online && b.online;
+
+        // 点击态：只标注被选节点实测方向的延迟，其余淡化
+        let label: string | undefined;
+        let dimmed = false;
+        let highlighted = false;
+        if (selectedId) {
+          const selHost = Number(selectedId.replace("mp-", ""));
+          const isIncident =
+            `mp-${a.agent_host_id}` === selectedId ||
+            `mp-${b.agent_host_id}` === selectedId;
+          if (isIncident) {
+            highlighted = true;
+            const toOther =
+              `mp-${a.agent_host_id}` === selectedId ? b.agent_host_id : a.agent_host_id;
+            label = fmt(dirLatency.get(`${selHost}-${toOther}`));
+          } else {
+            dimmed = true;
+          }
+        }
+
         edges.push({
           id: `me-${a.agent_host_id}-${b.agent_host_id}`,
           source: `mp-${a.agent_host_id}`,
           target: `mp-${b.agent_host_id}`,
-          label: latencyOf.get(a.agent_host_id) ?? latencyOf.get(b.agent_host_id),
-          animated: up && !!(a.latency_ms || b.latency_ms),
+          type: "straight",
+          label,
+          animated: !selectedId && up,
           style: {
-            stroke: up ? "hsl(var(--success))" : "hsl(var(--muted-foreground))",
-            strokeWidth: 1.5,
+            stroke: !up
+              ? "hsl(var(--muted-foreground))"
+              : highlighted
+                ? "hsl(var(--primary))"
+                : "hsl(var(--success))",
+            strokeWidth: highlighted ? 2 : 1.5,
             strokeDasharray: up ? undefined : "5 4",
-            opacity: up ? 0.85 : 0.45,
+            opacity: dimmed ? 0.25 : up ? 0.85 : 0.45,
           },
-          labelStyle: { fontSize: 10, fill: "hsl(var(--muted-foreground))" },
+          labelStyle: {
+            fontSize: 11,
+            fontWeight: 600,
+            fill: "hsl(var(--foreground))",
+          },
           labelBgStyle: { fill: "hsl(var(--card))" },
+          labelBgPadding: [4, 2] as [number, number],
+          labelBgBorderRadius: 4,
         });
+        void other;
       }
     }
     return { nodes, edges };
-  }, [peers, nameById]);
+  }, [peers, nameById, selectedId, dirLatency]);
 
   if (peers.length === 0) {
     return (
@@ -100,18 +146,28 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
   }
 
   return (
-    <div className="h-[480px] overflow-hidden rounded-md border">
+    <div className="relative h-[480px] overflow-hidden rounded-md border">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         fitView
+        nodesDraggable
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable
         proOptions={{ hideAttribution: true }}
+        onNodeClick={(_, node) =>
+          setSelectedId((cur) => (cur === node.id ? null : node.id))
+        }
+        onPaneClick={() => setSelectedId(null)}
       >
         <Background gap={18} />
         <Controls showInteractive={false} />
       </ReactFlow>
+      {!selectedId && (
+        <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
+          {t("admin.agents.meshTable.topologyHint")}
+        </p>
+      )}
     </div>
   );
 }
