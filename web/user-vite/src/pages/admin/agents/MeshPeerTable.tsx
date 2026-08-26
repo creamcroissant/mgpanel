@@ -1,15 +1,18 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
+  LayoutList,
   Network,
   RefreshCw,
+  Waypoints,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { fetchMeshStatus, type MeshPeer } from "@/api/admin/mesh";
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
+import { MeshTopologyView } from "./MeshTopologyView";
 import {
   Badge,
   Button,
@@ -32,9 +35,11 @@ interface MeshPeerTableProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRefetch?: () => void;
+  /** agent_host_id → 显示名（探针页已加载的 agent 列表） */
+  nameById?: Record<number, string>;
 }
 
-export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTableProps) {
+export function MeshPeerTable({ open, onOpenChange, onRefetch, nameById }: MeshPeerTableProps) {
   const { t } = useTranslation();
 
   const meshQuery = useQuery({
@@ -50,6 +55,8 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
     () => peers.filter((p) => p.online).length,
     [peers]
   );
+
+  const [view, setView] = useState<"table" | "topo">("table");
 
   const handleRefresh = () => {
     meshQuery.refetch();
@@ -82,6 +89,32 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
                 {t("admin.agents.meshTable.offline")}: <strong className="text-muted-foreground">{peers.length - onlineCount}</strong>
               </span>
             </div>
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  view === "table"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                {t("admin.agents.meshTable.view.table")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("topo")}
+                className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  view === "topo"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Waypoints className="h-3.5 w-3.5" />
+                {t("admin.agents.meshTable.view.topology")}
+              </button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -113,6 +146,8 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch }: MeshPeerTablePr
               description={t("admin.agents.meshTable.emptyDescription")}
               size="sm"
             />
+          ) : view === "topo" ? (
+            <MeshTopologyView peers={peers} nameById={nameById} />
           ) : (
             <div>
               <Table>

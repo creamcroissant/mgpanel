@@ -20,7 +20,6 @@ function AgentNodeViewInner({ data }: NodeProps) {
   const detail = [
     `主机: ${String(d.label)}`,
     `地址: ${String(d.host ?? "未知")}`,
-    ...(d.wgIp ? [`Mesh: ${String(d.wgIp)}`] : []),
     `状态: ${d.online ? "在线" : "离线"}`,
     ...(cores.length > 0
       ? [`核心: ${cores.map((c) => `${c.core_type}${c.active ? "(运行中)" : ""}`).join(", ")}`]
@@ -57,11 +56,6 @@ function AgentNodeViewInner({ data }: NodeProps) {
       <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={String(d.host ?? "")}>
         {d.host}
       </p>
-      {d.wgIp != null && (
-        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/80" title={`Mesh: ${String(d.wgIp)}`}>
-          <span aria-hidden>⛓</span> {d.wgIp}
-        </p>
-      )}
       {/* 中继链路连线锚点：左入右出（服务器链路画布拖线用） */}
       <Handle
         type="target"

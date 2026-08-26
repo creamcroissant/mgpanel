@@ -479,6 +479,7 @@ export default function AgentList() {
         open={isMeshOpen}
         onOpenChange={setIsMeshOpen}
         onRefetch={refetch}
+        nameById={Object.fromEntries(agents.map((a) => [a.id, a.name]))}
       />
 
       <AgentConfigEditor

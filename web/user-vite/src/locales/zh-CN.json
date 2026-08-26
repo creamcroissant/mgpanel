@@ -531,7 +531,11 @@
         "emptyDescription": "未在 Mesh 网络中找到 WireGuard 节点。",
         "loadPeersFailed": "加载组网节点失败",
         "latency": "延迟",
-        "packetLoss": "丢包"
+        "packetLoss": "丢包",
+        "view": {
+          "table": "表格视图",
+          "topology": "拓扑视图"
+        }
       },
       "config": {
         "title": "Agent 配置",
@@ -1939,8 +1943,7 @@
         "rules": "规则分流",
         "inbounds": "入站路由",
         "agents": "精确出口",
-        "servers": "服务器链路",
-        "mesh": "Mesh 组网"
+        "servers": "服务器链路"
       },
       "relay": {
         "create": "新建链路",

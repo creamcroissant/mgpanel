@@ -6,8 +6,6 @@ import { toPng } from "html-to-image";
 import { Plus, ShieldCheck, ImageDown } from "lucide-react";
 import { Button, EmptyState, ErrorBanner, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { fetchTopology, validateTopology, validateRelayPaths } from "@/lib/topology/api";
-import { assembleCanvasD } from "@/lib/topology/assemble";
-import { adminApi } from "@/api/admin/client";
 import { useReorderCommit } from "./interactions";
 import type { TopologyIssue, TopologyPolicy } from "@/lib/topology/types";
 import { assembleCanvasA, assembleCanvasB, assembleCanvasC } from "@/lib/topology/assemble";
@@ -64,17 +62,6 @@ export function TopologyTab() {
     staleTime: 30_000,
   });
 
-  // Mesh 组网视图：peers 数据（仅 mesh 模式拉取）
-  const { data: meshPeers } = useQuery({
-    queryKey: ["admin", "mesh-network"],
-    queryFn: async () => {
-      const r = await adminApi.get<{ data: { agent_host_id: number; wg_ip: string; online: boolean; total_probes?: number }[] }>("/mesh/network/default");
-      return r.data?.data ?? [];
-    },
-    enabled: canvasMode === "mesh",
-    staleTime: 30_000,
-  });
-
   const muts = useTopologyMutations(coreType);
   const relayMuts = {
     create: useCreateRelayPath(coreType),
@@ -91,14 +78,8 @@ export function TopologyTab() {
 
   const graph = useMemo(() => {
     if (!data) return null;
-    return canvasMode === "inbounds"
-    ? assembleCanvasB(data)
-    : canvasMode === "agents"
-      ? assembleCanvasC(data)
-      : canvasMode === "mesh"
-        ? assembleCanvasD(data, meshPeers ?? [])
-        : assembleCanvasA(data);
-  }, [data, canvasMode, meshPeers]);
+    return canvasMode === "inbounds" ? assembleCanvasB(data) : canvasMode === "agents" ? assembleCanvasC(data) : assembleCanvasA(data);
+  }, [data, canvasMode]);
 
   // 筛选器数据：各平台可解锁 agent 数 + 命中节点 id 集合
   const PLATFORM_LABELS: Record<string, string> = {
@@ -413,17 +394,6 @@ export function TopologyTab() {
             >
               {t("admin.topology.canvas.servers")}
             </button>
-            <button
-              type="button"
-              onClick={() => setCanvasMode("mesh")}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                canvasMode === "mesh"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t("admin.topology.canvas.mesh")}
-            </button>
           </div>
           <div ref={paletteRef} className="flex items-center gap-2">
             {canvasMode === "agents" ? (
@@ -717,7 +687,7 @@ function nodeIdOfDrawer(t: DrawerTarget | null): string | null {
   return null;
 }
 
-type CanvasMode = "rules" | "inbounds" | "agents" | "mesh";
+type CanvasMode = "rules" | "inbounds" | "agents";
 
 /** 空态三件套：图标 + 引导文案 + 滚动到 Palette 的行动按钮 */
 function EmptyGuide({

@@ -531,7 +531,11 @@
         "emptyDescription": "No WireGuard peers found in the mesh network.",
         "loadPeersFailed": "Failed to load mesh peers",
         "latency": "Latency",
-        "packetLoss": "Loss"
+        "packetLoss": "Loss",
+        "view": {
+          "table": "Table View",
+          "topology": "Topology View"
+        }
       },
       "config": {
         "title": "Agent Configuration",
@@ -1941,8 +1945,7 @@
         "rules": "Rules",
         "inbounds": "Inbounds",
         "agents": "Exit Routes",
-        "servers": "Server Links",
-        "mesh": "Mesh Network"
+        "servers": "Server Links"
       },
       "relay": {
         "create": "New Link",
