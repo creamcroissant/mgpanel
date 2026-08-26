@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   LayoutList,
   Network,
@@ -47,6 +47,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch, nameById }: MeshP
     queryFn: () => fetchMeshStatus(),
     enabled: open,
     refetchInterval: open ? 15000 : false,
+    placeholderData: keepPreviousData,
   });
 
   const peers = useMemo(() => meshQuery.data?.data ?? [], [meshQuery.data]);
@@ -65,7 +66,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch, nameById }: MeshP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Network className="h-5 w-5" />

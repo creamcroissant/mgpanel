@@ -1,7 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ReactFlow, Background, Controls, type Edge, type Node } from "@xyflow/react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  ReactFlowProvider,
+  applyNodeChanges,
+  useReactFlow,
+  type Edge,
+  type Node,
+  type NodeChange,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { MeshPeer } from "@/api/admin/mesh";
 import { fetchTopology } from "@/lib/topology/api";
@@ -20,9 +30,30 @@ const NODE_W = 176;
  * - 点击节点：高亮其所有连线，并标注「该节点实测」到各邻居的有向延迟
  *   （数据源 /admin/topology 的 mesh.edges: from→to 单向探测值）
  */
-export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
+export function MeshTopologyView(props: MeshTopologyViewProps) {
+  return (
+    <ReactFlowProvider>
+      <MeshTopologyInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function MeshTopologyInner({ peers, nameById }: MeshTopologyViewProps) {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
+
+  // 画布在流坐标系中的安全矩形（拖拽开始时按当前缩放换算）
+  const flowRectRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null);
+  const handleNodeDragStart = () => {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const pad = 28;
+    const a = screenToFlowPosition({ x: rect.left + pad, y: rect.top + pad });
+    const b = screenToFlowPosition({ x: rect.right - pad, y: rect.bottom - pad });
+    flowRectRef.current = { minX: a.x, minY: a.y, maxX: b.x, maxY: b.y };
+  };
 
   // 逐对有向延迟（from_agent 实测 → to_agent）
   const topoQuery = useQuery({
@@ -38,7 +69,7 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
     return m;
   }, [topoQuery.data]);
 
-  const { nodes, edges } = useMemo(() => {
+  const { nodes: layoutNodes, edges } = useMemo(() => {
     const n = peers.length;
     const radius = Math.max(150, n * 42);
     const cx = radius + NODE_W / 2 + 24;
@@ -50,6 +81,7 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
       const isSel = selectedId === `mp-${p.agent_host_id}`;
       return {
         id: `mp-${p.agent_host_id}`,
+        draggable: true,
         position: {
           x: cx + radius * Math.cos(angle) - NODE_W / 2,
           y: cy + radius * Math.sin(angle) - 32,
@@ -73,7 +105,7 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
     });
 
     const fmt = (v: number | null | undefined) =>
-      v == null ? "—" : `${Math.round(v)}ms`;
+      v == null || v <= 0 ? "—" : `${Math.round(v)}ms`;
 
     const other = (a: number, b: string) => Number(b.replace("mp-", "")) === a
       ? null
@@ -137,6 +169,24 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
     return { nodes, edges };
   }, [peers, nameById, selectedId, dirLatency]);
 
+  // 受控模式必须自行应用拖拽产生的位置变更，否则节点拖不动
+  const [nodes, setNodes] = useState<Node[]>(layoutNodes);
+  useEffect(() => setNodes(layoutNodes), [layoutNodes]);
+  const onNodesChange = (changes: NodeChange[]) =>
+    setNodes((nds) => {
+      const next = applyNodeChanges(changes, nds);
+      const r = flowRectRef.current;
+      if (!r) return next;
+      return next.map((n) => {
+        if (!r) return n;
+        const x = Math.min(Math.max(n.position.x, r.minX), r.maxX);
+        const y = Math.min(Math.max(n.position.y, r.minY), r.maxY);
+        return x === n.position.x && y === n.position.y
+          ? n
+          : { ...n, position: { x, y } };
+      });
+    });
+
   if (peers.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
@@ -146,12 +196,15 @@ export function MeshTopologyView({ peers, nameById }: MeshTopologyViewProps) {
   }
 
   return (
-    <div className="relative h-[480px] overflow-hidden rounded-md border">
+    <div ref={wrapRef} className="relative h-[480px] overflow-hidden rounded-md border">
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onNodeDragStart={handleNodeDragStart}
         fitView
         nodesDraggable
+        nodeDragThreshold={0}
         nodesConnectable={false}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
