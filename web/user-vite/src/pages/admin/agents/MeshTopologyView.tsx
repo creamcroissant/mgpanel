@@ -131,7 +131,14 @@ function MeshTopologyInner({ peers, nameById }: MeshTopologyViewProps) {
             highlighted = true;
             const toOther =
               `mp-${a.agent_host_id}` === selectedId ? b.agent_host_id : a.agent_host_id;
-            label = fmt(dirLatency.get(`${selHost}-${toOther}`));
+            // 优先本节点实测方向；缺失时回退对向实测值(↔ 标记)，避免整条链路无延迟可读
+            const dir = dirLatency.get(`${selHost}-${toOther}`);
+            if (dir != null && dir > 0) {
+              label = fmt(dir);
+            } else {
+              const rev = dirLatency.get(`${toOther}-${selHost}`);
+              label = rev != null && rev > 0 ? `${Math.round(rev)}ms↔` : "—";
+            }
           } else {
             dimmed = true;
           }
