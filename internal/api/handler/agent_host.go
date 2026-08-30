@@ -51,6 +51,8 @@ type agentHostResponse struct {
 	LastRestartAt         int64   `json:"last_restart_at"`
 	AgentVersion          string  `json:"agent_version,omitempty"`
 	CurrentCoreType       string  `json:"current_core_type,omitempty"`
+	Country               string  `json:"country,omitempty"`
+	Region                string  `json:"region,omitempty"`
 	LastHeartbeatAt       int64   `json:"last_heartbeat_at"`
 	CreatedAt             int64   `json:"created_at"`
 	UpdatedAt             int64   `json:"updated_at"`
@@ -82,6 +84,8 @@ func newAgentHostResponse(host *repository.AgentHost) agentHostResponse {
 		LastRestartAt:         host.LastRestartAt,
 		AgentVersion:          host.AgentVersion,
 		CurrentCoreType:       host.CurrentCoreType,
+		Country:               host.Country,
+		Region:                host.Region,
 		LastHeartbeatAt:       host.LastHeartbeatAt,
 		CreatedAt:             host.CreatedAt,
 		UpdatedAt:             host.UpdatedAt,
@@ -201,7 +205,11 @@ func (h *AgentHostHandler) ReportHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.UpdateHostByToken(ctx, token, req.Host); err != nil {
+	query := r.URL.Query()
+	country := strings.TrimSpace(query.Get("country"))
+	region := strings.TrimSpace(query.Get("region"))
+
+	if err := h.service.UpdateHostByToken(ctx, token, req.Host, country, region); err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			RespondErrorI18nAction(ctx, w, http.StatusUnauthorized, "agent_host.host", "error.invalid_token", h.i18n)
 			return
@@ -329,8 +337,10 @@ func (h *AgentHostHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // UpdateAgentHostRequest represents the request to update an agent host.
 type UpdateAgentHostRequest struct {
-	Name *string `json:"name,omitempty"`
-	Host *string `json:"host,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	Host    *string `json:"host,omitempty"`
+	Country *string `json:"country,omitempty"`
+	Region  *string `json:"region,omitempty"`
 }
 
 // RegisterAgentHostRequest represents the request to auto-register an agent host.
@@ -416,6 +426,12 @@ func (h *AgentHostHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if req.Host != nil {
 		updateReq.Host = req.Host
 	}
+	if req.Country != nil {
+		updateReq.Country = req.Country
+	}
+	if req.Region != nil {
+		updateReq.Region = req.Region
+	}
 
 	if err := h.service.Update(ctx, id, updateReq); err != nil {
 		status := http.StatusInternalServerError
@@ -441,9 +457,11 @@ func (h *AgentHostHandler) Update(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"data": map[string]any{
-			"id":   host.ID,
-			"name": host.Name,
-			"host": host.Host,
+			"id":      host.ID,
+			"name":    host.Name,
+			"host":    host.Host,
+			"country": host.Country,
+			"region":  host.Region,
 		},
 	})
 }
@@ -545,3 +563,4 @@ func (h *AgentHostHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 }
+

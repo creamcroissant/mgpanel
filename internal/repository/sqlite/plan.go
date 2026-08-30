@@ -110,7 +110,7 @@ func (r *planRepo) Create(ctx context.Context, plan *repository.Plan) (*reposito
 	if err != nil {
 		return nil, fmt.Errorf("encode plan prices: %w", err)
 	}
-	result, err := r.db.ExecContext(ctx, stmt,
+	result, err := execWithRetry(ctx, r.db, stmt,
 		optionalInt64(plan.GroupID),
 		plan.Name,
 		pricesJSON,
@@ -170,7 +170,7 @@ func (r *planRepo) Update(ctx context.Context, plan *repository.Plan) error {
 	if err != nil {
 		return fmt.Errorf("encode plan prices: %w", err)
 	}
-	result, err := r.db.ExecContext(ctx, stmt,
+	result, err := execWithRetry(ctx, r.db, stmt,
 		optionalInt64(plan.GroupID),
 		plan.Name,
 		pricesJSON,
@@ -198,7 +198,7 @@ func (r *planRepo) Update(ctx context.Context, plan *repository.Plan) error {
 }
 
 func (r *planRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM plans WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM plans WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (r *planRepo) BindGroups(ctx context.Context, planID int64, groupIDs []int6
 }
 
 func (r *planRepo) UnbindGroups(ctx context.Context, planID int64) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM plan_server_groups WHERE plan_id = ?", planID)
+	_, err := execWithRetry(ctx, r.db, "DELETE FROM plan_server_groups WHERE plan_id = ?", planID)
 	// idempotent: no error if not found
 	return err
 }

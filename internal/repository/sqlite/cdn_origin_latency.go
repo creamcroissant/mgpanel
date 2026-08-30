@@ -22,7 +22,7 @@ func newCDNOriginLatencyRepo(db *sql.DB) *cdnOriginLatencyRepo {
 
 func (r *cdnOriginLatencyRepo) Upsert(ctx context.Context, siteID int64, stack string, latencyMs int64) error {
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_origin_latency (site_id, stack, latency_ms, updated_at)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(site_id, stack) DO UPDATE SET

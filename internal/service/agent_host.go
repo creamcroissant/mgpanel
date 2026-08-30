@@ -9,10 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/cache"
+	"github.com/creamcroissant/mgpanel/internal/geoip"
 	"github.com/creamcroissant/mgpanel/internal/repository"
 	"github.com/creamcroissant/mgpanel/internal/template"
 )
@@ -31,7 +34,7 @@ type AgentHostService interface {
 	// Status updates from agent
 	UpdateMetrics(ctx context.Context, token string, metrics AgentHostMetricsReport) error
 	UpdateHeartbeat(ctx context.Context, token string) error
-	UpdateHostByToken(ctx context.Context, token, host string) error
+	UpdateHostByToken(ctx context.Context, token, host, country, region string) error
 	UpdateProtocols(ctx context.Context, token string, protocols []ProtocolInfo) error
 	UpdateClientConfigs(ctx context.Context, token string, configs []ClientConfigInfo) error
 	UpdateCapabilities(ctx context.Context, token string, coreVersion string, capabilities, buildTags []string) error
@@ -139,8 +142,10 @@ type RegisterAgentHostRequest struct {
 
 // UpdateAgentHostRequest contains data for updating an agent host.
 type UpdateAgentHostRequest struct {
-	Name *string
-	Host *string
+	Name    *string `json:"name,omitempty"`
+	Host    *string `json:"host,omitempty"`
+	Country *string `json:"country,omitempty"`
+	Region  *string `json:"region,omitempty"`
 }
 
 // AgentHostMetricsReport contains metrics reported by an agent.
@@ -174,6 +179,8 @@ type ClientConfigInfo struct {
 type AgentHostServiceOptions struct {
 	Cache  cache.Store
 	Logger *slog.Logger
+	GeoIP  *geoip.Reader
+	Namer  *NodeNamer
 }
 
 type agentHostService struct {
@@ -184,6 +191,8 @@ type agentHostService struct {
 	users               repository.UserRepository
 	settings            repository.SettingRepository
 	metricsBuffer       *agentHostMetricsBuffer
+	geoIP               *geoip.Reader
+	namer               *NodeNamer
 }
 
 func NewAgentHostServiceWithOptions(
@@ -195,7 +204,7 @@ func NewAgentHostServiceWithOptions(
 	settings repository.SettingRepository,
 	opts AgentHostServiceOptions,
 ) AgentHostService {
-	return &agentHostService{
+	svc := &agentHostService{
 		agentHosts:          agentHosts,
 		servers:             servers,
 		serverClientConfigs: serverClientConfigs,
@@ -203,7 +212,10 @@ func NewAgentHostServiceWithOptions(
 		users:               users,
 		settings:            settings,
 		metricsBuffer:       newAgentHostMetricsBuffer(opts.Cache, agentHosts, opts.Logger),
+		geoIP:               opts.GeoIP,
 	}
+	svc.namer = opts.Namer
+	return svc
 }
 
 // NewAgentHostService creates a new agent host service.
@@ -305,8 +317,12 @@ func (s *agentHostService) GetByToken(ctx context.Context, token string) (*repos
 	return s.agentHosts.FindByToken(ctx, token)
 }
 
-// UpdateHostByToken 按 host_token 更新 agent_hosts.host（供 agent 周期自报公网 IP）。
-func (s *agentHostService) UpdateHostByToken(ctx context.Context, token, host string) error {
+// UpdateHostByToken 按 host_token 更新 agent_hosts.host/country/region。
+// 供 agent 周期自报公网 IP+GeoIP：
+//   - host: 必填，写入
+//   - country: agent 上报非空时直接覆盖；空时用 mmdb 兜底（仅查 ISO 国家码）
+//   - region: agent 上报非空时直接覆盖；空时保留 DB 现有值（mmdb 不写 region）
+func (s *agentHostService) UpdateHostByToken(ctx context.Context, token, host, country, region string) error {
 	host = strings.TrimSpace(host)
 	if host == "" {
 		return fmt.Errorf("host is required / 主机地址不能为空")
@@ -315,11 +331,51 @@ func (s *agentHostService) UpdateHostByToken(ctx context.Context, token, host st
 	if err != nil {
 		return err
 	}
-	if entry.Host == host {
-		return nil // 未变化，避免无谓写库
-	}
 	entry.Host = host
+
+	country = strings.TrimSpace(country)
+	region = strings.TrimSpace(region)
+
+	// country 覆盖规则: agent 上报非空直接覆盖；空时 mmdb 兜底
+	if country == "" && s.geoIP != nil {
+		if lookupIP := resolveGeoIPLookupIP(host); lookupIP != "" {
+			if res, gerr := s.geoIP.Lookup(lookupIP); gerr == nil && res != nil && res.Country != "" {
+				country = res.Country
+			} else if gerr != nil {
+				slog.Warn("agent_host: mmdb lookup failed on host report", "id", entry.ID, "error", gerr)
+			}
+		}
+	}
+	if country != "" {
+		entry.Country = country
+	}
+
+	// region 覆盖规则: agent 上报非空覆盖；空时保留 DB 现有值
+	if region != "" {
+		entry.Region = region
+	}
+
 	return s.agentHosts.Update(ctx, entry)
+}
+
+// resolveGeoIPLookupIP 将 host 字符串转为 mmdb 可查的 IP。
+// host 已是合法 IP 时直接返回；否则尝试 DNS 解析。
+func resolveGeoIPLookupIP(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return host
+	}
+	if addrs, err := net.LookupHost(host); err == nil {
+		for _, a := range addrs {
+			if ip := net.ParseIP(a); ip != nil {
+				return a
+			}
+		}
+	}
+	return ""
 }
 
 func (s *agentHostService) Update(ctx context.Context, id int64, req UpdateAgentHostRequest) error {
@@ -333,6 +389,12 @@ func (s *agentHostService) Update(ctx context.Context, id int64, req UpdateAgent
 	}
 	if req.Host != nil {
 		host.Host = strings.TrimSpace(*req.Host)
+	}
+	if req.Country != nil {
+		host.Country = strings.TrimSpace(*req.Country)
+	}
+	if req.Region != nil {
+		host.Region = strings.TrimSpace(*req.Region)
 	}
 	if host.Name == "" || host.Host == "" {
 		return fmt.Errorf("name and host are required / 名称和主机地址不能为空")
@@ -477,8 +539,12 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 	}
 
 	serverMap := make(map[string]*repository.Server)
+	codeMap := make(map[string]*repository.Server)
 	for _, srv := range servers {
 		serverMap[srv.Name] = srv
+		if srv.Code != "" {
+			codeMap[srv.Code] = srv
+		}
 	}
 
 	now := time.Now().Unix()
@@ -504,7 +570,17 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 			port = p.Details[0].Port
 		}
 
-		if srv, exists := serverMap[p.Name]; exists {
+		// Look up by original protocol tag (Code) first, fall back to Name
+	// after auto-naming may have changed the Name.
+	srv, exists := codeMap[p.Name]
+	if !exists {
+		srv, exists = serverMap[p.Name]
+	}
+	if exists {
+			// Backfill Code for servers that were created before naming support
+			if srv.Code == "" {
+				srv.Code = p.Name
+			}
 			if p.Running {
 				srv.LastHeartbeatAt = now
 			}
@@ -519,6 +595,15 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 			if err := s.servers.Update(ctx, srv); err != nil {
 				return fmt.Errorf("update server %s: %v / 更新节点失败: %w", p.Name, err, err)
 			}
+			// Apply auto-naming to existing server
+			if s.namer != nil && s.namer.ShouldRename(srv, p.Name) {
+				if newName := s.namer.BuildName(ctx, host, srv, s.computeServerSerial(ctx, host.ID, srv.ID)); newName != srv.Name {
+					srv.Name = newName
+					if err := s.servers.Update(ctx, srv); err != nil {
+						slog.Warn("auto-naming: failed to update server name", "server_id", srv.ID, "error", err)
+					}
+				}
+			}
 		} else {
 			// Create new server node
 			newServer := &repository.Server{
@@ -530,7 +615,7 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 				UpdatedAt:       now,
 				Host:            host.Host,
 				Show:            1,
-				// Required defaults
+				Code:           p.Name, // store original protocol tag for stable matching
 				Port:         port,
 				ServerPort:   0,
 				Tags:         json.RawMessage("[]"),
@@ -543,9 +628,42 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 			if err := s.servers.Create(ctx, newServer); err != nil {
 				return fmt.Errorf("create server %s: %v / 创建节点失败: %w", p.Name, err, err)
 			}
+			// Apply auto-naming to newly created server
+			if s.namer != nil && s.namer.ShouldRename(newServer, p.Name) {
+				if newName := s.namer.BuildName(ctx, host, newServer, s.computeServerSerial(ctx, host.ID, newServer.ID)); newName != newServer.Name {
+					newServer.Name = newName
+					if err := s.servers.Update(ctx, newServer); err != nil {
+						slog.Warn("auto-naming: failed to update new server name", "server_id", newServer.ID, "error", err)
+					}
+				}
+			}
 		}
 	}
 	return nil
+}
+
+// computeServerSerial determines the position of serverID among all servers
+// on the same agent host, returning a display serial suitable for node naming.
+//   position 0 (first by ID) -> serial 0 (no suffix)
+//   position 1 (second)      -> serial 2 -> -02
+//   position 2 (third)       -> serial 3 -> -03
+func (s *agentHostService) computeServerSerial(ctx context.Context, agentHostID int64, serverID int64) int {
+	servers, err := s.servers.FindByAgentHostID(ctx, agentHostID)
+	if err != nil || len(servers) <= 1 {
+		return 0
+	}
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].ID < servers[j].ID
+	})
+	for i, sv := range servers {
+		if sv.ID == serverID {
+			if i == 0 {
+				return 0
+			}
+			return i + 1 // i=1 -> serial=2 -> -02, i=2 -> serial=3 -> -03
+		}
+	}
+	return 0
 }
 
 func (s *agentHostService) UpdateClientConfigs(ctx context.Context, token string, configs []ClientConfigInfo) error {
@@ -1042,6 +1160,8 @@ func (s *agentHostService) AssignTemplate(ctx context.Context, agentID, template
 	host.TemplateID = templateID
 	return s.agentHosts.Update(ctx, host)
 }
+
+
 
 func generateAgentHostToken() (string, error) {
 	tokenBytes := make([]byte, 32)

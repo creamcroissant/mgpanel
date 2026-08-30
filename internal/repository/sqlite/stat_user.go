@@ -25,7 +25,7 @@ func (r *statUserRepo) Upsert(ctx context.Context, record repository.StatUserRec
                       d = stat_users.d + excluded.d,
                       server_rate = excluded.server_rate,
                       updated_at = excluded.updated_at`
-	_, err := r.db.ExecContext(ctx, stmt,
+	_, err := execWithRetry(ctx, r.db, stmt,
 		record.UserID,
 		record.AgentHostID,
 		record.ServerRate,
@@ -44,7 +44,7 @@ func (r *statUserRepo) UpsertBatch(ctx context.Context, records []repository.Sta
 		return nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return err
 	}

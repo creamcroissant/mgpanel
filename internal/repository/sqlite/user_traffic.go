@@ -21,7 +21,7 @@ func newUserTrafficRepo(db *sql.DB) *userTrafficRepo {
 // AddServerSelection adds a server to user's selection list.
 func (r *userTrafficRepo) AddServerSelection(ctx context.Context, userID, serverID int64) error {
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT OR IGNORE INTO user_server_selections (user_id, server_id, created_at)
 		VALUES (?, ?, ?)
 	`, userID, serverID, now)
@@ -30,7 +30,7 @@ func (r *userTrafficRepo) AddServerSelection(ctx context.Context, userID, server
 
 // RemoveServerSelection removes a server from user's selection list.
 func (r *userTrafficRepo) RemoveServerSelection(ctx context.Context, userID, serverID int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		DELETE FROM user_server_selections WHERE user_id = ? AND server_id = ?
 	`, userID, serverID) // idempotent: no error if not found
 	return err
@@ -59,7 +59,7 @@ func (r *userTrafficRepo) GetUserServerIDs(ctx context.Context, userID int64) ([
 
 // ClearUserSelections removes all server selections for a user.
 func (r *userTrafficRepo) ClearUserSelections(ctx context.Context, userID int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		DELETE FROM user_server_selections WHERE user_id = ?
 	`, userID) // idempotent: no error if not found
 	return err
@@ -133,7 +133,7 @@ func (r *userTrafficRepo) CreatePeriod(ctx context.Context, period *repository.U
 	if period.Exceeded {
 		exceeded = 1
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO user_traffic_periods (user_id, period_start, period_end, upload_bytes, download_bytes, quota_bytes, exceeded, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, period.UserID, period.PeriodStart, period.PeriodEnd, period.UploadBytes, period.DownloadBytes, period.QuotaBytes, exceeded, now, now)
@@ -153,7 +153,7 @@ func (r *userTrafficRepo) CreatePeriod(ctx context.Context, period *repository.U
 // IncrementPeriodTraffic atomically increments the traffic counters for the current period.
 func (r *userTrafficRepo) IncrementPeriodTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error {
 	now := time.Now().Unix()
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE user_traffic_periods
 		SET upload_bytes = upload_bytes + ?,
 		    download_bytes = download_bytes + ?,
@@ -171,7 +171,7 @@ func (r *userTrafficRepo) IncrementPeriodTraffic(ctx context.Context, userID int
 // MarkPeriodExceeded marks a specific period as exceeded.
 func (r *userTrafficRepo) MarkPeriodExceeded(ctx context.Context, userID int64, periodStart int64) error {
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		UPDATE user_traffic_periods
 		SET exceeded = 1, updated_at = ?
 		WHERE user_id = ? AND period_start = ?

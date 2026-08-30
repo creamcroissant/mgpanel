@@ -11,8 +11,9 @@ const NodeTab = lazy(() => import("./tabs/NodeTab"));
 const EmailTab = lazy(() => import("./tabs/EmailTab"));
 const RoutingTab = lazy(() => import("./tabs/RoutingTab"));
 const MCPTab = lazy(() => import("./tabs/MCPTab"));
+const NamingTab = lazy(() => import("./tabs/NamingTab"));
 
-const SYSTEM_SETTINGS_TABS = ["general", "subscription", "node", "email", "routing", "mcp", "data"] as const;
+const SYSTEM_SETTINGS_TABS = ["general", "subscription", "node", "email", "routing", "mcp", "data", "naming"] as const;
 type SystemSettingsTab = (typeof SYSTEM_SETTINGS_TABS)[number];
 
 function parseSystemSettingsTab(value: string | null): SystemSettingsTab {
@@ -48,6 +49,7 @@ export default function SystemSettings() {
           <TabsTrigger value="routing">{t("admin.system.settings.tabs.routing")}</TabsTrigger>
           <TabsTrigger value="mcp">{t("admin.system.settings.tabs.mcp")}</TabsTrigger>
           <TabsTrigger value="data">{t("admin.system.retention.title")}</TabsTrigger>
+          <TabsTrigger value="naming">{t("admin.system.settings.tabs.naming")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -83,6 +85,11 @@ export default function SystemSettings() {
         <TabsContent value="data">
           <Suspense fallback={<Loading />}>
             <DataTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="naming">
+          <Suspense fallback={<Loading />}>
+            <NamingTab />
           </Suspense>
         </TabsContent>
       </Tabs>

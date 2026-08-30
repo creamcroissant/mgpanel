@@ -19,7 +19,7 @@ type loginLogRepo struct {
 
 func (r *loginLogRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
 	const stmt = `DELETE FROM login_logs WHERE created_at < unixepoch() - ? * 86400`
-	res, err := r.db.ExecContext(ctx, stmt, days)
+	res, err := execWithRetry(ctx, r.db, stmt, days)
 	if err != nil {
 		return 0, err
 	}
@@ -51,8 +51,8 @@ func (r *loginLogRepo) Create(ctx context.Context, logEntry *repository.LoginLog
 	if logEntry.UserID != nil && *logEntry.UserID > 0 {
 		userID = *logEntry.UserID
 	}
-	_, err := r.db.ExecContext(
-		ctx,
+	_, err := execWithRetry(ctx, r.db,
+		
 		stmt,
 		userID,
 		logEntry.Email,

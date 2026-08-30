@@ -144,6 +144,7 @@ type applyOrchestratorService struct {
 	applyRuns   repository.ApplyRunRepository
 	diagnostics DriftAndDiffService
 	guard       AgentOperationGuard
+	compiler    ArtifactCompilerService
 }
 
 // NewApplyOrchestratorService creates ApplyOrchestratorService.
@@ -156,7 +157,7 @@ func NewApplyOrchestratorService(
 	if len(diagnostics) > 0 {
 		diff = diagnostics[0]
 	}
-	return newApplyOrchestratorService(artifacts, applyRuns, diff, nil)
+	return newApplyOrchestratorService(artifacts, applyRuns, diff, nil, nil)
 }
 
 func NewApplyOrchestratorServiceWithGuard(
@@ -164,8 +165,9 @@ func NewApplyOrchestratorServiceWithGuard(
 	applyRuns repository.ApplyRunRepository,
 	diagnostics DriftAndDiffService,
 	guard AgentOperationGuard,
+	compiler ArtifactCompilerService,
 ) ApplyOrchestratorService {
-	return newApplyOrchestratorService(artifacts, applyRuns, diagnostics, guard)
+	return newApplyOrchestratorService(artifacts, applyRuns, diagnostics, guard, compiler)
 }
 
 func newApplyOrchestratorService(
@@ -173,12 +175,14 @@ func newApplyOrchestratorService(
 	applyRuns repository.ApplyRunRepository,
 	diagnostics DriftAndDiffService,
 	guard AgentOperationGuard,
+	compiler ArtifactCompilerService,
 ) ApplyOrchestratorService {
 	return &applyOrchestratorService{
 		artifacts:   artifacts,
 		applyRuns:   applyRuns,
 		diagnostics: diagnostics,
 		guard:       guard,
+		compiler:    compiler,
 	}
 }
 
@@ -198,18 +202,32 @@ func (s *applyOrchestratorService) PrepareApplyRun(ctx context.Context, req Prep
 		return nil, fmt.Errorf("%w (core_type must be sing-box or xray / 必须是 sing-box 或 xray)", ErrApplyOrchestratorInvalidRequest)
 	}
 
-	artifacts, err := s.artifacts.List(ctx, repository.DesiredArtifactFilter{
+	filter := repository.DesiredArtifactFilter{
 		AgentHostID:     req.AgentHostID,
 		CoreType:        &coreType,
 		DesiredRevision: &req.TargetRevision,
 		Limit:           1000,
 		Offset:          0,
-	})
+	}
+	artifacts, err := s.artifacts.List(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
+	if len(artifacts) == 0 && s.compiler != nil {
+		// 跨主机/未渲染: 按需渲染该 host 自身绑定的 spec 产物
+		if _, rerr := s.compiler.RenderArtifacts(ctx, RenderArtifactsRequest{
+			AgentHostID:     req.AgentHostID,
+			CoreType:        coreType,
+			DesiredRevision: req.TargetRevision,
+		}); rerr == nil {
+			artifacts, err = s.artifacts.List(ctx, filter)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	if len(artifacts) == 0 {
-		return nil, fmt.Errorf("desired artifacts missing for agent_host_id=%d core_type=%s target_revision=%d", req.AgentHostID, coreType, req.TargetRevision)
+		return nil, fmt.Errorf("%w (agent_host_id=%d core_type=%s target_revision=%d 没有可下发的配置)", ErrApplyOrchestratorNoArtifacts, req.AgentHostID, coreType, req.TargetRevision)
 	}
 
 	openRun, err := s.findReusableOpenApplyRun(ctx, req.AgentHostID, coreType, req.TargetRevision)
@@ -697,13 +715,20 @@ func (s *applyOrchestratorService) CancelApplyRun(ctx context.Context, req Cance
 	return nil
 }
 
+// CleanupExpiredApplyRuns expires stale non-terminal apply runs: runs stuck in
+// pending/applying for longer than maxAge (agent offline, report lost) are marked
+// failed with a timeout reason, keeping the audit record instead of deleting it.
 func (s *applyOrchestratorService) CleanupExpiredApplyRuns(ctx context.Context, maxAge time.Duration) (int, error) {
 	if s == nil || s.applyRuns == nil {
 		return 0, ErrApplyOrchestratorNotConfigured
 	}
-	n, err := s.applyRuns.DeleteByClaimAge(ctx, maxAge)
+	if maxAge <= 0 {
+		return 0, fmt.Errorf("%w (max_age must be positive)", ErrApplyOrchestratorInvalidRequest)
+	}
+	deadline := time.Now().Unix() - int64(maxAge.Seconds())
+	n, err := s.applyRuns.ExpireStale(ctx, deadline, fmt.Sprintf("apply run timed out: no terminal report within %s", maxAge))
 	if err != nil {
-		return 0, fmt.Errorf("cleanup expired apply runs: %w", err)
+		return 0, fmt.Errorf("expire stale apply runs: %w", err)
 	}
 	return int(n), nil
 }

@@ -281,21 +281,6 @@ export default function ConfigCenterPage() {
     deleteSpecMutation.mutate(deleteSpecId);
   };
 
-  const handleApply = () => {
-    if (!selectedHostId) return;
-    const targetRevision = Number(applyForm.target_revision);
-    if (!Number.isInteger(targetRevision) || targetRevision <= 0) return;
-    applyMutation.mutate({
-      agent_host_id: selectedHostId,
-      core_type: selectedCoreType,
-      target_revision: targetRevision,
-      previous_revision:
-        (applyForm.previous_revision || "").trim() && Number(applyForm.previous_revision) > 0
-          ? Number(applyForm.previous_revision)
-          : undefined,
-    });
-  };
-
   // ---- Derived data ----
   const hosts = useMemo(() => {
     return hostQuery.data && 'data' in hostQuery.data
@@ -405,9 +390,8 @@ export default function ConfigCenterPage() {
             onHistorySpec={openHistoryDialog}
             applyForm={applyForm}
             onApplyFormChange={setApplyForm}
-            onApply={handleApply}
             applyPending={applyMutation.isPending}
-            hostSelected={selectedHostId !== null}
+            selectedCoreType={selectedCoreType}
           />
         </TabsContent>
 

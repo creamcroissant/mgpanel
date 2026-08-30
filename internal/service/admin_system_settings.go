@@ -90,6 +90,7 @@ const communicationKeyMaskedPlaceholder = "__XB_COMMUNICATION_KEY_MASKED__"
 const communicationKeyResetImpact = "Reset affects only future first registrations; existing agent host tokens remain valid."
 
 const nodeSettingsCategory = "node"
+const namingSettingsCategory = "naming"
 const nodeAgentGRPCAddressCanonicalKey = "agent_grpc_address"
 
 var nodeAgentGRPCAddressLegacyKeys = []string{
@@ -387,7 +388,13 @@ func generateCommunicationKey() (string, error) {
 }
 
 func normalizeCategorySettingsForResponse(category string, settings map[string]string) map[string]string {
-	if strings.TrimSpace(category) != nodeSettingsCategory {
+	switch strings.TrimSpace(category) {
+	case nodeSettingsCategory:
+		// node category has special key masking and canonical address handling.
+	case namingSettingsCategory:
+		// naming category is plain KV with no sensitive values.
+		return settings
+	default:
 		return settings
 	}
 	result := make(map[string]string, len(settings)+1)
@@ -409,7 +416,13 @@ func normalizeCategorySettingsForResponse(category string, settings map[string]s
 }
 
 func (s *adminSystemSettingsService) prepareCategorySettingsForSave(ctx context.Context, category string, settings map[string]string) (map[string]string, error) {
-	if strings.TrimSpace(category) != nodeSettingsCategory {
+	switch strings.TrimSpace(category) {
+	case namingSettingsCategory:
+		// naming category is plain KV with no sensitive values or address normalization.
+		return settings, nil
+	case nodeSettingsCategory:
+		// node category: resolve masked communication key, normalize canonical address.
+	default:
 		return settings, nil
 	}
 	result := make(map[string]string, len(settings)+1)
@@ -485,10 +498,14 @@ func firstNonEmptySettingValue(settings map[string]string, keys []string) string
 }
 
 func validateCategorySettings(category string, settings map[string]string) error {
-	if strings.TrimSpace(category) != nodeSettingsCategory {
+	switch strings.TrimSpace(category) {
+	case namingSettingsCategory:
+		return validateNamingSettings(settings)
+	case nodeSettingsCategory:
+		return validateNodeSettings(settings)
+	default:
 		return nil
 	}
-	return validateNodeSettings(settings)
 }
 
 func validateNodeSettings(settings map[string]string) error {
@@ -513,6 +530,40 @@ func validateNodeSettings(settings map[string]string) error {
 			validationErr.add("agent_grpc_address", "port must be between 1 and 65535 / 端口必须在 1-65535 之间")
 		}
 	}
+	if validationErr.hasViolations() {
+		return validationErr
+	}
+	return nil
+}
+
+func validateNamingSettings(settings map[string]string) error {
+	validationErr := &SystemSettingsValidationError{}
+
+	tmpl, ok := settings["node_naming_template"]
+	if !ok {
+		validationErr.add("node_naming_template", "naming template is required / 命名模板不能为空")
+	} else if strings.TrimSpace(tmpl) == "" {
+		validationErr.add("node_naming_template", "naming template must not be empty / 命名模板不能为空")
+	} else {
+		hasVar := false
+		for _, v := range []string{"{flag}", "{region}", "{agent_name}", "{serial}", "{type}"} {
+			if strings.Contains(tmpl, v) {
+				hasVar = true
+				break
+			}
+		}
+		if !hasVar {
+			validationErr.add("node_naming_template", "template must contain at least one variable like {flag}, {region}, {agent_name} / 模板必须包含至少一个变量如 {flag}、{region}、{agent_name}")
+		}
+	}
+
+	if enabled, ok := settings["node_naming_enabled"]; ok {
+		enabled = strings.TrimSpace(enabled)
+		if enabled != "0" && enabled != "1" {
+			validationErr.add("node_naming_enabled", "must be 0 or 1 / 必须为 0 或 1")
+		}
+	}
+
 	if validationErr.hasViolations() {
 		return validationErr
 	}

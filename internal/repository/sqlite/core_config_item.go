@@ -58,7 +58,7 @@ func (r *coreConfigItemRepo) Create(ctx context.Context, item *repository.CoreCo
 		configData = "{}"
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO core_config_items (agent_host_id, core_type, config_type, tag, enabled, config_data, desired_revision, created_by, updated_by, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, item.AgentHostID, item.CoreType, item.ConfigType, item.Tag, item.Enabled, configData, item.DesiredRevision,
@@ -81,7 +81,7 @@ func (r *coreConfigItemRepo) Update(ctx context.Context, item *repository.CoreCo
 		configData = "{}"
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE core_config_items SET core_type=?, config_type=?, tag=?, enabled=?, config_data=?, desired_revision=?, updated_by=?, updated_at=?
 		WHERE id=?
 	`, item.CoreType, item.ConfigType, item.Tag, item.Enabled, configData, item.DesiredRevision,
@@ -93,7 +93,7 @@ func (r *coreConfigItemRepo) Update(ctx context.Context, item *repository.CoreCo
 }
 
 func (r *coreConfigItemRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM core_config_items WHERE id=?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM core_config_items WHERE id=?`, id)
 	if err != nil {
 		return err
 	}

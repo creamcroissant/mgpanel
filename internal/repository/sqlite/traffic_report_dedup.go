@@ -19,7 +19,7 @@ func newTrafficReportDedupRepo(db *sql.DB) repository.TrafficReportDedupReposito
 
 func (r *trafficReportDedupRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
 	const stmt = `DELETE FROM traffic_report_dedups WHERE handled_at < unixepoch() - ? * 86400`
-	res, err := r.db.ExecContext(ctx, stmt, days)
+	res, err := execWithRetry(ctx, r.db, stmt, days)
 	if err != nil {
 		return 0, err
 	}
@@ -34,7 +34,7 @@ func (r *trafficReportDedupRepo) MarkHandled(ctx context.Context, agentHostID in
 	if reportID == "" {
 		return false, errors.New("report_id is required")
 	}
-	res, err := r.db.ExecContext(ctx, `
+	res, err := execWithRetry(ctx, r.db, `
 		INSERT OR IGNORE INTO traffic_report_dedups (agent_host_id, report_id, handled_at)
 		VALUES (?, ?, ?)
 	`, agentHostID, reportID, handledAt)

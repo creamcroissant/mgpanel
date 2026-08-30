@@ -91,6 +91,11 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
               <span className="truncate text-base font-semibold text-foreground">{agent.name}</span>
             </div>
             <span className="block truncate text-sm text-muted-foreground">{hostLabel}</span>
+            <span className="block truncate text-xs text-muted-foreground/80">
+              {agent.country || agent.region
+                ? [agent.country, agent.region].filter(Boolean).join(" · ")
+                : t("admin.agents.unknown")}
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {onViewConfig && (

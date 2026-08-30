@@ -43,6 +43,8 @@ export interface AgentHost {
   last_heartbeat_at: number;
   created_at: number;
   updated_at: number;
+  country?: string;
+  region?: string;
 }
 
 // Admin user interface (extended from UserProfile)
@@ -701,6 +703,10 @@ export interface RegisterAgentHostRequest {
   advertise_host?: string;
 }
 
+export interface GeoRefreshResponse {
+  updated: number;
+}
+
 export interface RegisterAgentHostResponse {
   id: number;
   name: string;
@@ -711,6 +717,8 @@ export interface RegisterAgentHostResponse {
 
 export interface UpdateAgentHostRequest extends Partial<CreateAgentHostRequest> {
   id: number;
+  country?: string;
+  region?: string;
 }
 
 // Create/Update user request

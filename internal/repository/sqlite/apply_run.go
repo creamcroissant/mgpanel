@@ -34,7 +34,7 @@ func (r *applyRunRepo) Create(ctx context.Context, run *repository.ApplyRun) err
 		run.CreatedAt = now
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO apply_runs (
 			run_id, agent_host_id, core_type, target_revision, status,
 			error_message, previous_revision, rollback_revision, operator_id,
@@ -58,7 +58,7 @@ func (r *applyRunRepo) Create(ctx context.Context, run *repository.ApplyRun) err
 }
 
 func (r *applyRunRepo) MarkStarted(ctx context.Context, runID, status string, startedAt int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE apply_runs
 		SET status = ?, started_at = ?
 		WHERE run_id = ? AND status = 'pending'
@@ -77,7 +77,7 @@ func (r *applyRunRepo) MarkStarted(ctx context.Context, runID, status string, st
 }
 
 func (r *applyRunRepo) UpdateStatus(ctx context.Context, runID, status, errorMessage string, rollbackRevision int64, finishedAt int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE apply_runs
 		SET status = ?, error_message = ?, rollback_revision = ?, finished_at = ?
 		WHERE run_id = ?
@@ -214,10 +214,17 @@ func (r *applyRunRepo) scanApplyRun(scanner applyRunScanner) (*repository.ApplyR
 	return &run, nil
 }
 
-func (r *applyRunRepo) DeleteByClaimAge(ctx context.Context, maxAge time.Duration) (int64, error) {
-	deadline := time.Now().Unix() - int64(maxAge.Seconds())
-	result, err := r.db.ExecContext(ctx,
-		`DELETE FROM apply_runs WHERE started_at IS NOT NULL AND started_at < ?`, deadline)
+// ExpireStale marks stale non-terminal apply runs (pending/applying whose started_at is
+// older than deadline) as failed with errorMessage, keeping the audit record. Terminal
+// runs (success/failed/rolled_back) and fresh runs are never touched.
+func (r *applyRunRepo) ExpireStale(ctx context.Context, deadline int64, errorMessage string) (int64, error) {
+	result, err := execWithRetry(ctx, r.db, `
+		UPDATE apply_runs
+		SET status = 'failed', error_message = ?, finished_at = ?
+		WHERE status IN ('pending', 'applying')
+		  AND started_at < ?
+		  AND finished_at = 0
+	`, errorMessage, time.Now().Unix(), deadline)
 	if err != nil {
 		return 0, err
 	}

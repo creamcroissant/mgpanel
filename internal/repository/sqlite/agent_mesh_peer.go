@@ -27,7 +27,7 @@ func (r *agentMeshPeerRepo) Upsert(ctx context.Context, peer *repository.AgentMe
 			wg_listen_port = excluded.wg_listen_port,
 			network_id = excluded.network_id,
 			updated_at = excluded.updated_at`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := execWithRetry(ctx, r.db, query,
 		peer.AgentHostID, peer.WGPrivateKey, peer.WGPublicKey, peer.WGIP,
 		peer.WGListenPort, peer.NetworkID, now, now)
 	return err
@@ -70,7 +70,7 @@ func (r *agentMeshPeerRepo) ListByNetworkID(ctx context.Context, networkID strin
 }
 
 func (r *agentMeshPeerRepo) Delete(ctx context.Context, agentHostID int64) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM agent_mesh_peers WHERE agent_host_id = ?", agentHostID)
+	_, err := execWithRetry(ctx, r.db, "DELETE FROM agent_mesh_peers WHERE agent_host_id = ?", agentHostID)
 	// idempotent: no error if not found
 	return err
 }

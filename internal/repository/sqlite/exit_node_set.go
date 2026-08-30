@@ -17,7 +17,7 @@ func newExitNodeSetRepo(db *sql.DB) *exitNodeSetRepo {
 }
 
 func (r *exitNodeSetRepo) Create(ctx context.Context, set *repository.ExitNodeSet) error {
-	res, err := r.db.ExecContext(ctx, `
+	res, err := execWithRetry(ctx, r.db, `
 		INSERT INTO exit_node_sets (name, description, tags, strategy, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, set.Name, set.Description, set.Tags, set.Strategy, boolToInt(set.Enabled), set.CreatedAt, set.UpdatedAt)
@@ -33,7 +33,7 @@ func (r *exitNodeSetRepo) Create(ctx context.Context, set *repository.ExitNodeSe
 }
 
 func (r *exitNodeSetRepo) Update(ctx context.Context, set *repository.ExitNodeSet) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		UPDATE exit_node_sets
 		SET name = ?, description = ?, tags = ?, strategy = ?, enabled = ?, updated_at = ?
 		WHERE id = ?
@@ -43,7 +43,7 @@ func (r *exitNodeSetRepo) Update(ctx context.Context, set *repository.ExitNodeSe
 
 func (r *exitNodeSetRepo) Delete(ctx context.Context, id int64) error {
 	// 级联删除成员
-	_, err := r.db.ExecContext(ctx, `DELETE FROM exit_node_sets WHERE id = ?`, id)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM exit_node_sets WHERE id = ?`, id)
 	return err
 }
 
@@ -87,7 +87,7 @@ func (r *exitNodeSetRepo) List(ctx context.Context) ([]*repository.ExitNodeSet, 
 }
 
 func (r *exitNodeSetRepo) AddMember(ctx context.Context, m *repository.ExitNodeSetMember) error {
-	res, err := r.db.ExecContext(ctx, `
+	res, err := execWithRetry(ctx, r.db, `
 		INSERT INTO exit_node_set_members (set_id, agent_host_id, weight, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(set_id, agent_host_id) DO UPDATE SET weight = excluded.weight, enabled = excluded.enabled, updated_at = excluded.updated_at
@@ -106,12 +106,12 @@ func (r *exitNodeSetRepo) AddMember(ctx context.Context, m *repository.ExitNodeS
 }
 
 func (r *exitNodeSetRepo) RemoveMember(ctx context.Context, setID, agentHostID int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM exit_node_set_members WHERE set_id = ? AND agent_host_id = ?`, setID, agentHostID)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM exit_node_set_members WHERE set_id = ? AND agent_host_id = ?`, setID, agentHostID)
 	return err
 }
 
 func (r *exitNodeSetRepo) UpdateMember(ctx context.Context, m *repository.ExitNodeSetMember) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		UPDATE exit_node_set_members SET weight = ?, enabled = ?, updated_at = ? WHERE set_id = ? AND agent_host_id = ?
 	`, m.Weight, boolToInt(m.Enabled), m.UpdatedAt, m.SetID, m.AgentHostID)
 	return err

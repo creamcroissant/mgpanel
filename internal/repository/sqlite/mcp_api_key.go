@@ -20,7 +20,7 @@ func newMCPApiKeyRepo(db *sql.DB) *mcpApiKeyRepo {
 func (r *mcpApiKeyRepo) Create(ctx context.Context, key *repository.MCPApiKey) error {
 	query := `INSERT INTO mcp_api_keys (name, prefix, key_hash, enabled, created_by, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))`
-	result, err := r.db.ExecContext(ctx, query, key.Name, key.Prefix, key.KeyHash, boolToInt(key.Enabled), key.CreatedBy)
+	result, err := execWithRetry(ctx, r.db, query, key.Name, key.Prefix, key.KeyHash, boolToInt(key.Enabled), key.CreatedBy)
 	if err != nil {
 		return fmt.Errorf("create mcp api key: %w", err)
 	}
@@ -71,7 +71,7 @@ func (r *mcpApiKeyRepo) List(ctx context.Context) ([]*repository.MCPApiKey, erro
 
 func (r *mcpApiKeyRepo) Update(ctx context.Context, key *repository.MCPApiKey) error {
 	query := `UPDATE mcp_api_keys SET name = ?, enabled = ?, updated_at = strftime('%s','now') WHERE id = ?`
-	result, err := r.db.ExecContext(ctx, query, key.Name, boolToInt(key.Enabled), key.ID)
+	result, err := execWithRetry(ctx, r.db, query, key.Name, boolToInt(key.Enabled), key.ID)
 	if err != nil {
 		return fmt.Errorf("update mcp api key: %w", err)
 	}
@@ -79,7 +79,7 @@ func (r *mcpApiKeyRepo) Update(ctx context.Context, key *repository.MCPApiKey) e
 }
 
 func (r *mcpApiKeyRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM mcp_api_keys WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM mcp_api_keys WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete mcp api key: %w", err)
 	}
@@ -91,7 +91,7 @@ func (r *mcpApiKeyRepo) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *mcpApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, at int64) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE mcp_api_keys SET last_used_at = ? WHERE id = ?`, at, id)
+	_, err := execWithRetry(ctx, r.db, `UPDATE mcp_api_keys SET last_used_at = ? WHERE id = ?`, at, id)
 	return err
 }
 

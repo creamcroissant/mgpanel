@@ -45,7 +45,7 @@ func (r *agentCoreInstanceRepo) Update(ctx context.Context, instance *repository
 	if err != nil {
 		return err
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_core_instances SET
 			agent_host_id = ?, instance_id = ?, core_type = ?, status = ?, listen_ports = ?,
 			config_template_id = ?, config_hash = ?, started_at = ?, last_heartbeat_at = ?,
@@ -154,7 +154,7 @@ func (r *agentCoreInstanceRepo) ReplaceSnapshot(ctx context.Context, agentHostID
 }
 
 func (r *agentCoreInstanceRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM agent_core_instances WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM agent_core_instances WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (r *agentCoreInstanceRepo) ListByAgentHostID(ctx context.Context, agentHost
 }
 
 func (r *agentCoreInstanceRepo) UpdateHeartbeat(ctx context.Context, agentHostID int64, instanceID string, heartbeatAt int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_core_instances
 		SET last_heartbeat_at = ?, updated_at = ?
 		WHERE agent_host_id = ? AND instance_id = ?

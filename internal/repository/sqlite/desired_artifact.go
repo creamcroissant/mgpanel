@@ -29,7 +29,7 @@ func (r *desiredArtifactRepo) CreateBatch(ctx context.Context, artifacts []*repo
 		}
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (r *desiredArtifactRepo) PruneOldRevisions(ctx context.Context, keep int) (
 		)
 		WHERE rk > ?
 	)`
-	res, err := r.db.ExecContext(ctx, stmt, keep)
+	res, err := execWithRetry(ctx, r.db, stmt, keep)
 	if err != nil {
 		return 0, err
 	}
@@ -109,14 +109,14 @@ func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agen
 		}
 		query += " AND source_tag IN (" + strings.Join(placeholders, ",") + ")"
 	}
-	_, err := r.db.ExecContext(ctx, query, args...) // idempotent: no error if not found
+	_, err := execWithRetry(ctx, r.db, query, args...) // idempotent: no error if not found
 	return err
 }
 
 // ReplaceRevision 在单事务内删除指定维度(host+core+revision，可选 sourceTags)
 // 的旧 artifacts 并写入新批次；任一步失败整体回滚，杜绝"删完未写入"的中间态。
 func (r *desiredArtifactRepo) ReplaceRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, artifacts []*repository.DesiredArtifact, sourceTags ...string) (int64, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}

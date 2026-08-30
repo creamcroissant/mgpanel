@@ -164,7 +164,7 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 	if err != nil {
 		return fmt.Errorf("encode user tags: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx, stmt,
+	_, err = execWithRetry(ctx, r.db, stmt,
 		user.ID,
 		user.UUID,
 		user.Token,
@@ -238,7 +238,7 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 	if err != nil {
 		return nil, fmt.Errorf("encode user tags: %w", err)
 	}
-	res, err := r.db.ExecContext(ctx, stmt,
+	res, err := execWithRetry(ctx, r.db, stmt,
 		user.UUID,
 		user.Token,
 		user.Username,
@@ -292,7 +292,7 @@ func (r *userRepo) ActiveCountByPlan(ctx context.Context, planID int64, nowUnix 
 
 func (r *userRepo) AdjustBalance(ctx context.Context, userID int64, deltaCents int64) (bool, error) {
 	// 调整余额并确保不为负。
-	res, err := r.db.ExecContext(ctx, `UPDATE users SET balance = balance + ? WHERE id = ? AND (balance + ?) >= 0`, deltaCents, userID, deltaCents)
+	res, err := execWithRetry(ctx, r.db, `UPDATE users SET balance = balance + ? WHERE id = ? AND (balance + ?) >= 0`, deltaCents, userID, deltaCents)
 	if err != nil {
 		return false, err
 	}
@@ -327,7 +327,7 @@ func (r *userRepo) IncrementTrafficBatch(ctx context.Context, deltas map[int64][
 func (r *userRepo) IncrementTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error {
 	// NOTE: no RowsAffected check — incrementing traffic is fire-and-forget;
 	// a missing user row is a no-op and not treated as error.
-	_, err := r.db.ExecContext(ctx, `UPDATE users SET u = u + ?, d = d + ? WHERE id = ?`, uploadDelta, downloadDelta, userID)
+	_, err := execWithRetry(ctx, r.db, `UPDATE users SET u = u + ?, d = d + ? WHERE id = ?`, uploadDelta, downloadDelta, userID)
 	return err
 }
 
@@ -611,7 +611,7 @@ func (r *userRepo) SetTrafficExceeded(ctx context.Context, userID int64, exceede
 	if exceeded {
 		val = 1
 	}
-	_, err := r.db.ExecContext(ctx, `UPDATE users SET traffic_exceeded = ? WHERE id = ?`, val, userID)
+	_, err := execWithRetry(ctx, r.db, `UPDATE users SET traffic_exceeded = ? WHERE id = ?`, val, userID)
 	return err
 }
 
@@ -649,7 +649,7 @@ func (r *userRepo) Delete(ctx context.Context, id int64) error {
 			r.cache.Namespace("user").Delete(ctx, "FindByToken_"+oldToken)
 		}
 	}
-	result, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

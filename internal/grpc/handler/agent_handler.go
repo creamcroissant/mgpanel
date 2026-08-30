@@ -596,16 +596,31 @@ func (h *AgentHandler) ReportOperationEvent(ctx context.Context, req *agentv1.Re
 
 	var accepted int32
 	var lastLogID int64
+	var appendErr error
 	for _, event := range req.GetEvents() {
 		if event == nil {
 			continue
 		}
+		// Ownership/validation failures abort the batch: they are security boundaries,
+		// not transient storage issues.
 		if err := h.validateOperationEventOwnership(ctx, agentHost.ID, event.GetScope(), event.GetTargetId()); err != nil {
 			return nil, err
 		}
 		entry, err := h.operationLogs.Append(ctx, service.AppendOperationLogRequest{Scope: event.GetScope(), TargetID: event.GetTargetId(), AgentHostID: agentHost.ID, Sequence: event.GetSequence(), Phase: event.GetPhase(), Level: event.GetLevel(), Message: event.GetMessage(), Payload: append(json.RawMessage(nil), event.GetPayloadJson()...), SourceEventID: event.GetSourceEventId(), ReportedAt: event.GetOccurredAt()})
 		if err != nil {
-			return nil, mapOperationLogGRPCError(err)
+			// Transient storage failure (e.g. SQLITE_BUSY): skip this event but keep
+			// processing the rest so terminal lifecycle events are not lost behind a
+			// failed earlier one (apply runs stuck because their last event never landed).
+			if appendErr == nil {
+				appendErr = err
+			}
+			h.logger.Warn("operation log append failed, skipping event",
+				"agent_host_id", agentHost.ID,
+				"scope", event.GetScope(),
+				"target_id", event.GetTargetId(),
+				"phase", event.GetPhase(),
+				"error", err)
+			continue
 		}
 		accepted++
 		if entry != nil {
@@ -613,6 +628,9 @@ func (h *AgentHandler) ReportOperationEvent(ctx context.Context, req *agentv1.Re
 		}
 	}
 	if accepted == 0 {
+		if appendErr != nil {
+			return nil, mapOperationLogGRPCError(appendErr)
+		}
 		return nil, status.Error(codes.InvalidArgument, "missing operation events")
 	}
 	return &agentv1.ReportOperationEventResponse{Success: true, Accepted: accepted, Message: "operation events accepted", LastLogId: lastLogID}, nil
@@ -980,7 +998,8 @@ func mapOperationLogGRPCError(err error) error {
 	case errors.Is(err, service.ErrOperationLogNotConfigured):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
-		return status.Error(codes.Internal, "operation log failed")
+		// 保留底层错误（如 SQLITE_BUSY）便于生产定位，不再泛化吞掉。
+		return status.Errorf(codes.Internal, "operation log failed: %v", err)
 	}
 }
 

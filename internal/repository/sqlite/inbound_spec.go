@@ -32,7 +32,7 @@ func (r *inboundSpecRepo) Create(ctx context.Context, spec *repository.InboundSp
 	semanticSpec := normalizeJSONObject(spec.SemanticSpec)
 	coreSpecific := normalizeJSONObject(spec.CoreSpecific)
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO inbound_specs (
 			agent_host_id, exit_agent_host_id, exit_node_set_id, relay_path_id, core_type, tag, enabled, semantic_spec, core_specific,
 			desired_revision, created_by, updated_by, created_at, updated_at
@@ -76,7 +76,7 @@ func (r *inboundSpecRepo) Update(ctx context.Context, spec *repository.InboundSp
 	semanticSpec := normalizeJSONObject(spec.SemanticSpec)
 	coreSpecific := normalizeJSONObject(spec.CoreSpecific)
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE inbound_specs
 		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, relay_path_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
 			core_specific = ?, desired_revision = ?, created_by = ?, updated_by = ?, updated_at = ?
@@ -115,7 +115,7 @@ func (r *inboundSpecRepo) UpdateWithRevision(ctx context.Context, spec *reposito
 	semanticSpec := normalizeJSONObject(spec.SemanticSpec)
 	coreSpecific := normalizeJSONObject(spec.CoreSpecific)
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE inbound_specs
 		SET agent_host_id = ?, exit_agent_host_id = ?, exit_node_set_id = ?, relay_path_id = ?, core_type = ?, tag = ?, enabled = ?, semantic_spec = ?,
 			core_specific = ?, desired_revision = ?, created_by = ?, updated_by = ?, updated_at = ?
@@ -152,7 +152,7 @@ func (r *inboundSpecRepo) UpdateWithRevision(ctx context.Context, spec *reposito
 }
 
 func (r *inboundSpecRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM inbound_specs WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM inbound_specs WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

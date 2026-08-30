@@ -100,6 +100,7 @@ type Services struct {
 	AdminSystemSettings     service.AdminSystemSettingsService
 	AgentHost               service.AgentHostService
 	AgentRelayRoute         service.AgentRelayRouteService
+	AgentUserSync           service.AgentUserSyncService
 	AgentCore               service.AgentCoreService
 	Forwarding              service.ForwardingService
 	AccessLog               service.AccessLogService
@@ -409,7 +410,7 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 	adminMeshHandler := handler.NewAdminAgentMeshHandler(meshService, i18nManager)
 	adminAgentCoreHandler := handler.NewAdminAgentCoreHandler(agentCore, i18nManager)
 	adminAgentConfigHandler := handler.NewAdminAgentConfigHandler(agentHost, i18nManager)
-	adminAgentLifecycleHandler := handler.NewAdminAgentLifecycleHandler(agentLifecycleOperation, binaryVersion, i18nManager)
+	adminAgentLifecycleHandler := handler.NewAdminAgentLifecycleHandler(agentLifecycleOperation, binaryVersion, agentHost, i18nManager)
 	adminAgentTrafficHandler := handler.NewAdminAgentTrafficHandler(agentTrafficLifecycle, i18nManager)
 	adminAgentVersionHandler := handler.NewAdminAgentVersionHandler(binaryVersion, i18nManager)
 	adminSubscriptionHandler := handler.NewAdminSubscriptionHandler(subscriptionFilter, subscriptionSource, i18nManager)
@@ -462,10 +463,14 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		admin.Get("/agent-hosts", agentHostHandler.List)
 		admin.Post("/agent-hosts", agentHostHandler.Create)
 		admin.Post("/agent-hosts/refresh", agentHostHandler.RefreshAll) // Must be before {id} routes
+		admin.Post("/agent-hosts/geo-refresh-all", adminAgentLifecycleHandler.CreateGeoRefreshAll) // Must be before {id} routes
+		admin.Post("/agent-hosts/sync-users-all", adminAgentLifecycleHandler.CreateSyncUsersAll)   // Must be before {id} routes
 		admin.Get("/agent-hosts/{id}", agentHostHandler.Get)
 		admin.Put("/agent-hosts/{id}", agentHostHandler.Update)
 		admin.Delete("/agent-hosts/{id}", agentHostHandler.Delete)
 		admin.Post("/agent-hosts/{id}/refresh", agentHostHandler.Refresh)
+		admin.Post("/agent-hosts/{id}/geo-refresh", adminAgentLifecycleHandler.CreateGeoRefresh)
+		admin.Post("/agent-hosts/{id}/sync-users", adminAgentLifecycleHandler.CreateSyncUsers)
 
 		// Agent core management endpoints
 		admin.Get("/agent-hosts/{id}/cores", adminAgentCoreHandler.ListCores)
@@ -727,7 +732,7 @@ func registerV1Routes(api chi.Router, services Services) {
 		registerV1GuestRoutes(v1, services.Comm, services.Plan, services.I18n)
 		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
 		registerV1UserRoutes(v1, services.User, services.UserKnowledge, services.UserNotice, services.UserStat, services.Auth, services.Plan, services.Server, services.UserSelection, services.ShortLink, services.Subscription, services.I18n)
-		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.I18n)
+		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.AgentUserSync, services.I18n)
 	})
 }
 
@@ -818,7 +823,7 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 
 // registerV1AgentRoutes registers agent-related API endpoints.
 // These endpoints are called by agents deployed on edge nodes.
-func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, relayRoute service.AgentRelayRouteService, i18nManager *i18n.Manager) {
+func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, relayRoute service.AgentRelayRouteService, userSync service.AgentUserSyncService, i18nManager *i18n.Manager) {
 	if agentHost == nil {
 		return // Agent host service not configured
 	}
@@ -834,6 +839,11 @@ func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, un
 		if relayRoute != nil {
 			agent.Route("/relay-routes", func(rr chi.Router) {
 				rr.Get("/", handler.NewAgentRelayRouteHandler(relayRoute, nil).ServeHTTP)
+			})
+		}
+		if userSync != nil {
+			agent.Route("/users-for-sync", func(us chi.Router) {
+				us.Get("/", handler.NewAgentUserSyncHandler(userSync, nil).ServeHTTP)
 			})
 		}
 	})

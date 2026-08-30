@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,20 +30,22 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/agent/configcenter"
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
 	"github.com/creamcroissant/mgpanel/internal/agent/forwarding"
+	"github.com/creamcroissant/mgpanel/internal/agent/geoip"
 	agentgrpc "github.com/creamcroissant/mgpanel/internal/agent/grpc"
 	"github.com/creamcroissant/mgpanel/internal/agent/initsys"
 	"github.com/creamcroissant/mgpanel/internal/agent/loguploader"
 	"github.com/creamcroissant/mgpanel/internal/agent/mesh"
-	"github.com/creamcroissant/mgpanel/internal/agent/relayroute"
 	"github.com/creamcroissant/mgpanel/internal/agent/monitor"
 	"github.com/creamcroissant/mgpanel/internal/agent/protocol"
 	"github.com/creamcroissant/mgpanel/internal/agent/protocol/subscribe"
 	"github.com/creamcroissant/mgpanel/internal/agent/proxy"
+	"github.com/creamcroissant/mgpanel/internal/agent/relayroute"
 	"github.com/creamcroissant/mgpanel/internal/agent/server"
 	"github.com/creamcroissant/mgpanel/internal/agent/syncer"
 	"github.com/creamcroissant/mgpanel/internal/agent/traffic"
 	"github.com/creamcroissant/mgpanel/internal/agent/transport"
 	"github.com/creamcroissant/mgpanel/internal/agent/unlock"
+	"github.com/creamcroissant/mgpanel/internal/agent/v2rayapi"
 	agentv1 "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1"
 )
 
@@ -79,8 +82,10 @@ type Agent struct {
 
 	logUploader *loguploader.Uploader // Periodic log uploader
 	unlockMgr   *unlock.Manager       // 流媒体解锁检测管理器
+	geoReporter *geoip.Reporter       // 公网 IP + 国家地区周期探测器
+	v2rayapiMgr *v2rayapi.Manager     // Runtime user management (HandlerService via v2ray-api)
 
-	cachedAdvertiseHost string // 缓存探测到的公网 IP，避免每次 sync 都调外网 API
+	cachedAdvertiseHost string              // 缓存探测到的公网 IP，避免每次 sync 都调外网 API
 	relayRouteMgr       *relayroute.Manager // 中继链路内核路由管理器（惰性构造，meshMu 保护）
 
 	batchApplier              applyBatchRunner
@@ -421,6 +426,8 @@ func New(cfg *config.Config) (*Agent, error) {
 	}
 
 	agent.access = access.NewManager(agent.grpc, agent.coreMgr, cfg.Protocol.ConfigDir, slog.Default())
+	// 初始化 GeoIP 周期探测器（每 168h 探测公网 IP + 国家/地区）
+	agent.geoReporter = geoip.NewReporter(cfg, slog.Default())
 
 	// 初始化解锁检测管理器（启用时每日自查）
 	if cfg.Unlock.Enabled {
@@ -454,12 +461,23 @@ func New(cfg *config.Config) (*Agent, error) {
 		return nil, err
 	}
 
+	// Runtime user management via v2ray-api (unified HandlerService).
+	// Endpoint differs by core: xray reuses Traffic.Address (gRPC API), sing-box
+	// uses the injected experimental.v2ray_api listen fragment.
+	agent.v2rayapiMgr = v2rayapi.NewManager(applyCoreType, v2rayAPIEndpoint(cfg, applyCoreType))
+
 	if agent.commandQueue != nil {
 		if err := agent.registerRoutingTableHandler(); err != nil {
+			if err := agent.registerGeoRefreshHandler(); err != nil {
+				return nil, fmt.Errorf("register geo refresh handler: %w", err)
+			}
 			return nil, fmt.Errorf("register routing table handler: %w", err)
 		}
 		if err := agent.registerUnlockProbeHandler(); err != nil {
 			return nil, fmt.Errorf("register unlock probe handler: %w", err)
+		}
+		if err := agent.registerSyncUsersHandler(); err != nil {
+			return nil, fmt.Errorf("register sync users handler: %w", err)
 		}
 	}
 
@@ -557,6 +575,20 @@ func (a *Agent) Run(ctx context.Context) {
 
 	if a.commandQueue != nil {
 		a.commandQueue.Start(ctx)
+		// Start GeoIP 周期探测器（启动时跑一次 + 每 168h）
+		if a.geoReporter != nil {
+			a.geoReporter.Start(ctx)
+		}
+
+		// Inject the sing-box experimental.v2ray_api fragment so runtime user
+		// management (HandlerService) is exposed. Xray reuses its own api endpoint.
+		if a.v2rayapiMgr != nil && a.v2rayapiMgr.CoreType() == v2rayapi.CoreTypeSingBox {
+			if err := ensureV2RayAPIConfig(a.cfg); err != nil {
+				slog.Warn("failed to ensure sing-box v2ray_api fragment", "error", err)
+			} else {
+				slog.Info("sing-box v2ray_api fragment ensured", "dir", a.cfg.Protocol.ConfigDir, "listen", a.cfg.Protocol.V2RayAPIListen)
+			}
+		}
 	}
 
 	// Initial sync
@@ -606,6 +638,9 @@ func (a *Agent) Run(ctx context.Context) {
 			if a.cdnManager != nil {
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				a.cdnManager.Stop(shutdownCtx)
+				if a.geoReporter != nil {
+					a.geoReporter.Stop()
+				}
 				cancel()
 			}
 			if a.switcher != nil {
@@ -669,7 +704,7 @@ func (a *Agent) sync(ctx context.Context) {
 }
 
 func (a *Agent) syncGRPC(ctx context.Context) {
-	a.syncAgentHost(ctx)
+	a.syncAgentHost(ctx, "", "")
 	a.syncRelayRoutes(ctx)
 	a.syncApplyBatch(ctx)
 	a.syncCoreOperations(ctx)
@@ -1525,7 +1560,7 @@ func buildAllCoresProto(cores []capability.DetectedCoreInfo) []*agentv1.CoreInfo
 // syncAgentHost 周期向面板上报本机公网 IP，使 agent_hosts.host 保持为真实可达地址，
 // 避免 pending-* 占位符导致 mesh peer endpoint / 订阅节点 host 不可解析。
 // 手动配置的 advertise_host 优先；否则探测公网 IP（带缓存，避免每次 sync 都调外网 API）。
-func (a *Agent) syncAgentHost(ctx context.Context) {
+func (a *Agent) syncAgentHost(ctx context.Context, country, region string) {
 	if a == nil || a.cfg == nil {
 		return
 	}
@@ -1550,7 +1585,8 @@ func (a *Agent) syncAgentHost(ctx context.Context) {
 	base = strings.TrimSuffix(base, "/")
 	reportURL := base + "/api/v1/agent/host?token=" + url.QueryEscape(hostToken)
 
-	body, err := json.Marshal(map[string]string{"host": advertiseHost})
+	payload := map[string]string{"host": advertiseHost, "country": strings.TrimSpace(country), "region": strings.TrimSpace(region)}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
@@ -1595,4 +1631,70 @@ func resolvePanelHTTPBase(cfg *config.Config) string {
 		scheme = "https"
 	}
 	return scheme + "://" + net.JoinHostPort(host, port)
+}
+
+// v2rayAPIEndpoint returns the v2ray-api user-management endpoint for the given
+// core type:
+//   - xray: reuses the traffic API address (gRPC HandlerService on the same
+//     endpoint as stats), falling back to 127.0.0.1:10085.
+//   - sing-box: uses the injected experimental.v2ray_api listen fragment,
+//     falling back to config default (127.0.0.1:19194).
+//
+// Empty core type yields an empty endpoint (client remains unavailable).
+func v2rayAPIEndpoint(cfg *config.Config, coreType string) string {
+	switch coreType {
+	case v2rayapi.CoreTypeXray:
+		if cfg != nil && strings.TrimSpace(cfg.Traffic.Address) != "" {
+			return strings.TrimSpace(cfg.Traffic.Address)
+		}
+		return "127.0.0.1:10085"
+	case v2rayapi.CoreTypeSingBox:
+		if cfg != nil && strings.TrimSpace(cfg.Protocol.V2RayAPIListen) != "" {
+			return strings.TrimSpace(cfg.Protocol.V2RayAPIListen)
+		}
+		return "127.0.0.1:19194"
+	}
+	return ""
+}
+
+// ensureV2RayAPIConfig writes an experimental_v2ray.json fragment into the
+// sing-box config directory so that the sing-box core exposes the
+// experimental.v2ray_api section (runtime user management via HandlerService).
+//
+// The fragment only carries the v2ray_api block; it deliberately does not
+// touch experimental.json (owned by the access manager for clash_api) so the two
+// injected sections never clobber each other. sing-box 'run -C <dir>' merges all
+// JSON fragments in the directory.
+func ensureV2RayAPIConfig(cfg *config.Config) error {
+	dir := strings.TrimSpace(cfg.Protocol.ConfigDir)
+	if dir == "" {
+		if strings.TrimSpace(cfg.Protocol.ManagedConfigDir) != "" {
+			dir = strings.TrimSpace(cfg.Protocol.ManagedConfigDir)
+		} else {
+			dir = "/etc/sing-box/conf"
+		}
+	}
+	if testing.Testing() {
+		dir = filepath.Join(os.TempDir(), fmt.Sprintf("singbox-conf-test-%d", os.Getpid()))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	listen := strings.TrimSpace(cfg.Protocol.V2RayAPIListen)
+	if listen == "" {
+		listen = "127.0.0.1:19194"
+	}
+	payload := map[string]any{
+		"experimental": map[string]any{
+			"v2ray_api": map[string]any{
+				"listen": listen,
+				"stats":  map[string]any{"enabled": true},
+			},
+		},
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "experimental_v2ray.json"), data, 0o644)
 }

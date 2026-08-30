@@ -18,7 +18,7 @@ func newRoutingPolicyRepo(db *sql.DB) *routingPolicyRepo {
 }
 
 func (r *routingPolicyRepo) Create(ctx context.Context, p *repository.RoutingPolicy) error {
-	res, err := r.db.ExecContext(ctx, `
+	res, err := execWithRetry(ctx, r.db, `
 		INSERT INTO routing_policies (name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, p.Name, p.CoreType, p.Priority, p.MatchType, p.MatchValue, p.Action, optionalInt64(p.TargetSetID), optionalInt64(p.SpecID), boolToInt(p.Enabled), p.CreatedAt, p.UpdatedAt)
@@ -34,7 +34,7 @@ func (r *routingPolicyRepo) Create(ctx context.Context, p *repository.RoutingPol
 }
 
 func (r *routingPolicyRepo) Update(ctx context.Context, p *repository.RoutingPolicy) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		UPDATE routing_policies
 		SET name = ?, core_type = ?, priority = ?, match_type = ?, match_value = ?, action = ?, target_set_id = ?, spec_id = ?, enabled = ?, updated_at = ?
 		WHERE id = ?
@@ -43,7 +43,7 @@ func (r *routingPolicyRepo) Update(ctx context.Context, p *repository.RoutingPol
 }
 
 func (r *routingPolicyRepo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM routing_policies WHERE id = ?`, id)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM routing_policies WHERE id = ?`, id)
 	return err
 }
 

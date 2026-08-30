@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, AlertTriangle, List, Network, Plus, RefreshCw, Server, Users, Wifi, WifiOff } from "lucide-react";
+import { Activity, AlertTriangle, Globe, List, Network, Plus, RefreshCw, Server, Users, Wifi, WifiOff } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
-import { getAgentHosts, refreshAgentHosts, updateAgentHost } from "@/api/admin";
+import { getAgentHosts, refreshAgentHosts, updateAgentHost, triggerAgentGeoRefreshAll } from "@/api/admin";
 import { fetchSettings, revealKey } from "@/api/admin/settings";
 import { AdminPageShell, AgentStatusCard } from "@/components/admin";
 import { EmptyState, Loading, Card, CardContent, ResponsiveGrid, Input, StatCard } from "@/components/ui";
@@ -103,7 +103,7 @@ export default function AgentList() {
   const [selectedAgent, setSelectedAgent] = useState<AgentHost | null>(null);
   const [deployCommand, setDeployCommand] = useState("");
   const [deployMissingAddress, setDeployMissingAddress] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", host: "" });
+  const [editForm, setEditForm] = useState({ name: "", host: "", country: "", region: "" });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: QUERY_KEYS.ADMIN_AGENTS,
@@ -144,13 +144,23 @@ export default function AgentList() {
     },
   });
 
+  const geoRefreshMutation = useMutation({
+    mutationFn: triggerAgentGeoRefreshAll,
+    onSuccess: () => {
+      toast.success(t("admin.agents.geoRefreshSuccess"));
+    },
+    onError: (err: Error) => {
+      toast.error(t("admin.agents.geoRefreshError"), { description: err.message });
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (payload: UpdateAgentHostRequest) => updateAgentHost(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_AGENTS });
       setIsEditDialogOpen(false);
       setSelectedAgent(null);
-      setEditForm({ name: "", host: "" });
+      setEditForm({ name: "", host: "", country: "", region: "" });
       toast.success(t("admin.agents.updateSuccess"));
     },
     onError: (err: Error) => {
@@ -181,7 +191,7 @@ export default function AgentList() {
     setIsEditDialogOpen(open);
     if (!open) {
       setSelectedAgent(null);
-      setEditForm({ name: "", host: "" });
+      setEditForm({ name: "", host: "", country: "", region: "" });
     }
   };
 
@@ -215,6 +225,8 @@ export default function AgentList() {
     setEditForm({
       name: agent.name || "",
       host: agent.host || "",
+      country: agent.country || "",
+      region: agent.region || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -233,6 +245,7 @@ export default function AgentList() {
       id: selectedAgent.id,
       name,
       host,
+      country: editForm.country.trim(),
     });
   };
 
@@ -284,6 +297,10 @@ export default function AgentList() {
       <Button variant="outline" onClick={() => setIsBatchOpen(true)}>
         <List className="mr-2 h-4 w-4" />
         {t("admin.agents.batch.manage")}
+      </Button>
+      <Button variant="outline" onClick={() => geoRefreshMutation.mutate()} disabled={geoRefreshMutation.isPending}>
+        <Globe className="mr-2 h-4 w-4" />
+        {geoRefreshMutation.isPending ? t("admin.agents.geoRefreshing") : t("admin.agents.geoRefresh")}
       </Button>
       <Button variant="outline" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
         <RefreshCw className="mr-2 h-4 w-4" />
@@ -404,6 +421,20 @@ export default function AgentList() {
                 placeholder={t("admin.agents.hostPlaceholder")}
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("admin.agents.country")}</label>
+              <Input
+                value={editForm.country}
+                onChange={(event) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    country: event.target.value,
+                  }))
+                }
+                placeholder={t("admin.agents.country")}
+              />
+            </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => handleEditDialogChange(false)}>

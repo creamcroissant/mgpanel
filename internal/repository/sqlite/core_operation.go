@@ -39,7 +39,7 @@ func (r *coreOperationRepo) Create(ctx context.Context, operation *repository.Co
 	if len(operation.ResultPayload) == 0 {
 		operation.ResultPayload = json.RawMessage(`{}`)
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO core_operations (
 			id, agent_host_id, operation_type, core_type, status,
 			request_payload, result_payload, error_message, operator_id,
@@ -70,7 +70,7 @@ func (r *coreOperationRepo) UpdateStatus(ctx context.Context, id, status string,
 		resultPayload = json.RawMessage(`{}`)
 	}
 	updatedAt := time.Now().Unix()
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE core_operations
 		SET status = ?, result_payload = ?, error_message = ?, claimed_by = ?, claimed_at = ?, started_at = ?, finished_at = ?, updated_at = ?
 		WHERE id = ?
@@ -138,7 +138,7 @@ func (r *coreOperationRepo) Count(ctx context.Context, filter repository.CoreOpe
 }
 
 func (r *coreOperationRepo) ClaimNext(ctx context.Context, agentHostID int64, statuses []string, claimedBy string, claimedAt int64, reclaimBefore *int64) (*repository.CoreOperation, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return nil, err
 	}

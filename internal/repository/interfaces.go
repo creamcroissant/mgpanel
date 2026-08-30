@@ -5,7 +5,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"time"
 )
 
 // Store 暴露每个聚合根对应的仓储接口。
@@ -697,7 +696,10 @@ type ApplyRunRepository interface {
 	FindByRunID(ctx context.Context, runID string) (*ApplyRun, error)
 	List(ctx context.Context, filter ApplyRunFilter) ([]*ApplyRun, error)
 	Count(ctx context.Context, filter ApplyRunFilter) (int64, error)
-	DeleteByClaimAge(ctx context.Context, maxAge time.Duration) (int64, error)
+	// ExpireStale marks stale non-terminal apply runs (pending/applying whose started_at is
+	// older than deadline) as failed with errorMessage, keeping the audit record. Returns
+	// the number of runs expired.
+	ExpireStale(ctx context.Context, deadline int64, errorMessage string) (int64, error)
 }
 
 // TrafficReportDedupRepository manages idempotency keys for traffic reports.

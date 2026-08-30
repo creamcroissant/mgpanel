@@ -27,7 +27,7 @@ func (r *inboundSpecRevisionRepo) Create(ctx context.Context, revision *reposito
 	}
 	snapshot := normalizeJSONObject(revision.Snapshot)
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO inbound_spec_revisions (
 			spec_id, revision, snapshot, change_note, operator_id, created_at
 		) VALUES (?, ?, ?, ?, ?, ?)

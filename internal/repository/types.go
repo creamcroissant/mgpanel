@@ -193,6 +193,8 @@ type AgentHost struct {
 	LastRestartAt         int64    // 最近一次检测到重启的时间
 	AgentVersion          string   // Agent 二进制版本
 	CurrentCoreType       string   // 当前运行核心类型
+	Country               string   `json:"country"` // GeoIP 推断的国家 ISO 码 (如 "JP")，手动标注优先
+	Region                string   // 自由文本地区名 (如 "Asia East")
 	LastHeartbeatAt       int64    // 最后心跳时间
 	ConfigYAML            string   // Agent 上报的运行配置 YAML
 	CreatedAt             int64

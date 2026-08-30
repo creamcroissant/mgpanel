@@ -32,6 +32,8 @@ const (
 	AgentLifecycleOperationTypeCDNRemoveSite    = "remove_cdn_site"
 	AgentLifecycleOperationTypeSetRoutingTable  = "set_routing_table"
 	AgentLifecycleOperationTypeUnlockProbe      = "unlock_probe"
+	AgentLifecycleOperationTypeGeoRefresh      = "geo_refresh"
+	AgentLifecycleOperationTypeSyncUsers       = "sync_users"
 
 	agentLifecycleOperationTypeAgentUpdate      = AgentLifecycleOperationTypeAgentUpdate
 	agentLifecycleOperationTypeAgentUpdateCheck = AgentLifecycleOperationTypeAgentUpdateCheck
@@ -43,6 +45,8 @@ const (
 	agentLifecycleOperationTypeCDNRemoveSite    = AgentLifecycleOperationTypeCDNRemoveSite
 	agentLifecycleOperationTypeSetRoutingTable  = AgentLifecycleOperationTypeSetRoutingTable
 	agentLifecycleOperationTypeUnlockProbe      = AgentLifecycleOperationTypeUnlockProbe
+	agentLifecycleOperationTypeGeoRefresh      = AgentLifecycleOperationTypeGeoRefresh
+	agentLifecycleOperationTypeSyncUsers       = AgentLifecycleOperationTypeSyncUsers
 
 	agentLifecycleOperationStatusPending           = "pending"
 	agentLifecycleOperationStatusClaimed           = "claimed"
@@ -380,6 +384,10 @@ func normalizeAgentLifecycleOperationType(operationType string) (string, error) 
 		return agentLifecycleOperationTypeSetRoutingTable, nil
 	case agentLifecycleOperationTypeUnlockProbe:
 		return agentLifecycleOperationTypeUnlockProbe, nil
+	case agentLifecycleOperationTypeGeoRefresh:
+		return agentLifecycleOperationTypeGeoRefresh, nil
+	case agentLifecycleOperationTypeSyncUsers:
+		return agentLifecycleOperationTypeSyncUsers, nil
 	default:
 		return "", ErrAgentLifecycleOperationInvalidRequest
 	}

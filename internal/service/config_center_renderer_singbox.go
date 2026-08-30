@@ -77,6 +77,12 @@ func (r *singBoxArtifactRenderer) Render(
 
 	filenameOverride := ""
 	if len(section) > 0 {
+		// v2ray_api 是 sing-box 顶层 experimental 段，不由 inbound 合并渲染；
+		// 由编译器独立生成 experimental-v2ray-api.json fragment（见
+		// buildV2RayAPIFragmentArtifacts）。这里在合并前剔除该键，避免
+		// ① 合并进 inbound（sing-box 解析 inbound 时对 v2ray_api 报未知字段）
+		// ② 触发 reserved 的 "cannot override semantic core field" 错误。
+		section = cloneWithoutKey(section, "v2ray_api")
 		filenameOverride, err = artifactApplyCoreSection(coreInbound, section, map[string]struct{}{
 			"type":        {},
 			"tag":         {},

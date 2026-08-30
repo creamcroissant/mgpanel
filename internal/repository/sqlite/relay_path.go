@@ -76,7 +76,7 @@ func (r *relayPathRepo) Update(ctx context.Context, p *repository.RelayPath) err
 
 func (r *relayPathRepo) Delete(ctx context.Context, id int64) error {
 	// relay_path_nodes 级联删除（FK ON DELETE CASCADE）
-	_, err := r.db.ExecContext(ctx, `DELETE FROM relay_paths WHERE id = ?`, id)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM relay_paths WHERE id = ?`, id)
 	return err
 }
 

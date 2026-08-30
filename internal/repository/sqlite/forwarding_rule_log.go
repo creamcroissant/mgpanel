@@ -20,7 +20,7 @@ func newForwardingRuleLogRepo(db *sql.DB) *forwardingRuleLogRepo {
 func (r *forwardingRuleLogRepo) Create(ctx context.Context, log *repository.ForwardingRuleLog) error {
 	log.CreatedAt = time.Now().Unix()
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO forwarding_rule_logs (
 			rule_id, agent_host_id, action, operator_id, detail, created_at
 		) VALUES (?, ?, ?, ?, ?, ?)

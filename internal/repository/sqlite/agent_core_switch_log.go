@@ -25,7 +25,7 @@ func (r *agentCoreSwitchLogRepo) Create(ctx context.Context, log *repository.Age
 
 	log.CreatedAt = time.Now().Unix()
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO agent_core_switch_logs (
 			agent_host_id, from_instance_id, from_core_type, to_instance_id, to_core_type,
 			operator_id, status, detail, created_at, completed_at
@@ -55,7 +55,7 @@ func (r *agentCoreSwitchLogRepo) Create(ctx context.Context, log *repository.Age
 }
 
 func (r *agentCoreSwitchLogRepo) UpdateStatus(ctx context.Context, id int64, status string, detail string, completedAt *int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_core_switch_logs
 		SET status = ?, detail = ?, completed_at = ?
 		WHERE id = ?

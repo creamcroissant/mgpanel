@@ -21,6 +21,7 @@ type Config struct {
 	Nodes     []NodeConfig    `mapstructure:"nodes"`
 	Mesh      MeshConfig      `mapstructure:"mesh"`
 	AgentTask AgentTaskConfig `mapstructure:"agent_task"`
+	GeoIP     GeoIPConfig    `mapstructure:"geoip"`
 	MCP       MCPConfig       `mapstructure:"mcp"`
 }
 
@@ -174,6 +175,13 @@ type AgentTaskConfig struct {
 	CoreOperationClaimTimeout     time.Duration `mapstructure:"core_operation_claim_timeout"`
 	LifecycleOperationClaimTimeout time.Duration `mapstructure:"lifecycle_operation_claim_timeout"`
 	ApplyRunClaimTimeout           time.Duration `mapstructure:"apply_run_claim_timeout"`
+}
+
+// GeoIPConfig 定义 GeoIP 数据库路径（用于 agent 国家/地区自动标注）。
+// CountryDB/ASNdb 为空时 GeoIP 特性禁用，agent 国家需手动填写，主流程不受影响。
+type GeoIPConfig struct {
+	CountryDB string `mapstructure:"country_db"`
+	ASNdb     string `mapstructure:"asn_db"`
 }
 
 // MCPConfig defines MCP (Model Context Protocol) server settings.

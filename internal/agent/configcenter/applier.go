@@ -322,6 +322,14 @@ func encodeOperationEventPayload(payload map[string]any) []byte {
 	return data
 }
 
+const (
+	// reportApplyResultRetryAttempts bounds retries for transient failures when
+	// reporting the terminal apply result. Losing this report leaves the panel-side
+	// apply run stuck in pending/applying forever (until the stale-run expiry job
+	// marks it failed), so a short bounded retry is cheaper than a lost report.
+	reportApplyResultRetryAttempts = 3
+)
+
 func (a *AgentBatchApplier) reportApplyResult(
 	ctx context.Context,
 	runID string,
@@ -345,16 +353,33 @@ func (a *AgentBatchApplier) reportApplyResult(
 		RollbackRevision: rollbackRevision,
 		FinishedAt:       time.Now().Unix(),
 	}
-	resp, err := a.client.ReportApplyRun(ctx, report)
-	if err != nil {
-		return fmt.Errorf("report apply result: %w", err)
-	}
-	if resp != nil && !resp.GetSuccess() {
-		message := strings.TrimSpace(resp.GetMessage())
-		if message == "" {
-			message = "panel rejected apply report"
+	var lastErr error
+	for attempt := 0; attempt < reportApplyResultRetryAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("report apply result: %w", ctx.Err())
+			case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+			}
 		}
-		return fmt.Errorf("report apply result: %s", message)
+		resp, err := a.client.ReportApplyRun(ctx, report)
+		if err == nil {
+			if resp != nil && !resp.GetSuccess() {
+				message := strings.TrimSpace(resp.GetMessage())
+				if message == "" {
+					message = "panel rejected apply report"
+				}
+				// Explicit panel rejection is not transient: do not retry.
+				return fmt.Errorf("report apply result: %s", message)
+			}
+			return nil
+		}
+		lastErr = err
+		// Retry transient (network/timeout) and Internal-class failures (e.g. SQLITE_BUSY
+		// surfacing as codes.Internal); permanent rejections will not improve on retry.
+		if transport.ClassifyError(err) == transport.CategoryPermanent {
+			break
+		}
 	}
-	return nil
+	return fmt.Errorf("report apply result: %w", lastErr)
 }

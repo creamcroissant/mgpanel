@@ -16,7 +16,7 @@ func newUnlockProbeResultRepo(db *sql.DB) *unlockProbeResultRepo {
 }
 
 func (r *unlockProbeResultRepo) Upsert(ctx context.Context, result *repository.UnlockProbeResult) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO unlock_probe_results (agent_host_id, service, status, region, detail, probed_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(agent_host_id, service)

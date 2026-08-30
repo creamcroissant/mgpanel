@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, GitCommitHorizontal, History } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
-import type { ConfigCenterSpec } from "@/types";
+import type { ConfigCenterCoreType, ConfigCenterSpec } from "@/types";
 import {
   Badge,
   Button,
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui";
 import { formatCoreType } from "./configCenterPageUtils";
 import type { ApplyFormState } from "./configCenterPageTypes";
+import SpecApplyDialog from "./SpecApplyDialog";
 import { useIsMobileViewport } from "@/hooks";
 
 interface SpecsTabProps {
@@ -39,10 +41,8 @@ interface SpecsTabProps {
   onHistorySpec: (spec: ConfigCenterSpec) => void;
   applyForm: ApplyFormState;
   onApplyFormChange: React.Dispatch<React.SetStateAction<ApplyFormState>>;
-  onApply: () => void;
   applyPending: boolean;
-  /** 目标主机是否已选定（all/模板态时为 false，下发被禁用） */
-  hostSelected?: boolean;
+  selectedCoreType: ConfigCenterCoreType;
 }
 
 function parseSpecProtocolAndPort(spec: ConfigCenterSpec): { protocol: string; port: number | string; transport: string; security: string } {
@@ -79,11 +79,11 @@ export default function SpecsTab({
   onHistorySpec,
   applyForm,
   onApplyFormChange,
-  onApply,
   applyPending,
-  hostSelected,
+  selectedCoreType,
 }: SpecsTabProps) {
   const { t } = useTranslation();
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const isMobileViewport = useIsMobileViewport();
 
   const renderSpecEnabledBadge = (enabled: boolean) => (
@@ -140,17 +140,17 @@ export default function SpecsTab({
             </div>
             <div className="space-y-1">
               <Button
-                onClick={onApply}
-                disabled={applyPending || specs.length === 0 || hostSelected === false}
+                onClick={() => setApplyDialogOpen(true)}
+                disabled={applyPending || specs.length === 0 || !selectedCoreType}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 {applyPending
                   ? t("common.loading")
                   : t("admin.configCenter.actions.apply")}
               </Button>
-              {hostSelected === false ? (
+              {!selectedCoreType ? (
                 <p className="text-xs text-muted-foreground">
-                  {t("admin.configCenter.apply.selectHostHint")}
+                  {t("admin.configCenter.apply.selectSpecHint")}
                 </p>
               ) : null}
             </div>
@@ -275,6 +275,15 @@ export default function SpecsTab({
           )}
         </CardContent>
       </Card>
+
+    <SpecApplyDialog
+      coreType={selectedCoreType}
+      specLabel={selectedCoreType}
+      defaultTargetRevision={Number(applyForm.target_revision) || latestDesiredRevision}
+      defaultPreviousRevision={applyForm.previous_revision}
+      open={applyDialogOpen}
+      onOpenChange={setApplyDialogOpen}
+    />
     </div>
   );
 }

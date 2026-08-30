@@ -21,7 +21,7 @@ func newAgentLifecycleOperationRepo(db *sql.DB) *agentLifecycleOperationRepo {
 
 func (r *agentLifecycleOperationRepo) DeleteOlderThan(ctx context.Context, days int) (int64, error) {
 	const stmt = `DELETE FROM agent_lifecycle_operations WHERE created_at < unixepoch() - ? * 86400`
-	res, err := r.db.ExecContext(ctx, stmt, days)
+	res, err := execWithRetry(ctx, r.db, stmt, days)
 	if err != nil {
 		return 0, err
 	}
@@ -62,7 +62,7 @@ func (r *agentLifecycleOperationRepo) Create(ctx context.Context, operation *rep
 		operation.UpdatedAt = operation.CreatedAt
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO agent_lifecycle_operations (
 			id, agent_host_id, operation_type, status, request_payload, result_payload,
 			error_message, claimed_by, claimed_at, started_at, finished_at,
@@ -92,7 +92,7 @@ func (r *agentLifecycleOperationRepo) UpdateStatus(ctx context.Context, id, stat
 	if len(resultPayload) == 0 {
 		resultPayload = json.RawMessage(`{}`)
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_lifecycle_operations
 		SET status = ?, result_payload = ?, error_message = ?, claimed_by = ?, claimed_at = ?, started_at = ?, finished_at = ?, updated_at = ?
 		WHERE id = ?
@@ -107,7 +107,7 @@ func (r *agentLifecycleOperationRepo) UpdateClaimedStatus(ctx context.Context, i
 	if len(resultPayload) == 0 {
 		resultPayload = json.RawMessage(`{}`)
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_lifecycle_operations
 		SET status = ?, result_payload = ?, error_message = ?, started_at = ?, finished_at = ?, updated_at = ?
 		WHERE id = ?
@@ -181,7 +181,7 @@ func (r *agentLifecycleOperationRepo) ClaimNext(ctx context.Context, agentHostID
 	if len(operationTypes) == 0 {
 		return nil, repository.ErrNotFound
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return nil, err
 	}

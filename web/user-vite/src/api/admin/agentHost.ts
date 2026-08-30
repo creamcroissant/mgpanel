@@ -58,3 +58,25 @@ export async function deleteAgentHost(id: number): Promise<void> {
 export async function refreshAgentHosts(): Promise<void> {
   await adminApi.post("/agent-hosts/refresh");
 }
+
+/**
+ * Refresh geo attribution (country/region) for all agent hosts via GeoIP.
+ * Returns the number of hosts whose country was filled.
+ */
+/**
+ * Trigger immediate GeoIP probe command for all online agent hosts.
+ * Panel pushes a "geo_refresh" lifecycle operation to each online agent;
+ * the agent then runs Reporter.RunOnce and reports (host, country, region) back.
+ */
+export async function triggerAgentGeoRefreshAll(): Promise<void> {
+  await adminApi.post("/agent-hosts/geo-refresh-all");
+}
+
+
+/**
+ * Fetch all agent hosts without pagination (single large page).
+ */
+export async function fetchAgentHostsAll(): Promise<AgentHost[]> {
+  const response = await getAgentHosts({ page: 1, page_size: 1000 });
+  return response.data;
+}

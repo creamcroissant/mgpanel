@@ -27,7 +27,7 @@ func (r *inboundIndexRepo) UpsertBatch(ctx context.Context, indexes []*repositor
 		}
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (r *inboundIndexRepo) List(ctx context.Context, filter repository.InboundIn
 }
 
 func (r *inboundIndexRepo) DeleteStaleByHostCoreBefore(ctx context.Context, agentHostID int64, coreType string, beforeLastSeenAt int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		DELETE FROM inbound_index
 		WHERE agent_host_id = ? AND core_type = ? AND last_seen_at < ?
 	`, agentHostID, coreType, beforeLastSeenAt) // idempotent: no error if not found

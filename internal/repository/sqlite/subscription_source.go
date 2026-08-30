@@ -39,7 +39,7 @@ func (r *subscriptionSourceRepo) Create(ctx context.Context, source *repository.
 		source.UpdatedAt = source.CreatedAt
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO subscription_sources (
 			type, name, url, content, enabled, last_sync_at, last_sync_err, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -82,7 +82,7 @@ func (r *subscriptionSourceRepo) Update(ctx context.Context, source *repository.
 		source.UpdatedAt = time.Now().Unix()
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE subscription_sources
 		SET type = ?, name = ?, url = ?, content = ?, enabled = ?, last_sync_at = ?, last_sync_err = ?, updated_at = ?
 		WHERE id = ?
@@ -104,7 +104,7 @@ func (r *subscriptionSourceRepo) Update(ctx context.Context, source *repository.
 }
 
 func (r *subscriptionSourceRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM subscription_sources WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM subscription_sources WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (r *subscriptionSourceRepo) UpdateSyncResult(ctx context.Context, id int64,
 	if syncedAt == 0 {
 		syncedAt = time.Now().Unix()
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE subscription_sources
 		SET content = ?, last_sync_at = ?, last_sync_err = ?, updated_at = ?
 		WHERE id = ?
@@ -335,7 +335,7 @@ func (r *subscriptionFilterReasonRepo) Count(ctx context.Context, filter reposit
 }
 
 func (r *subscriptionFilterReasonRepo) DeleteBySource(ctx context.Context, sourceType string, sourceID int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM subscription_filter_reasons WHERE source_type = ? AND source_id = ?`, strings.TrimSpace(sourceType), sourceID)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM subscription_filter_reasons WHERE source_type = ? AND source_id = ?`, strings.TrimSpace(sourceType), sourceID)
 	// idempotent: no error if not found
 	return err
 }

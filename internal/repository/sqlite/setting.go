@@ -48,7 +48,7 @@ func cacheKey(key string) string {
 func (r *settingRepo) Upsert(ctx context.Context, setting *repository.Setting) error {
 	const stmt = `INSERT INTO settings(key, value, category, updated_at) VALUES(?, ?, ?, ?)
                   ON CONFLICT(key) DO UPDATE SET value = excluded.value, category = excluded.category, updated_at = excluded.updated_at`
-	_, err := r.db.ExecContext(ctx, stmt, setting.Key, setting.Value, setting.Category, setting.UpdatedAt)
+	_, err := execWithRetry(ctx, r.db, stmt, setting.Key, setting.Value, setting.Category, setting.UpdatedAt)
 	if err != nil {
 		return err
 	}

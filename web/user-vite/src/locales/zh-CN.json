@@ -418,6 +418,12 @@
       "realtimeCurrent": "当前",
       "lastKnown": "最后已知",
       "unknown": "未知",
+      "country": "国家/地区",
+      "region": "地区",
+      "geoRefresh": "立即探测",
+      "geoRefreshSuccess": "探测命令已发送，预计 30 秒内完成",
+      "geoRefreshError": "发送探测命令失败",
+      "geoRefreshing": "已发送...",
       "totalTraffic": "累计 {{value}}",
       "agentVersion": "Agent 版本",
       "currentCore": "当前核心",
@@ -1215,7 +1221,8 @@
       "apply": {
         "targetRevision": "目标 revision",
         "previousRevision": "上一 revision（可选）",
-        "selectHostHint": "请先在右上角选择目标主机（不能为全部主机），再执行下发"
+        "selectHostHint": "请先在右上角选择目标主机（不能为全部主机），再执行下发",
+        "selectSpecHint": "请先选择一条 Spec 再下发"
       },
       "applyRuns": {
         "title": "发布记录与诊断",
@@ -1541,7 +1548,38 @@
         "applyRolledBack": "发布已回滚",
         "applyFailed": "创建发布任务失败"
       },
-      "allHosts": "全部主机"
+      "allHosts": "全部主机",
+      "applyDialog": {
+        "title": "发布到 Agent",
+        "description": "选择目标 Agent 并下发当前 Spec 配置",
+        "filters": "筛选",
+        "search": "搜索名称或地址",
+        "countryRegion": "国家/地区",
+        "unlabeled": "未标注",
+        "latency": "延迟",
+        "latencyAll": "全部",
+        "latencyHas": "有数据",
+        "latencyNone": "无数据",
+        "latencyLt50": "< 50ms",
+        "latencyLt100": "< 100ms",
+        "latencyLt200": "< 200ms",
+        "selected": "已选 {{count}} 台",
+        "selectAll": "全选",
+        "invert": "反选",
+        "targetRevision": "目标 revision",
+        "previousRevision": "上一 revision（可选）",
+        "advanced": "高级选项",
+        "collapse": "收起",
+        "progress": "下发进度 {{current}}/{{total}}",
+        "success": "成功 {{count}} 台",
+        "failed": "失败 {{count}} 台",
+        "retry": "重试失败项",
+        "close": "关闭",
+        "noAgents": "暂无可下发的 Agent",
+        "country": "国家/地区",
+        "region": "地区",
+        "confirm": "开始下发"
+      }
     },
     "system": {
       "title": "系统设置",
@@ -1653,7 +1691,8 @@
           "node": "节点通信",
           "email": "邮件服务",
           "routing": "路由规则",
-          "mcp": "MCP 服务器"
+          "mcp": "MCP 服务器",
+          "naming": "命名"
         },
         "fields": {
           "siteName": "站点名称",
@@ -1803,6 +1842,21 @@
           "operationLog": "Agent 操作日志（agent_operation_logs，面板与 Agent 交互记录）",
           "agentOperationLog": "Agent 生命周期操作记录（agent_lifecycle_operations）",
           "trafficReportDedup": "流量报告去重记录（防重复统计）"
+        }
+      },
+      "naming": {
+        "title": "节点命名设置",
+        "description": "配置 Agent 上报节点的自动命名规则",
+        "fields": {
+          "enabled": "启用自动命名",
+          "template": "命名模板"
+        },
+        "descriptions": {
+          "template": "可用变量：{flag} 国旗表情、{region} 地区代码、{agent_name} 服务器名称、{serial} 序号、{type} 协议类型"
+        },
+        "preview": {
+          "title": "预览示例",
+          "hint": "启用后 Agent 上报的节点名称会自动按模板生成"
         }
       }
     },

@@ -42,7 +42,7 @@ func (r *binaryVersionStateRepo) Upsert(ctx context.Context, state *repository.B
 		state.UpdatedAt = time.Now().Unix()
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO agent_binary_version_states (
 			agent_host_id, component, local_version, remote_version, status,
 			capabilities_json, build_tags_json, last_checked_at, last_check_error, updated_at
@@ -117,7 +117,7 @@ func (r *binaryVersionStateRepo) UpdateCheckResult(ctx context.Context, agentHos
 	if checkError != "" {
 		return r.updateCheckFailure(ctx, agentHostID, component, checkError, checkedAt, updatedAt)
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_binary_version_states
 		SET remote_version = ?, status = ?, last_check_error = ?, last_checked_at = ?, updated_at = ?
 		WHERE agent_host_id = ? AND component = ?
@@ -129,7 +129,7 @@ func (r *binaryVersionStateRepo) UpdateCheckResult(ctx context.Context, agentHos
 }
 
 func (r *binaryVersionStateRepo) updateCheckFailure(ctx context.Context, agentHostID int64, component, checkError string, checkedAt, updatedAt int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_binary_version_states
 		SET last_check_error = ?, last_checked_at = ?, updated_at = ?
 		WHERE agent_host_id = ? AND component = ?

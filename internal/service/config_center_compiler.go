@@ -23,6 +23,13 @@ var (
 	ErrArtifactCompileUnsupportedField = errors.New("service: unsupported artifact field / artifact 字段不受支持")
 )
 
+// 常量：v2ray_api 实验段默认监听地址（与 agent 端 ensureV2RayAPIConfig 兜底默认一致）。
+const (
+	CoreTypeSingBox       = "sing-box"
+	CoreTypeXray          = "xray"
+	defaultV2RayAPIListen = "127.0.0.1:19194"
+)
+
 // ArtifactCompilerService renders desired artifacts from inbound semantic specs.
 type ArtifactCompilerService interface {
 	RenderArtifacts(ctx context.Context, req RenderArtifactsRequest) (*RenderArtifactsResult, error)
@@ -274,6 +281,16 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 	}
 	artifacts = append(artifacts, meshExitArtifacts...)
 
+	// v2ray_api 实验段：spec.core_specific.sing-box.v2ray_api.enabled=true 时生成
+	// experimental-v2ray-api.json 独立 fragment（与 mesh-*.json 同级）。
+	// 该 fragment 由编译器产物为准；agent 端 ensureV2RayAPIConfig 兜底（listen 默认一致）
+	// 不会重复，因为 fragment 文件名不同（experimental-v2ray-api.json vs experimental_v2ray.json）。
+	v2rayArtifacts, v2rayErr := buildV2RayAPIFragmentArtifacts(ctx, req, coreType, enabledSpecs)
+	if v2rayErr != nil {
+		return nil, v2rayErr
+	}
+	artifacts = append(artifacts, v2rayArtifacts...)
+
 	// 中继链路产物已改为 mark 化：入口出站+路由规则由 buildRelaySpecRouting 在 spec 绑定时生成，
 	// 物理路径由 agent 侧 RelayRouteManager 下发的 nftables 策略路由实现。
 
@@ -414,6 +431,89 @@ func (s *artifactCompilerService) RenderCoreConfigs(ctx context.Context, req Ren
 		ArtifactCount:   len(artifacts),
 		Artifacts:       metadata,
 	}, nil
+}
+
+// buildV2RayAPIFragmentArtifacts 为 sing-box spec 生成 experimental.v2ray_api 段独立 fragment。
+//
+// 触发条件：spec 的 core_specific.sing-box.v2ray_api.enabled == true（可省略 listen，
+// 默认 127.0.0.1:19194，与 agent 端 ensureV2RayAPIConfig 兜底默认一致）。
+//
+// 生成文件 experimental-v2ray-api.json：
+//   {"experimental":{"v2ray_api":{"listen":<listen>,"stats":{"enabled":true}}}}
+// 与 mesh-*.json 同为 sing-box -C 合并的 fragment 文件。
+//
+// 幂等语义：同批次已存在同名 fragment 时跳过（由调用方 filenameSet 校验已覆盖 spec 产物；
+// 此处自身去重）。编译器产物优先于 agent 端 ensureV2RayAPIConfig 兜底文件，二者文件名不同
+// （experimental-v2ray-api.json vs experimental_v2ray.json），不会重复 500。
+func buildV2RayAPIFragmentArtifacts(
+	ctx context.Context,
+	req RenderArtifactsRequest,
+	coreType string,
+	enabledSpecs []*repository.InboundSpec,
+) ([]*repository.DesiredArtifact, error) {
+	if normalizeCoreType(coreType) != normalizeCoreType(CoreTypeSingBox) {
+		return nil, nil // v2ray_api 段当前仅对 sing-box 渲染；xray 由 agent ensure 兜底
+	}
+	var out []*repository.DesiredArtifact
+	seen := false
+	for _, spec := range enabledSpecs {
+		if spec == nil {
+			continue
+		}
+		coreSpecific, err := artifactDecodeJSONObject(spec.CoreSpecific)
+		if err != nil {
+			continue // 交给 validateSpecInput 的主渲染路径报错，这里跳过
+		}
+		section, _, _ := artifactExtractCoreSection(spec, normalizeCoreType(coreType), coreSpecific, "sing-box", "singbox")
+		if section == nil {
+			continue
+		}
+		rawV2, ok := section["v2ray_api"]
+		if !ok {
+			continue
+		}
+		v2Obj, ok := rawV2.(map[string]any)
+		if !ok {
+			continue
+		}
+		enabled, _ := v2Obj["enabled"].(bool)
+		if !enabled {
+			continue
+		}
+		if seen {
+			continue // 同批次只生成一次（listen 取首个启用 spec 的值）
+		}
+		listen, _ := v2Obj["listen"].(string)
+		if strings.TrimSpace(listen) == "" {
+			listen = defaultV2RayAPIListen
+		}
+		content := renderV2RayAPIFragment(listen)
+		out = append(out, &repository.DesiredArtifact{
+			AgentHostID:     req.AgentHostID,
+			CoreType:        normalizeCoreType(coreType),
+			DesiredRevision: req.DesiredRevision,
+			Filename:        "experimental-v2ray-api.json",
+			SourceTag:       "v2ray_api",
+			Content:         content,
+			ContentHash:     artifactHash(content),
+		})
+		seen = true
+	}
+	return out, nil
+}
+
+// renderV2RayAPIFragment 生成 experimental.v2ray_api 段 JSON bytes。
+func renderV2RayAPIFragment(listen string) []byte {
+	data := map[string]any{
+		"experimental": map[string]any{
+			"v2ray_api": map[string]any{
+				"listen": listen,
+				"stats":  map[string]any{"enabled": true},
+			},
+		},
+	}
+	b, _ := json.Marshal(data)
+	return b
 }
 
 // buildMeshExitArtifacts 为 mesh 网络中的 agent 生成 socks inbound/outbound + routing rule 等附加 artifacts。
@@ -1149,6 +1249,9 @@ func artifactBuildUnifiedTLS(raw map[string]any) *template.UnifiedTLS {
 
 	realityRaw, ok := artifactMapByKeys(raw, "reality", "reality_settings", "realitySettings")
 	if ok {
+		// reality 的 private_key/public_key/short_ids 允许为空：
+		// spec 不再持久化服务端密钥，由 agent 端 secrets 注入（见 docs/plans/20260828-inbound-v2rayapi.md P1）。
+		// 非空时照旧透传以兼容存量 spec；渲染器仅在有值时输出对应字段。
 		reality := &template.UnifiedReality{
 			Enabled:         artifactToBoolWithDefault(artifactLookupFirstValue(realityRaw, "enabled"), true),
 			PrivateKey:      artifactStringByKeys(realityRaw, "private_key", "privateKey"),
@@ -1238,6 +1341,22 @@ func artifactMarshalInbound(inbound map[string]any) ([]byte, error) {
 		"inbounds": []map[string]any{inbound},
 	}
 	return json.Marshal(document)
+}
+
+// cloneWithoutKey returns a shallow copy of m with key removed (key absent → same map).
+// 用于渲染前剔除 v2ray_api 等仅由独立 fragment 承载的顶层键。
+func cloneWithoutKey(m map[string]any, key string) map[string]any {
+	if len(m) == 0 {
+		return m
+	}
+	copied := make(map[string]any, len(m))
+	for k, v := range m {
+		if k == key {
+			continue
+		}
+		copied[k] = v
+	}
+	return copied
 }
 
 func artifactDecodeJSONObject(raw []byte) (map[string]any, error) {

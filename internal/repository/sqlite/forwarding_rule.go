@@ -24,7 +24,7 @@ func (r *forwardingRuleRepo) Create(ctx context.Context, rule *repository.Forwar
 		rule.Version = time.Now().UnixNano()
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO forwarding_rules (
 			agent_host_id, name, protocol, listen_port, target_address,
 			target_port, enabled, priority, remark, version, created_at, updated_at
@@ -50,7 +50,7 @@ func (r *forwardingRuleRepo) Update(ctx context.Context, rule *repository.Forwar
 	rule.UpdatedAt = time.Now().Unix()
 	rule.Version = time.Now().UnixNano()
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE forwarding_rules SET
 			name = ?, protocol = ?, listen_port = ?, target_address = ?,
 			target_port = ?, enabled = ?, priority = ?, remark = ?,
@@ -68,7 +68,7 @@ func (r *forwardingRuleRepo) Update(ctx context.Context, rule *repository.Forwar
 }
 
 func (r *forwardingRuleRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM forwarding_rules WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM forwarding_rules WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

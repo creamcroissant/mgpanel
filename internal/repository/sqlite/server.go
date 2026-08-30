@@ -168,7 +168,7 @@ func (r *serverRepo) Create(ctx context.Context, server *repository.Server) erro
 	server.CreatedAt = now
 	server.UpdatedAt = now
 
-	res, err := r.db.ExecContext(ctx, query,
+	res, err := execWithRetry(ctx, r.db, query,
 		server.Code,
 		server.GroupID,
 		server.RouteID,
@@ -220,7 +220,7 @@ func (r *serverRepo) Update(ctx context.Context, server *repository.Server) erro
 
 	server.UpdatedAt = time.Now().Unix()
 
-	result, err := r.db.ExecContext(ctx, query,
+	result, err := execWithRetry(ctx, r.db, query,
 		server.Code,
 		server.GroupID,
 		server.RouteID,
@@ -252,7 +252,7 @@ func (r *serverRepo) Update(ctx context.Context, server *repository.Server) erro
 
 func (r *serverRepo) UpdateHeartbeat(ctx context.Context, id int64, heartbeatAt int64) error {
 	const query = `UPDATE servers SET last_heartbeat_at = ?, updated_at = ? WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, heartbeatAt, time.Now().Unix(), id)
+	_, err := execWithRetry(ctx, r.db, query, heartbeatAt, time.Now().Unix(), id)
 	return err
 }
 
@@ -266,7 +266,7 @@ func (r *serverRepo) Delete(ctx context.Context, id int64) error {
 		}
 	}
 	const query = `DELETE FROM servers WHERE id = ?`
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := execWithRetry(ctx, r.db, query, id)
 	if err != nil {
 		return err
 	}

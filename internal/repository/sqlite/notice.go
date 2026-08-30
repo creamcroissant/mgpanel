@@ -55,7 +55,7 @@ func (r *noticeRepo) Create(ctx context.Context, notice *repository.Notice) (*re
 	}
 	const stmt = `INSERT INTO notices(sort, title, content, img_url, tags, show, popup, created_at, updated_at)
                   VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := r.db.ExecContext(ctx, stmt,
+	res, err := execWithRetry(ctx, r.db, stmt,
 		nullableSort(notice.Sort),
 		notice.Title,
 		notice.Content,
@@ -82,7 +82,7 @@ func (r *noticeRepo) Update(ctx context.Context, notice *repository.Notice) erro
 	const stmt = `UPDATE notices
                   SET sort = ?, title = ?, content = ?, img_url = ?, tags = ?, show = ?, popup = ?, updated_at = ?
                   WHERE id = ?`
-	result, err := r.db.ExecContext(ctx, stmt,
+	result, err := execWithRetry(ctx, r.db, stmt,
 		nullableSort(notice.Sort),
 		notice.Title,
 		notice.Content,
@@ -98,7 +98,7 @@ func (r *noticeRepo) Update(ctx context.Context, notice *repository.Notice) erro
 }
 
 func (r *noticeRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM notices WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM notices WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

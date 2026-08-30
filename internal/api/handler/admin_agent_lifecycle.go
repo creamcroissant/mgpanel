@@ -18,13 +18,14 @@ import (
 )
 
 type AdminAgentLifecycleHandler struct {
-	operations service.AgentLifecycleOperationService
-	versions   service.BinaryVersionService
-	i18n       *i18n.Manager
+	operations      service.AgentLifecycleOperationService
+	versions        service.BinaryVersionService
+	agentHostService service.AgentHostService
+	i18n            *i18n.Manager
 }
 
-func NewAdminAgentLifecycleHandler(operations service.AgentLifecycleOperationService, versions service.BinaryVersionService, i18nMgr *i18n.Manager) *AdminAgentLifecycleHandler {
-	return &AdminAgentLifecycleHandler{operations: operations, versions: versions, i18n: i18nMgr}
+func NewAdminAgentLifecycleHandler(operations service.AgentLifecycleOperationService, versions service.BinaryVersionService, agentHostService service.AgentHostService, i18nMgr *i18n.Manager) *AdminAgentLifecycleHandler {
+	return &AdminAgentLifecycleHandler{operations: operations, versions: versions, agentHostService: agentHostService, i18n: i18nMgr}
 }
 
 type agentLifecycleUpdateRequest struct {
@@ -155,6 +156,157 @@ func (h *AdminAgentLifecycleHandler) CreateTrafficReset(w http.ResponseWriter, r
 		return
 	}
 	respondJSON(w, http.StatusAccepted, map[string]any{"data": operation})
+}
+
+// CreateGeoRefresh pushes a single geo_refresh lifecycle operation for one agent host.
+// The agent's syncAgentCommands loop pulls it and runs the reporter immediately.
+func (h *AdminAgentLifecycleHandler) CreateGeoRefresh(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agent_lifecycle.geo_refresh"
+	adminID, ok := h.requireAdmin(w, r, action)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, action) {
+		return
+	}
+	agentHostID, ok := h.parseAgentHostID(w, r, action)
+	if !ok {
+		return
+	}
+	operation, err := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+		AgentHostID:   agentHostID,
+		OperationType: service.AgentLifecycleOperationTypeGeoRefresh,
+		OperatorID:    &adminID,
+		Source:        "admin",
+	})
+	if err != nil {
+		h.respondServiceError(r.Context(), w, action, err)
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]any{"data": operation})
+}
+
+// CreateGeoRefreshAll iterates online agents and enqueues a geo_refresh operation for each.
+// Returns 202 with aggregate counts; per-agent failures are counted as skipped.
+func (h *AdminAgentLifecycleHandler) CreateGeoRefreshAll(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agent_lifecycle.geo_refresh_all"
+	adminID, ok := h.requireAdmin(w, r, action)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, action) {
+		return
+	}
+	if h.agentHostService == nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusServiceUnavailable, action, "error.service_unavailable", h.i18n)
+		return
+	}
+	hosts, err := h.agentHostService.List(r.Context())
+	if err != nil {
+		h.respondServiceError(r.Context(), w, action, err)
+		return
+	}
+	pushed, skipped := 0, 0
+	for _, host := range hosts {
+		if host == nil || host.Status != 1 {
+			skipped++
+			continue
+		}
+		_, cerr := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+			AgentHostID:   host.ID,
+			OperationType: service.AgentLifecycleOperationTypeGeoRefresh,
+			OperatorID:    &adminID,
+			Source:        "admin",
+		})
+		if cerr != nil {
+			skipped++
+			continue
+		}
+		pushed++
+	}
+	respondJSON(w, http.StatusAccepted, map[string]any{
+		"data": map[string]any{
+			"pushed":  pushed,
+			"skipped": skipped,
+			"total":   len(hosts),
+		},
+	})
+}
+
+// CreateSyncUsers pushes a single sync_users lifecycle operation for one agent host.
+// The agent's syncAgentCommands loop pulls it and reconciles its v2ray-api runtime
+// users against the panel-computed target set (agent pulls /api/v1/agent/users-for-sync).
+func (h *AdminAgentLifecycleHandler) CreateSyncUsers(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agent_lifecycle.sync_users"
+	adminID, ok := h.requireAdmin(w, r, action)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, action) {
+		return
+	}
+	agentHostID, ok := h.parseAgentHostID(w, r, action)
+	if !ok {
+		return
+	}
+	operation, err := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+		AgentHostID:   agentHostID,
+		OperationType: service.AgentLifecycleOperationTypeSyncUsers,
+		OperatorID:    &adminID,
+		Source:        "admin",
+	})
+	if err != nil {
+		h.respondServiceError(r.Context(), w, action, err)
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]any{"data": operation})
+}
+
+// CreateSyncUsersAll iterates online agents and enqueues a sync_users operation for each.
+// Returns 202 with aggregate counts; per-agent failures are counted as skipped.
+func (h *AdminAgentLifecycleHandler) CreateSyncUsersAll(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agent_lifecycle.sync_users_all"
+	adminID, ok := h.requireAdmin(w, r, action)
+	if !ok {
+		return
+	}
+	if !h.ensureService(w, r, action) {
+		return
+	}
+	if h.agentHostService == nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusServiceUnavailable, action, "error.service_unavailable", h.i18n)
+		return
+	}
+	hosts, err := h.agentHostService.List(r.Context())
+	if err != nil {
+		h.respondServiceError(r.Context(), w, action, err)
+		return
+	}
+	pushed, skipped := 0, 0
+	for _, host := range hosts {
+		if host == nil || host.Status != 1 {
+			skipped++
+			continue
+		}
+		_, cerr := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+			AgentHostID:   host.ID,
+			OperationType: service.AgentLifecycleOperationTypeSyncUsers,
+			OperatorID:    &adminID,
+			Source:        "admin",
+		})
+		if cerr != nil {
+			skipped++
+			continue
+		}
+		pushed++
+	}
+	respondJSON(w, http.StatusAccepted, map[string]any{
+		"data": map[string]any{
+			"pushed":  pushed,
+			"skipped": skipped,
+			"total":   len(hosts),
+		},
+	})
 }
 
 func (h *AdminAgentLifecycleHandler) createUpdateOperation(w http.ResponseWriter, r *http.Request, action string, operationType string, includeJitter bool) {

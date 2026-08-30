@@ -59,7 +59,7 @@ func (r *knowledgeRepo) Create(ctx context.Context, knowledge *repository.Knowle
 	}
 	const stmt = `INSERT INTO knowledge(language, category, title, body, sort, show, created_at, updated_at)
                   VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := r.db.ExecContext(ctx, stmt,
+	res, err := execWithRetry(ctx, r.db, stmt,
 		strings.TrimSpace(knowledge.Language),
 		strings.TrimSpace(knowledge.Category),
 		strings.TrimSpace(knowledge.Title),
@@ -86,7 +86,7 @@ func (r *knowledgeRepo) Update(ctx context.Context, knowledge *repository.Knowle
 	const stmt = `UPDATE knowledge
                   SET language = ?, category = ?, title = ?, body = ?, sort = ?, show = ?, updated_at = ?
                   WHERE id = ?`
-	result, err := r.db.ExecContext(ctx, stmt,
+	result, err := execWithRetry(ctx, r.db, stmt,
 		strings.TrimSpace(knowledge.Language),
 		strings.TrimSpace(knowledge.Category),
 		strings.TrimSpace(knowledge.Title),
@@ -107,7 +107,7 @@ func (r *knowledgeRepo) Update(ctx context.Context, knowledge *repository.Knowle
 
 func (r *knowledgeRepo) Delete(ctx context.Context, id int64) error {
 	// 按主键删除知识记录。
-	result, err := r.db.ExecContext(ctx, `DELETE FROM knowledge WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM knowledge WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

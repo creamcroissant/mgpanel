@@ -42,6 +42,12 @@ const (
 	defaultUpdateMaxCrashCount    = 3
 	defaultUpdateJitterMax        = 30 * time.Second
 	defaultUpdateMaxDownloadBytes = 200 * 1024 * 1024
+
+	defaultSecretsFile = "/etc/mgpanel/agent/secrets.json"
+
+	// defaultV2RayAPIListen is the default listen address for the sing-box
+	// v2ray_api experimental section (runtime user management via HandlerService).
+	defaultV2RayAPIListen = "127.0.0.1:19194"
 )
 
 type Config struct {
@@ -251,8 +257,18 @@ type ProtocolConfig struct {
 	// PostHook is executed after applying config changes (optional)
 	PostHook string `yaml:"post_hook"`
 
+	// SecretsFile is the path to the node-level secrets file. When empty it
+	// defaults to /etc/mgpanel/agent/secrets.json. Never stored in the panel spec.
+	SecretsFile string `yaml:"secrets_file"`
+
 	// Custom commands for custom init system
 	CustomCommands CustomCommands `yaml:"custom_commands"`
+
+	// V2RayAPIListen is the listen address for the sing-box experimental.v2ray_api
+	// section (runtime user management). When empty it defaults to
+	// defaultV2RayAPIListen (127.0.0.1:19194). Xray ignores this field (it reuses
+	// Traffic.Address for the HandlerService gRPC endpoint).
+	V2RayAPIListen string `yaml:"v2ray_api_listen"`
 }
 
 type CustomCommands struct {
@@ -443,6 +459,12 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Protocol.ServiceName == "" {
 		cfg.Protocol.ServiceName = "sing-box"
+	}
+	if cfg.Protocol.SecretsFile == "" {
+		cfg.Protocol.SecretsFile = defaultSecretsFile
+	}
+	if cfg.Protocol.V2RayAPIListen == "" {
+		cfg.Protocol.V2RayAPIListen = defaultV2RayAPIListen
 	}
 
 	// Core defaults

@@ -22,7 +22,7 @@ func (r *driftStateRepo) Upsert(ctx context.Context, drift *repository.DriftStat
 		return errors.New("drift state is nil")
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO drift_states (
 			agent_host_id, core_type, filename, tag, desired_revision,
 			desired_hash, applied_hash, drift_type, status, detail,
@@ -65,7 +65,7 @@ func (r *driftStateRepo) Upsert(ctx context.Context, drift *repository.DriftStat
 }
 
 func (r *driftStateRepo) MarkRecoveredByHostCore(ctx context.Context, agentHostID int64, coreType string, recoveredAt int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE drift_states
 		SET status = 'recovered', last_changed_at = ?
 		WHERE agent_host_id = ? AND core_type = ? AND status != 'recovered'

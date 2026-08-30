@@ -22,7 +22,7 @@ func (r *shortLinkRepo) Create(ctx context.Context, link *repository.ShortLink) 
 		INSERT INTO short_links (code, user_id, target_path, custom_params, expires_at, access_count, last_accessed_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	result, err := r.db.ExecContext(ctx, query,
+	result, err := execWithRetry(ctx, r.db, query,
 		link.Code,
 		link.UserID,
 		link.TargetPath,
@@ -185,7 +185,7 @@ func (r *shortLinkRepo) Update(ctx context.Context, link *repository.ShortLink) 
 		SET target_path = ?, custom_params = ?, expires_at = ?, updated_at = ?
 		WHERE id = ?
 	`
-	result, err := r.db.ExecContext(ctx, query,
+	result, err := execWithRetry(ctx, r.db, query,
 		link.TargetPath,
 		nullString(link.CustomParams),
 		nullInt64(link.ExpiresAt),
@@ -200,7 +200,7 @@ func (r *shortLinkRepo) Update(ctx context.Context, link *repository.ShortLink) 
 
 func (r *shortLinkRepo) Delete(ctx context.Context, id int64) error {
 	query := `DELETE FROM short_links WHERE id = ?`
-	result, err := r.db.ExecContext(ctx, query, id)
+	result, err := execWithRetry(ctx, r.db, query, id)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func (r *shortLinkRepo) Delete(ctx context.Context, id int64) error {
 
 func (r *shortLinkRepo) DeleteByUserID(ctx context.Context, userID int64) error {
 	query := `DELETE FROM short_links WHERE user_id = ?`
-	_, err := r.db.ExecContext(ctx, query, userID) // idempotent: no error if not found
+	_, err := execWithRetry(ctx, r.db, query, userID) // idempotent: no error if not found
 	return err
 }
 
@@ -219,7 +219,7 @@ func (r *shortLinkRepo) IncrementAccessCount(ctx context.Context, id int64, acce
 		SET access_count = access_count + 1, last_accessed_at = ?, updated_at = ?
 		WHERE id = ?
 	`
-	_, err := r.db.ExecContext(ctx, query, accessTime, accessTime, id)
+	_, err := execWithRetry(ctx, r.db, query, accessTime, accessTime, id)
 	return err
 }
 

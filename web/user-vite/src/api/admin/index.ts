@@ -7,8 +7,10 @@ export {
   getAgentHost,
   createAgentHost,
   updateAgentHost,
+  triggerAgentGeoRefreshAll,
   deleteAgentHost,
   refreshAgentHosts,
+  fetchAgentHostsAll,
 } from "./agentHost";
 
 // User API

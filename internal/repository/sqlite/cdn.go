@@ -24,7 +24,7 @@ func (r *cloudflareZoneRepo) Create(ctx context.Context, zone *repository.Cloudf
 	zone.CreatedAt = now
 	zone.UpdatedAt = now
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_cloudflare_zones (name, zone_id, api_token_encrypted, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`,
@@ -75,7 +75,7 @@ func (r *cloudflareZoneRepo) List(ctx context.Context) ([]*repository.Cloudflare
 }
 
 func (r *cloudflareZoneRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_zones WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_cloudflare_zones WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (r *cloudflareDNSRecordRepo) Create(ctx context.Context, record *repository
 	record.CreatedAt = now
 	record.UpdatedAt = now
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_cloudflare_dns_records (zone_id, name, type, content, proxied, ttl, cf_record_id, synced_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
@@ -190,7 +190,7 @@ func (r *cloudflareDNSRecordRepo) ListByZoneID(ctx context.Context, zoneID int64
 }
 
 func (r *cloudflareDNSRecordRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudflare_dns_records WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_cloudflare_dns_records WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (r *cloudfrontDistRepo) Create(ctx context.Context, dist *repository.CloudF
 	dist.CreatedAt = now
 	dist.UpdatedAt = now
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_cloudfront_distributions (
 			site_id, distribution_id, distribution_arn, domain_name,
 			cert_arn, price_class, enabled, status, last_synced_at, created_at, updated_at
@@ -329,7 +329,7 @@ func (r *cloudfrontDistRepo) List(ctx context.Context) ([]*repository.CloudFront
 }
 
 func (r *cloudfrontDistRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cloudfront_distributions WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_cloudfront_distributions WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -353,7 +353,7 @@ func (r *cdnSiteRepo) Create(ctx context.Context, site *repository.CDNSite) erro
 	site.CreatedAt = now
 	site.UpdatedAt = now
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_sites (
 			name, description, domain, origin_type, origin_url,
 			cache_ttl, ssl_mode, custom_cert_pem, custom_key_pem,
@@ -383,7 +383,7 @@ func (r *cdnSiteRepo) Create(ctx context.Context, site *repository.CDNSite) erro
 func (r *cdnSiteRepo) Update(ctx context.Context, site *repository.CDNSite) error {
 	site.UpdatedAt = time.Now().Unix()
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE cdn_sites SET
 			name = ?, description = ?, domain = ?, origin_type = ?, origin_url = ?,
 			cache_ttl = ?, ssl_mode = ?, custom_cert_pem = ?, custom_key_pem = ?,
@@ -522,7 +522,7 @@ func (r *cdnSiteRepo) buildSiteFilter(filter repository.CDNSiteFilter) (string, 
 }
 
 func (r *cdnSiteRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_sites WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_sites WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -603,7 +603,7 @@ func (r *cdnEdgeRepo) Create(ctx context.Context, edge *repository.CDNEdge) erro
 	edge.CreatedAt = now
 	edge.UpdatedAt = now
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_edges (
 			site_id, agent_host_id, weight, enabled, status,
 			last_error, deployed_at, created_at, updated_at
@@ -626,7 +626,7 @@ func (r *cdnEdgeRepo) Create(ctx context.Context, edge *repository.CDNEdge) erro
 }
 
 func (r *cdnEdgeRepo) Update(ctx context.Context, edge *repository.CDNEdge) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE cdn_edges SET
 			site_id = ?, agent_host_id = ?, weight = ?, enabled = ?, status = ?,
 			last_error = ?, deployed_at = ?, updated_at = ?
@@ -677,7 +677,7 @@ func (r *cdnEdgeRepo) ListBySiteID(ctx context.Context, siteID int64) ([]*reposi
 }
 
 func (r *cdnEdgeRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_edges WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_edges WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -744,7 +744,7 @@ func newCDNCacheRuleRepo(db *sql.DB) *cdnCacheRuleRepo {
 func (r *cdnCacheRuleRepo) Create(ctx context.Context, rule *repository.CDNCacheRule) error {
 	rule.CreatedAt = time.Now().Unix()
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO cdn_cache_rules (
 			site_id, match_type, match_value, cache_ttl, bypass, priority, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -765,7 +765,7 @@ func (r *cdnCacheRuleRepo) Create(ctx context.Context, rule *repository.CDNCache
 }
 
 func (r *cdnCacheRuleRepo) Update(ctx context.Context, rule *repository.CDNCacheRule) error {
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE cdn_cache_rules SET
 			site_id = ?, match_type = ?, match_value = ?, cache_ttl = ?,
 			bypass = ?, priority = ?
@@ -813,7 +813,7 @@ func (r *cdnCacheRuleRepo) ListBySiteID(ctx context.Context, siteID int64) ([]*r
 }
 
 func (r *cdnCacheRuleRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM cdn_cache_rules WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM cdn_cache_rules WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

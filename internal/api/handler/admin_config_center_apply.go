@@ -223,6 +223,12 @@ func (h *AdminConfigCenterApplyHandler) respondApplyError(ctx context.Context, w
 	} else if errors.Is(err, service.ErrApplyOrchestratorInvalidState) {
 		status = http.StatusConflict
 		key = "error.bad_request"
+	} else if errors.Is(err, service.ErrApplyOrchestratorNoArtifacts) {
+		status = http.StatusUnprocessableEntity
+		key = "error.no_artifacts_to_deliver"
+	} else if errors.Is(err, service.ErrApplyOrchestratorNoPayload) {
+		status = http.StatusUnprocessableEntity
+		key = "error.no_payload_in_artifact"
 	}
 
 	RespondErrorI18nAction(ctx, w, status, action, key, h.i18n)

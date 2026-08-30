@@ -37,7 +37,7 @@ func (r *configTemplateRepo) Create(ctx context.Context, tpl *repository.ConfigT
 		capsJSON = []byte("[]")
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		INSERT INTO config_templates (
 			name, type, content, description, min_version, capabilities,
 			schema_version, is_valid, validation_error, created_at, updated_at
@@ -69,7 +69,7 @@ func (r *configTemplateRepo) Update(ctx context.Context, tpl *repository.ConfigT
 		capsJSON = []byte("[]")
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE config_templates SET
 			name = ?, type = ?, content = ?, description = ?, min_version = ?,
 			capabilities = ?, schema_version = ?, is_valid = ?, validation_error = ?,
@@ -87,7 +87,7 @@ func (r *configTemplateRepo) Update(ctx context.Context, tpl *repository.ConfigT
 }
 
 func (r *configTemplateRepo) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM config_templates WHERE id = ?`, id)
+	result, err := execWithRetry(ctx, r.db, `DELETE FROM config_templates WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}

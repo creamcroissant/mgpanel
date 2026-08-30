@@ -28,7 +28,7 @@ func (r *accessLogRepo) Create(ctx context.Context, log *repository.AccessLog) e
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	result, err := r.db.ExecContext(ctx, query,
+	result, err := execWithRetry(ctx, r.db, query,
 		log.UserID, log.UserEmail, log.AgentHostID, log.SourceIP, log.TargetDomain,
 		log.TargetIP, log.TargetPort, log.Protocol, log.Upload, log.Download,
 		log.ConnectionStart, log.ConnectionEnd, log.CreatedAt,
@@ -50,7 +50,7 @@ func (r *accessLogRepo) BatchCreate(ctx context.Context, logs []*repository.Acce
 		return nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (r *accessLogRepo) Count(ctx context.Context, filter repository.AccessLogFi
 func (r *accessLogRepo) DeleteByRetentionDays(ctx context.Context, days int) (int64, error) {
 	retentionTime := time.Now().AddDate(0, 0, -days).Unix()
 
-	result, err := r.db.ExecContext(ctx, "DELETE FROM access_logs WHERE created_at < ?", retentionTime)
+	result, err := execWithRetry(ctx, r.db, "DELETE FROM access_logs WHERE created_at < ?", retentionTime)
 	if err != nil {
 		return 0, err
 	}

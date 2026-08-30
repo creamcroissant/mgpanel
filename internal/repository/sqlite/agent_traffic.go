@@ -47,7 +47,7 @@ func (r *agentTrafficPolicyRepo) Upsert(ctx context.Context, policy *repository.
 		policy.UpdatedAt = time.Now().Unix()
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO agent_traffic_policies (
 			agent_host_id, enabled, limit_bytes, limit_type, threshold_percent,
 			threshold_action, threshold_reached, reset_mode, reset_day, interval_days,
@@ -136,7 +136,7 @@ func (r *agentTrafficPolicyRepo) UpdateThresholdReached(ctx context.Context, age
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_traffic_policies
 		SET threshold_reached = ?, updated_at = ?
 		WHERE agent_host_id = ?
@@ -151,7 +151,7 @@ func (r *agentTrafficPolicyRepo) UpdateResetState(ctx context.Context, agentHost
 	if updatedAt == 0 {
 		updatedAt = time.Now().Unix()
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_traffic_policies
 		SET threshold_reached = 0, last_reset_at = ?, last_reset_cycle_key = ?, updated_at = ?
 		WHERE agent_host_id = ?
@@ -235,7 +235,7 @@ func (r *agentTrafficStateRepo) Upsert(ctx context.Context, state *repository.Ag
 		state.UpdatedAt = time.Now().Unix()
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		INSERT INTO agent_traffic_states (
 			agent_host_id, boot_id, last_raw_upload_bytes, last_raw_download_bytes,
 			counter_seen, cycle_upload_bytes, cycle_download_bytes, updated_at
@@ -309,7 +309,7 @@ func (r *agentTrafficStateRepo) ResetCycle(ctx context.Context, agentHostID int6
 	if resetAt == 0 {
 		resetAt = time.Now().Unix()
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := execWithRetry(ctx, r.db, `
 		UPDATE agent_traffic_states
 		SET cycle_upload_bytes = 0, cycle_download_bytes = 0, updated_at = ?
 		WHERE agent_host_id = ?

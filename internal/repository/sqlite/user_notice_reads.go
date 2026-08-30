@@ -21,7 +21,7 @@ func newUserNoticeReadsRepo(db *sql.DB) repository.UserNoticeReadsRepository {
 // MarkRead records that a user has read a notice (idempotent using INSERT OR IGNORE)
 func (r *userNoticeReadsRepo) MarkRead(ctx context.Context, userID, noticeID int64) error {
 	query := `INSERT OR IGNORE INTO user_notice_reads (user_id, notice_id, read_at) VALUES (?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, userID, noticeID, time.Now().Unix())
+	_, err := execWithRetry(ctx, r.db, query, userID, noticeID, time.Now().Unix())
 	return err
 }
 

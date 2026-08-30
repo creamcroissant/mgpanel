@@ -418,6 +418,12 @@
       "realtimeCurrent": "Current",
       "lastKnown": "Last known",
       "unknown": "Unknown",
+      "country": "Country/Region",
+      "region": "Region",
+      "geoRefresh": "Probe Now",
+      "geoRefreshSuccess": "Probe command sent, expected within 30s",
+      "geoRefreshError": "Failed to send probe",
+      "geoRefreshing": "Sending...",
       "totalTraffic": "Total {{value}}",
       "agentVersion": "Agent Version",
       "currentCore": "Current Core",
@@ -1217,7 +1223,8 @@
       "apply": {
         "targetRevision": "Target revision",
         "previousRevision": "Previous revision (optional)",
-        "selectHostHint": "Select a target host (not \"All hosts\") before deploying."
+        "selectHostHint": "Select a target host (not \"All hosts\") before deploying.",
+        "selectSpecHint": "Select a Spec before applying"
       },
       "applyRuns": {
         "title": "Apply Runs and Diagnostics",
@@ -1543,7 +1550,38 @@
         "applyRolledBack": "Apply rolled back",
         "applyFailed": "Failed to create apply run"
       },
-      "allHosts": "All Hosts"
+      "allHosts": "All Hosts",
+      "applyDialog": {
+        "title": "Apply to Agent",
+        "description": "Select target agents and push the current Spec config",
+        "filters": "Filters",
+        "search": "Search by name or address",
+        "countryRegion": "Country/Region",
+        "unlabeled": "Unlabeled",
+        "latency": "Latency",
+        "latencyAll": "All",
+        "latencyHas": "Has data",
+        "latencyNone": "No data",
+        "latencyLt50": "< 50ms",
+        "latencyLt100": "< 100ms",
+        "latencyLt200": "< 200ms",
+        "selected": "{{count}} selected",
+        "selectAll": "Select all",
+        "invert": "Invert",
+        "targetRevision": "Target revision",
+        "previousRevision": "Previous revision (optional)",
+        "advanced": "Advanced",
+        "collapse": "Collapse",
+        "progress": "Applying {{current}}/{{total}}",
+        "success": "{{count}} succeeded",
+        "failed": "{{count}} failed",
+        "retry": "Retry failures",
+        "close": "Close",
+        "noAgents": "No agents available to apply",
+        "country": "Country/Region",
+        "region": "Region",
+        "confirm": "Apply"
+      }
     },
     "system": {
       "title": "System Settings",
@@ -1655,7 +1693,8 @@
           "node": "Node Communication",
           "email": "Email Service",
           "routing": "Routing",
-          "mcp": "MCP Server"
+          "mcp": "MCP Server",
+          "naming": "Naming"
         },
         "fields": {
           "siteName": "Site Name",
@@ -1805,6 +1844,21 @@
           "operationLog": "agent_operation_logs (panel↔agent interaction records)",
           "agentOperationLog": "agent_lifecycle_operations records",
           "trafficReportDedup": "Traffic report dedup records (prevents double counting)"
+        }
+      },
+      "naming": {
+        "title": "Node Naming Settings",
+        "description": "Configure auto-naming rules for agent-reported nodes",
+        "fields": {
+          "enabled": "Enable Auto Naming",
+          "template": "Naming Template"
+        },
+        "descriptions": {
+          "template": "Variables: {flag} emoji, {region} country code, {agent_name} server name, {serial} sequence, {type} protocol type"
+        },
+        "preview": {
+          "title": "Preview",
+          "hint": "When enabled, agent-reported node names are auto-generated from the template"
         }
       }
     },

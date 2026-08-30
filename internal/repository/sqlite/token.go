@@ -37,8 +37,8 @@ func (r *tokenRepo) Create(ctx context.Context, token *repository.AccessToken) (
 	}
 	const stmt = `INSERT INTO tokens(user_id, token, refresh_token, expires_at, refresh_expires_at, ip, user_agent, revoked, created_at, updated_at)
                   VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := r.db.ExecContext(
-		ctx,
+	res, err := execWithRetry(ctx, r.db,
+		
 		stmt,
 		token.UserID,
 		token.Token,
@@ -115,7 +115,7 @@ func (r *tokenRepo) DeleteByRefreshToken(ctx context.Context, refreshToken strin
 	if trimmed == "" {
 		return nil
 	}
-	_, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE refresh_token = ?`, trimmed)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM tokens WHERE refresh_token = ?`, trimmed)
 	// idempotent: no error if not found
 	return err
 }
@@ -127,7 +127,7 @@ func (r *tokenRepo) DeleteByUser(ctx context.Context, userID int64) error {
 	if userID <= 0 {
 		return nil
 	}
-	_, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE user_id = ?`, userID)
+	_, err := execWithRetry(ctx, r.db, `DELETE FROM tokens WHERE user_id = ?`, userID)
 	// idempotent: no error if not found
 	return err
 }

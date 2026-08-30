@@ -28,7 +28,7 @@ func (r *statServerRepo) Upsert(ctx context.Context, record repository.StatServe
                       disk_total = excluded.disk_total,
                       online_users = excluded.online_users,
                       updated_at = excluded.updated_at`
-	_, err := r.db.ExecContext(ctx, stmt,
+	_, err := execWithRetry(ctx, r.db, stmt,
 		record.ServerID,
 		record.RecordAt,
 		record.RecordType,

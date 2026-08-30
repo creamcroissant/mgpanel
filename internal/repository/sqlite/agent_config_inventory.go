@@ -27,7 +27,7 @@ func (r *agentConfigInventoryRepo) UpsertBatch(ctx context.Context, inventories 
 		}
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *agentConfigInventoryRepo) List(ctx context.Context, filter repository.A
 }
 
 func (r *agentConfigInventoryRepo) DeleteStaleByHostCoreBefore(ctx context.Context, agentHostID int64, coreType string, beforeLastSeenAt int64) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := execWithRetry(ctx, r.db, `
 		DELETE FROM agent_config_inventory
 		WHERE agent_host_id = ? AND core_type = ? AND last_seen_at < ?
 	`, agentHostID, coreType, beforeLastSeenAt) // idempotent: no error if not found

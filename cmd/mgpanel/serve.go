@@ -18,6 +18,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/bootstrap"
 	"github.com/creamcroissant/mgpanel/internal/config"
 	internalgrpc "github.com/creamcroissant/mgpanel/internal/grpc"
+	"github.com/creamcroissant/mgpanel/internal/geoip"
 	"github.com/creamcroissant/mgpanel/internal/grpc/handler"
 	"github.com/creamcroissant/mgpanel/internal/grpc/interceptor"
 	"github.com/creamcroissant/mgpanel/internal/job"
@@ -116,6 +117,19 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	if err := migrations.Up(db); err != nil {
 		return err
+	}
+
+	// GeoIP reader for agent country/region auto-attribution.
+	// Disabled (nil) when no database path is configured; manual attribution still works.
+	var geoipReader *geoip.Reader
+	if cfg.GeoIP.CountryDB != "" || cfg.GeoIP.ASNdb != "" {
+		reader, gerr := geoip.OpenReader(cfg.GeoIP.CountryDB, cfg.GeoIP.ASNdb)
+		if gerr != nil {
+			logger.Warn("failed to open geoip database, geo attribution disabled", "error", gerr)
+		} else {
+			geoipReader = reader
+			defer geoipReader.Close()
+		}
 	}
 
 	resolvedSigningKey, signingKeySource, err := bootstrap.ResolveJWTSigningKey(ctx, db, cfg.Auth.SigningKey, time.Now)
@@ -217,7 +231,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Audit:             infra.Audit,
 	})
 
-	agentHostService := service.NewAgentHostServiceWithOptions(store.AgentHosts(), store.Servers(), store.ServerClientConfigs(), store.ConfigTemplates(), store.Users(), store.Settings(), service.AgentHostServiceOptions{Cache: infra.Cache, Logger: logger})
+	nodeNamer := service.NewNodeNamer(adminSystemSettingsService)
+
+	agentHostService := service.NewAgentHostServiceWithOptions(store.AgentHosts(), store.Servers(), store.ServerClientConfigs(), store.ConfigTemplates(), store.Users(), store.Settings(), service.AgentHostServiceOptions{Cache: infra.Cache, Logger: logger, GeoIP: geoipReader, Namer: nodeNamer})
 	agentService := service.NewAgentService(store.Servers(), store.Users())
 	forwardingService := service.NewForwardingServiceWithLogger(store.ForwardingRules(), store.ForwardingRuleLogs(), store.AgentHosts(), logger)
 	converterRegistry := template.NewConverterRegistry(&template.SingBoxConverter{}, &template.XrayConverter{})
@@ -238,7 +254,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	coreConfigItemService := service.NewCoreConfigItemService(store.CoreConfigItems(), artifactCompilerService)
 	driftAndDiffService := service.NewDriftAndDiffService(store.DesiredArtifacts(), store.AgentConfigInventories(), store.InboundIndexes(), store.DriftStates())
 	inventoryIngestService := service.NewInventoryIngestService(store.AgentConfigInventories(), store.InboundIndexes())
-	applyOrchestratorService := service.NewApplyOrchestratorServiceWithGuard(store.DesiredArtifacts(), store.ApplyRuns(), driftAndDiffService, agentOperationGuard)
+	applyOrchestratorService := service.NewApplyOrchestratorServiceWithGuard(store.DesiredArtifacts(), store.ApplyRuns(), driftAndDiffService, agentOperationGuard, artifactCompilerService)
 	operationLogService := service.NewOperationLogService(store.OperationLogs(), logger)
 	agentLifecycleOperationService := service.NewAgentLifecycleOperationService(store.AgentLifecycleOperations(), agentOperationGuard, operationLogService, infra.Audit)
 	unlockProbeService := service.NewUnlockProbeService(store.UnlockProbeResults(), store.AgentHosts(), agentLifecycleOperationService)
@@ -326,6 +342,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		exitNodeSetService, store.UnlockProbeResults(), store.AgentMeshPeers(), store.RelayPaths(), latencySource, logger)
 	relayPathService := service.NewRelayPathService(store.RelayPaths(), store.AgentHosts(), logger)
 	agentRelayRouteService := service.NewAgentRelayRouteService(store.AgentHosts(), store.RelayPaths(), store.AgentMeshPeers(), logger)
+	userSyncService := service.NewUserSyncService(store.InboundSpecs(), store.Users())
+	agentUserSyncService := service.NewAgentUserSyncService(userSyncService, store.AgentHosts())
 
 	scheduler := job.NewScheduler(logger)
 
@@ -419,6 +437,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	applyRunCleanupJob := job.NewApplyRunCleanupJob(applyOrchestratorService, logger)
+	if _, err := scheduler.RegisterOpts("@every 5m", applyRunCleanupJob, job.SkipIfBusy()); err != nil {
+		return err
+	}
+
 	scheduler.Start()
 
 	services := api.Services{
@@ -459,6 +482,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		SubscriptionSource:      subscriptionSourceService,
 		AgentHost:               agentHostService,
 		AgentRelayRoute:         agentRelayRouteService,
+		AgentUserSync:           agentUserSyncService,
 		AgentCore:               agentCoreService,
 		Forwarding:              forwardingService,
 		AccessLog:               accessLogService,

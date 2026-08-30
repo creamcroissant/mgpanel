@@ -22,7 +22,7 @@ func (r *serverClientConfigRepo) Create(ctx context.Context, cfg *repository.Ser
 		VALUES (?, ?, ?, ?, ?, ?)`
 
 	now := time.Now().Unix()
-	result, err := r.db.ExecContext(ctx, query,
+	result, err := execWithRetry(ctx, r.db, query,
 		cfg.ServerID,
 		cfg.Format,
 		cfg.Content,
@@ -111,7 +111,7 @@ func (r *serverClientConfigRepo) Upsert(ctx context.Context, cfg *repository.Ser
 			updated_at = excluded.updated_at`
 
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := execWithRetry(ctx, r.db, query,
 		cfg.ServerID,
 		cfg.Format,
 		cfg.Content,
@@ -129,13 +129,13 @@ func (r *serverClientConfigRepo) Upsert(ctx context.Context, cfg *repository.Ser
 // DeleteByServerID removes all client configs for a server.
 func (r *serverClientConfigRepo) DeleteByServerID(ctx context.Context, serverID int64) error {
 	const query = `DELETE FROM server_client_configs WHERE server_id = ?`
-	_, err := r.db.ExecContext(ctx, query, serverID) // idempotent: no error if not found
+	_, err := execWithRetry(ctx, r.db, query, serverID) // idempotent: no error if not found
 	return err
 }
 
 // DeleteByServerIDAndFormat removes a specific format config.
 func (r *serverClientConfigRepo) DeleteByServerIDAndFormat(ctx context.Context, serverID int64, format string) error {
 	const query = `DELETE FROM server_client_configs WHERE server_id = ? AND format = ?`
-	_, err := r.db.ExecContext(ctx, query, serverID, format) // idempotent: no error if not found
+	_, err := execWithRetry(ctx, r.db, query, serverID, format) // idempotent: no error if not found
 	return err
 }
