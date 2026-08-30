@@ -90,3 +90,10 @@ test_data/singbox_conf/
 
 # Temp coding docs in frontend
 web/user-vite/coding_update.md
+.mgpanel-panel
+mgpanel-agent
+mgpanel
+xboard-panel
+xboard-agent
+/tmp/mgpanel-deploy/
+/tmp/xboard-deploy/
