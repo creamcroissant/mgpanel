@@ -1,5 +1,5 @@
 [Unit]
-Description=MGPanel Service
+Description=MGPanel Panel Service
 After=network.target
 
 [Service]

@@ -1295,7 +1295,7 @@ run_uninstall_mode() {
     if is_openrc_available; then
         has_service_manager=1
         run_privileged "$OPENRC_SERVICE_CMD" mgpanel stop >/dev/null 2>&1 || true
-        run_privileged "$OPENRC_UPDATE_CMD" del mgpanel default >/dev/null 2>&1 || run_privileged "$OPENRC_UPDATE_CMD" del xboard >/dev/null 2>&1 || true
+        run_privileged "$OPENRC_UPDATE_CMD" del mgpanel default >/dev/null 2>&1 || run_privileged "$OPENRC_UPDATE_CMD" del mgpanel >/dev/null 2>&1 || true
     fi
 
     if [ "$has_service_manager" = "0" ]; then

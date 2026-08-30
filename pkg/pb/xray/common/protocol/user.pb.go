@@ -9,7 +9,7 @@ package xrayprotocol
 import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	xrayserial "github.com/creamcroissant/mgpanel/pkg/pb/xray/common/serial"
+	xrayserial "github.com/creamcroissant/xboard/pkg/pb/xray/common/serial"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"

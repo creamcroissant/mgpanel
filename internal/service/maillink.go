@@ -98,7 +98,7 @@ func (s *mailLinkService) SendLoginLink(ctx context.Context, input MailLinkInput
 	}
 	link := s.composeLink(ctx, code, input.Redirect, false)
 	if s.notifier != nil {
-		appName := s.settingString(ctx, "app_name", "XBoard")
+		appName := s.settingString(ctx, "app_name", "MGPanel")
 		if err := s.notifier.SendEmail(ctx, notifier.EmailRequest{
 			To:       user.Email,
 			Subject:  fmt.Sprintf(mailLinkSubjectFormat, appName),

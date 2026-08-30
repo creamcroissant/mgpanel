@@ -80,7 +80,7 @@ func (s *repoBackedConfigService) Save(ctx context.Context, payload map[string]a
 
 func defaultConfigSnapshot() map[string]any {
 	return map[string]any{
-		"site_name":        "XBoard",
+		"site_name":        "MGPanel",
 		"support_email":    "support@example.com",
 		"default_theme":    "v2board",
 		"telegram_enabled": false,

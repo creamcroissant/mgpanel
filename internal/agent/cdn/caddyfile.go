@@ -138,7 +138,7 @@ func writeSiteBlock(buf *bytes.Buffer, site *CDNSiteConfig) {
 	case "static_files":
 		rootPath := site.OriginURL
 		if rootPath == "" {
-			rootPath = "/var/lib/xboard/cdn/files"
+			rootPath = "/var/lib/mgpanel/cdn/files"
 		}
 		buf.WriteString(fmt.Sprintf("    root * %s\n", rootPath))
 		buf.WriteString("    file_server\n")

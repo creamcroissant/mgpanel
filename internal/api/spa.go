@@ -250,9 +250,9 @@ func newAdminSPAHandler(logger *slog.Logger, paths service.AdminPathService, opt
 	}
 	branding := adminBranding{
 		baseURL:         strings.TrimRight(opts.BaseURL, "/"),
-		title:           fallback(opts.Title, "XBoard"),
+		title:           fallback(opts.Title, "MGPanel"),
 		version:         fallback(opts.Version, "go-dev"),
-		logo:            fallback(opts.Logo, "https://xboard.io/images/logo.png"),
+		logo:            fallback(opts.Logo, "https://mgpanel.io/images/logo.png"),
 		deployScriptURL: strings.TrimSpace(opts.DeployScriptURL),
 	}
 	return &adminSPAHandler{
@@ -287,7 +287,7 @@ func newUserSPAHandler(logger *slog.Logger, opts UserUIOptions) (*userSPAHandler
 	}
 	branding := userBranding{
 		baseURL: strings.TrimRight(opts.BaseURL, "/"),
-		title:   fallback(opts.Title, "XBoard"),
+		title:   fallback(opts.Title, "MGPanel"),
 	}
 	return &userSPAHandler{
 		logger:    logger,

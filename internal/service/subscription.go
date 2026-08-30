@@ -355,7 +355,7 @@ func (s *subscriptionService) Subscribe(ctx context.Context, userID string, para
 // loadProtocolSettings 读取订阅相关的系统配置。
 func (s *subscriptionService) loadProtocolSettings(ctx context.Context) protocolSettings {
 	return protocolSettings{
-		AppName:         s.settingString(ctx, "app_name", "XBoard"),
+		AppName:         s.settingString(ctx, "app_name", "MGPanel"),
 		AppURL:          s.settingString(ctx, "app_url", ""),
 		ClashTemplate:   s.settingString(ctx, "subscribe_template_clash", ""),
 		SurgeTemplate:   s.settingString(ctx, "subscribe_template_surge", ""),

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultClashProfileName  = "XBoard"
+	defaultClashProfileName  = "MGPanel"
 	clashCustomTemplatePath  = "resources/rules/custom.clash.yaml"
 	clashDefaultTemplatePath = "resources/rules/default.clash.yaml"
 )

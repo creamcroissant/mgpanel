@@ -186,7 +186,7 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 		}
 	}
 
-	workdir, err := os.MkdirTemp("", "xboard-core-*")
+	workdir, err := os.MkdirTemp("", "mgpanel-core-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
@@ -252,7 +252,7 @@ func (i *Installer) resolveCoreAsset(coreType CoreType, flavor string) (repo, bi
 		binaryName = "sing-box"
 		stablePath = strings.TrimSpace(i.cfg.SingBoxBinaryPath)
 		if stablePath == "" {
-			stablePath = "/opt/xboard/agent/bin/sing-box"
+			stablePath = "/opt/mgpanel/agent/bin/sing-box"
 		}
 	case CoreTypeXray:
 		repo = i.cfg.XrayReleaseRepo
@@ -262,7 +262,7 @@ func (i *Installer) resolveCoreAsset(coreType CoreType, flavor string) (repo, bi
 		binaryName = "xray"
 		stablePath = strings.TrimSpace(i.cfg.XrayBinaryPath)
 		if stablePath == "" {
-			stablePath = "/opt/xboard/agent/bin/xray"
+			stablePath = "/opt/mgpanel/agent/bin/xray"
 		}
 	default:
 		return "", "", "", fmt.Errorf("unsupported core type")
@@ -304,7 +304,7 @@ func (i *Installer) resolveRelease(ctx context.Context, repo, version, channel s
 		return "", "", "", "", fmt.Errorf("create release request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "xboard-agent/1.0")
+	req.Header.Set("User-Agent", "mgpanel-agent/1.0")
 	resp, netErr := i.client.Do(req)
 	if netErr != nil {
 		return "", "", "", "", fmt.Errorf("fetch: %w", netErr)
@@ -411,7 +411,7 @@ func (i *Installer) downloadOnce(ctx context.Context, url, path string) error {
 	if err != nil {
 		return fmt.Errorf("create download request: %w", err)
 	}
-	req.Header.Set("User-Agent", "xboard-agent/1.0")
+	req.Header.Set("User-Agent", "mgpanel-agent/1.0")
 	resp, err := i.downloadClient.Do(req)
 	if err != nil {
 		return err
@@ -764,7 +764,7 @@ func (i *Installer) ensurePlainServiceUnit(ctx context.Context, coreType CoreTyp
 		return nil
 	}
 	content := fmt.Sprintf(`[Unit]
-Description=sing-box service (managed by xboard agent)
+Description=sing-box service (managed by mgpanel agent)
 After=network.target nss-lookup.target network-online.target
 
 [Service]

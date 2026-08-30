@@ -645,7 +645,7 @@ func buildSMTPTestEmail(config SMTPConfig) notifier.EmailRequest {
 		To:       to,
 		Subject:  subject,
 		Template: "smtp_test",
-		Body:     "This is a test email from XBoard SMTP settings.",
+		Body:     "This is a test email from MGPanel SMTP settings.",
 		Variables: map[string]any{
 			"from": from,
 			"to":   to,

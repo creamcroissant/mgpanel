@@ -22,7 +22,7 @@ func NewSwitcher(opts SwitcherOptions) (*Switcher, error) {
 	// 防止配置产物写进 CWD（曾污染仓库工作区/在只读环境失败），
 	// 也避免测试触碰宿主真实路径。
 	if strings.TrimSpace(opts.OutputPath) == "" {
-		opts.OutputPath = filepath.Join(os.TempDir(), fmt.Sprintf("xboard-switch-%d", os.Getpid()))
+		opts.OutputPath = filepath.Join(os.TempDir(), fmt.Sprintf("mgpanel-switch-%d", os.Getpid()))
 	}
 	logger := opts.Logger
 	if logger == nil {

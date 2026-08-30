@@ -30,9 +30,9 @@ type ServerClaims struct {
 type contextKey string
 
 const (
-	userContextKey   contextKey = "xboard-user"
-	adminContextKey  contextKey = "xboard-admin"
-	serverContextKey contextKey = "xboard-server"
+	userContextKey   contextKey = "mgpanel-user"
+	adminContextKey  contextKey = "mgpanel-admin"
+	serverContextKey contextKey = "mgpanel-server"
 )
 
 // I18nKey 用于在 context 中存储语言标识的 key 类型。

@@ -3,9 +3,9 @@
 /dist/
 /bin/
 /out/
-/xboard
+/mgpanel
 /agent
-xboardctl
+mgpanelctl
 
 # Environment
 .env
@@ -41,7 +41,7 @@ web/user-vite/test-results/
 web/user-vite/playwright-report/
 
 # Legacy & Archives
-Xboard
+Mgpanel
 .claude
 sing-box-custom-builder
 .github/prompts/
@@ -90,10 +90,3 @@ test_data/singbox_conf/
 
 # Temp coding docs in frontend
 web/user-vite/coding_update.md
-.mgpanel-panel
-mgpanel-agent
-mgpanel
-xboard-panel
-xboard-agent
-/tmp/mgpanel-deploy/
-/tmp/xboard-deploy/
