@@ -170,7 +170,7 @@ func (s *Server) handleInitialize(req *JSONRPCRequest) *JSONRPCResponse {
 		Result: MCPInitializeResult{
 			ProtocolVersion: "2024-11-05",
 			ServerInfo: MCPImplementation{
-				Name:    "mgpanel",
+				Name:    "xboard",
 				Version: "0.1.0",
 			},
 			Capabilities: MCPCapabilities{

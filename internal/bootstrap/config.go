@@ -79,7 +79,7 @@ type InstallUIConfig struct {
 // LoadConfig loads runtime environment variables into Config.
 func LoadConfig() (*Config, error) {
 	v := viper.New()
-	v.SetEnvPrefix("MGPANEL")
+	v.SetEnvPrefix("XBOARD")
 	v.AutomaticEnv()
 
 	cfg := &Config{}
@@ -101,73 +101,73 @@ func LoadConfig() (*Config, error) {
 		os.Getenv("APP_ENV"),
 	), "development")
 
-	defaultDBPath := filepath.Clean(fallback(v.GetString("DB_PATH"), filepath.Join("data", "mgpanel.db")))
+	defaultDBPath := filepath.Clean(fallback(v.GetString("DB_PATH"), filepath.Join("data", "xboard.db")))
 	cfg.DB.SQLitePath = fallback(firstNonEmpty(
 		v.GetString("DB_PATH"),
-		os.Getenv("MGPANEL_DB_PATH"),
+		os.Getenv("XBOARD_DB_PATH"),
 	), defaultDBPath)
 
 	cfg.Auth.SigningKey = fallback(firstNonEmpty(
 		v.GetString("AUTH_SIGNING_KEY"),
-		os.Getenv("MGPANEL_AUTH_SIGNING_KEY"),
+		os.Getenv("XBOARD_AUTH_SIGNING_KEY"),
 		os.Getenv("APP_KEY"),
 	), "change-me")
 	cfg.Auth.TokenTTL = parseDuration(fallback(firstNonEmpty(
 		v.GetString("AUTH_TOKEN_TTL"),
-		os.Getenv("MGPANEL_AUTH_TOKEN_TTL"),
+		os.Getenv("XBOARD_AUTH_TOKEN_TTL"),
 	), "24h"), 24*time.Hour)
 	cfg.Auth.Issuer = fallback(firstNonEmpty(
 		v.GetString("AUTH_ISSUER"),
-		os.Getenv("MGPANEL_AUTH_ISSUER"),
-	), "mgpanel")
+		os.Getenv("XBOARD_AUTH_ISSUER"),
+	), "xboard")
 	cfg.Auth.Audience = fallback(firstNonEmpty(
 		v.GetString("AUTH_AUDIENCE"),
-		os.Getenv("MGPANEL_AUTH_AUDIENCE"),
-	), "mgpanel-client")
+		os.Getenv("XBOARD_AUTH_AUDIENCE"),
+	), "xboard-client")
 	cfg.Auth.Leeway = parseDuration(fallback(firstNonEmpty(
 		v.GetString("AUTH_LEEWAY"),
-		os.Getenv("MGPANEL_AUTH_LEEWAY"),
+		os.Getenv("XBOARD_AUTH_LEEWAY"),
 	), "30s"), 30*time.Second)
 	cfg.Auth.BcryptCost = parseBcryptCost(v)
 
 	adminEnabledRaw := firstNonEmpty(
 		v.GetString("ADMIN_UI_ENABLED"),
-		os.Getenv("MGPANEL_ADMIN_UI_ENABLED"),
+		os.Getenv("XBOARD_ADMIN_UI_ENABLED"),
 	)
 	cfg.UI.Admin.Enabled = parseBool(adminEnabledRaw, true)
 	cfg.UI.Admin.Dir = fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_DIR"),
-		os.Getenv("MGPANEL_ADMIN_UI_DIR"),
+		os.Getenv("XBOARD_ADMIN_UI_DIR"),
 	), filepath.Join("web", "user-vite", "dist"))
 	cfg.UI.Admin.Title = fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_TITLE"),
-		os.Getenv("MGPANEL_ADMIN_UI_TITLE"),
-	), "MGPanel Admin")
+		os.Getenv("XBOARD_ADMIN_UI_TITLE"),
+	), "XBoard Admin")
 	cfg.UI.Admin.Version = fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_VERSION"),
-		os.Getenv("MGPANEL_ADMIN_UI_VERSION"),
+		os.Getenv("XBOARD_ADMIN_UI_VERSION"),
 	), "go-dev")
 	cfg.UI.Admin.Logo = fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_LOGO"),
-		os.Getenv("MGPANEL_ADMIN_UI_LOGO"),
-	), "https://mgpanel.io/images/logo.png")
+		os.Getenv("XBOARD_ADMIN_UI_LOGO"),
+	), "https://xboard.io/images/logo.png")
 	cfg.UI.Admin.BaseURL = strings.TrimRight(fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_BASE_URL"),
-		os.Getenv("MGPANEL_ADMIN_UI_BASE_URL"),
+		os.Getenv("XBOARD_ADMIN_UI_BASE_URL"),
 	), ""), "/")
 	cfg.UI.Admin.HiddenModules = parseCSVList(fallback(firstNonEmpty(
 		v.GetString("ADMIN_UI_HIDDEN_MODULES"),
-		os.Getenv("MGPANEL_ADMIN_UI_HIDDEN_MODULES"),
+		os.Getenv("XBOARD_ADMIN_UI_HIDDEN_MODULES"),
 	), ""), defaultHiddenAdminModules)
 
 	installEnabledRaw := firstNonEmpty(
 		v.GetString("INSTALL_UI_ENABLED"),
-		os.Getenv("MGPANEL_INSTALL_UI_ENABLED"),
+		os.Getenv("XBOARD_INSTALL_UI_ENABLED"),
 	)
 	cfg.UI.Install.Enabled = parseBool(installEnabledRaw, true)
 	cfg.UI.Install.Dir = fallback(firstNonEmpty(
 		v.GetString("INSTALL_UI_DIR"),
-		os.Getenv("MGPANEL_INSTALL_UI_DIR"),
+		os.Getenv("XBOARD_INSTALL_UI_DIR"),
 	), filepath.Join("web", "install"))
 
 	return cfg, nil
@@ -176,7 +176,7 @@ func LoadConfig() (*Config, error) {
 func parseBcryptCost(v *viper.Viper) int {
 	cost := v.GetInt("AUTH_BCRYPT_COST")
 	if cost <= 0 {
-		if raw := os.Getenv("MGPANEL_AUTH_BCRYPT_COST"); raw != "" {
+		if raw := os.Getenv("XBOARD_AUTH_BCRYPT_COST"); raw != "" {
 			if parsed, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil {
 				cost = parsed
 			}

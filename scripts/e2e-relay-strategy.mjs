@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 const JWT = readFileSync("/tmp/admin.jwt", "utf8").trim();
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
-await ctx.addInitScript(([t]) => sessionStorage.setItem("mgpanel-token", t), [JWT]);
+await ctx.addInitScript(([t]) => sessionStorage.setItem("xboard-token", t), [JWT]);
 const page = await ctx.newPage();
 page.on("pageerror", e => console.log("PAGEERROR:", e.message.slice(0,150)));
 let apiLog = [];

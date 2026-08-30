@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
     -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
-    -o /out/mgpanel ./cmd/mgpanel
+    -o /out/xboard ./cmd/xboard
 
 # =============================================================================
 # Stage 3: Final Image
@@ -61,17 +61,17 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-COPY --from=backend /out/mgpanel /usr/local/bin/mgpanel
+COPY --from=backend /out/xboard /usr/local/bin/xboard
 
 # Default environment variables
-ENV MGPANEL_DB_PATH=/data/mgpanel.db
-ENV MGPANEL_HTTP_ADDR=:8080
+ENV XBOARD_DB_PATH=/data/xboard.db
+ENV XBOARD_HTTP_ADDR=:8080
 
 # Data volume for SQLite database
 VOLUME ["/data"]
 
 # Config volume (optional)
-VOLUME ["/etc/mgpanel"]
+VOLUME ["/etc/xboard"]
 
 EXPOSE 8080
 
@@ -79,5 +79,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["/usr/local/bin/mgpanel"]
-CMD ["serve", "--config", "/etc/mgpanel/config.yml"]
+ENTRYPOINT ["/usr/local/bin/xboard"]
+CMD ["serve", "--config", "/etc/xboard/config.yml"]

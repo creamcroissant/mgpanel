@@ -1,5 +1,5 @@
-const TOKEN_KEY = "mgpanel-token";
-const REFRESH_TOKEN_KEY = "mgpanel-refresh-token";
+const TOKEN_KEY = "xboard-token";
+const REFRESH_TOKEN_KEY = "xboard-refresh-token";
 
 // In-memory store — primary token holder, cleared on tab close.
 // sessionStorage is a fallback so tokens survive page refresh (SPA reload)

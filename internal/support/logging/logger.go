@@ -46,7 +46,7 @@ func New(opts Options) *slog.Logger {
 }
 
 // dailyWriter implements io.Writer with daily rotation.
-// It writes to a file named <dir>/mgpanel-YYYY-MM-DD.log and
+// It writes to a file named <dir>/xboard-YYYY-MM-DD.log and
 // rotates at midnight UTC. Old files exceeding maxDays are removed.
 type dailyWriter struct {
 	dir     string
@@ -98,7 +98,7 @@ func (w *dailyWriter) rotateLocked(today string) {
 		return
 	}
 
-	path := filepath.Join(w.dir, "mgpanel-"+today+".log")
+	path := filepath.Join(w.dir, "xboard-"+today+".log")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		w.file = nil
@@ -127,10 +127,10 @@ func (w *dailyWriter) cleanup() {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "mgpanel-") || !strings.HasSuffix(name, ".log") {
+		if !strings.HasPrefix(name, "xboard-") || !strings.HasSuffix(name, ".log") {
 			continue
 		}
-		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "mgpanel-"), ".log")
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "xboard-"), ".log")
 		t, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
 			continue

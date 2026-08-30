@@ -40,7 +40,7 @@
     "logout": "Logout"
   },
   "install": {
-    "title": "Initialize MGPanel",
+    "title": "Initialize XBoard",
     "subtitle": "Create your admin account to get started",
     "email": "Email Address",
     "emailPlaceholder": "admin@example.com",
@@ -89,7 +89,7 @@
     "registerSuccess": "Registration successful",
     "emailOrUsername": "Email or Username",
     "loggingIn": "Logging in...",
-    "welcomeBack": "Welcome back to MGPanel"
+    "welcomeBack": "Welcome back to XBoard"
   },
   "dashboard": {
     "welcome": "Welcome back",
@@ -1730,7 +1730,7 @@
           "grpcTlsEnabled": "Enable TLS"
         },
         "placeholders": {
-          "siteName": "e.g. MGPanel",
+          "siteName": "e.g. XBoard",
           "siteDesc": "Short description of your site",
           "siteUrl": "https://panel.example.com",
           "siteLogo": "https://example.com/logo.png",

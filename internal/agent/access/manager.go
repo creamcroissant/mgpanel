@@ -117,7 +117,7 @@ func (m *Manager) loadOrCreateSecret(path string) string {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
 		// 兜底：时间戳哈希
-		return fmt.Sprintf("mgpanel_access_%d", time.Now().UnixNano())
+		return fmt.Sprintf("xboard_access_%d", time.Now().UnixNano())
 	}
 	s := hex.EncodeToString(buf)
 	_ = os.WriteFile(path, []byte(s), 0600)

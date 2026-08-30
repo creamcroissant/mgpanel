@@ -31,7 +31,7 @@ func BuildInfrastructure(cfg *Config, logger *slog.Logger) (*Infrastructure, err
 	}
 
 	cacheStore := cache.NewStore(cache.Options{
-		Prefix:          "mgpanel",
+		Prefix:          "xboard",
 		DefaultTTL:      5 * time.Minute,
 		CleanupInterval: time.Minute,
 	})

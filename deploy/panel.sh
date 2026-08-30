@@ -3,17 +3,17 @@ set -e
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-DEFAULT_INSTALL_DIR="/opt/mgpanel/panel"
+DEFAULT_INSTALL_DIR="/opt/xboard/panel"
 INSTALL_DIR="${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
-FRONTEND_RELEASE_ASSET="${MGPANEL_FRONTEND_RELEASE_ASSET:-frontend-dist.tar.gz}"
-INSTALL_UI_RELEASE_ASSET="${MGPANEL_INSTALL_UI_RELEASE_ASSET:-install-ui.tar.gz}"
-SKIP_SYSTEMD="${MGPANEL_INSTALL_SKIP_SYSTEMD:-0}"
+FRONTEND_RELEASE_ASSET="${XBOARD_FRONTEND_RELEASE_ASSET:-frontend-dist.tar.gz}"
+INSTALL_UI_RELEASE_ASSET="${XBOARD_INSTALL_UI_RELEASE_ASSET:-install-ui.tar.gz}"
+SKIP_SYSTEMD="${XBOARD_INSTALL_SKIP_SYSTEMD:-0}"
 
-MGPANEL_RELEASE_REPO="${MGPANEL_RELEASE_REPO:-creamcroissant/mgpanel}"
-MGPANEL_RELEASE_TAG="${MGPANEL_RELEASE_TAG:-latest}"
-MGPANEL_RELEASE_BASE_URL="${MGPANEL_RELEASE_BASE_URL:-https://github.com}"
+XBOARD_RELEASE_REPO="${XBOARD_RELEASE_REPO:-creamcroissant/xboard2p}"
+XBOARD_RELEASE_TAG="${XBOARD_RELEASE_TAG:-latest}"
+XBOARD_RELEASE_BASE_URL="${XBOARD_RELEASE_BASE_URL:-https://github.com}"
 # Deprecated compatibility flag. Release download is strict-only now.
-: "${MGPANEL_RELEASE_DOWNLOAD_STRICT:=1}"
+: "${XBOARD_RELEASE_DOWNLOAD_STRICT:=1}"
 
 OS_RAW=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$OS_RAW" in
@@ -37,9 +37,9 @@ PKG_CACHE_UPDATED=0
 OPENRC_SERVICE_CMD=""
 OPENRC_UPDATE_CMD=""
 CURRENT_STAGE="startup"
-MGPANEL_INSTALL_SKIP_PORT_CHECK="${MGPANEL_INSTALL_SKIP_PORT_CHECK:-0}"
-MGPANEL_PANEL_HTTP_PORT="${MGPANEL_PANEL_HTTP_PORT:-8080}"
-MGPANEL_PANEL_GRPC_PORT="${MGPANEL_PANEL_GRPC_PORT:-$MGPANEL_PANEL_HTTP_PORT}"
+XBOARD_INSTALL_SKIP_PORT_CHECK="${XBOARD_INSTALL_SKIP_PORT_CHECK:-0}"
+XBOARD_PANEL_HTTP_PORT="${XBOARD_PANEL_HTTP_PORT:-8080}"
+XBOARD_PANEL_GRPC_PORT="${XBOARD_PANEL_GRPC_PORT:-$XBOARD_PANEL_HTTP_PORT}"
 
 set_stage() {
     CURRENT_STAGE=$1
@@ -49,9 +49,9 @@ set_stage() {
 print_failure_context() {
     echo "Install failed at stage: ${CURRENT_STAGE:-unknown}."
     echo "Install dir: ${INSTALL_DIR}"
-    echo "Release: repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH}"
-    echo "Log hints: systemd -> journalctl -u mgpanel -n 100 --no-pager"
-    echo "Log hints: OpenRC -> rc-service mgpanel status; check /var/log/messages or /var/log/syslog"
+    echo "Release: repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH}"
+    echo "Log hints: systemd -> journalctl -u xboard -n 100 --no-pager"
+    echo "Log hints: OpenRC -> rc-service xboard status; check /var/log/messages or /var/log/syslog"
 }
 
 fail_stage() {
@@ -113,9 +113,9 @@ print_panel_install_summary() {
         distro="${distro} (like ${DISTRO_ID_LIKE})"
     fi
 
-    panel_asset="mgpanel-${OS}-${ARCH}"
+    panel_asset="xboard-${OS}-${ARCH}"
     if [ "$OS" = "windows" ]; then
-        panel_asset="mgpanel-${OS}-${ARCH}.exe"
+        panel_asset="xboard-${OS}-${ARCH}.exe"
     fi
 
     echo "Install summary:"
@@ -125,7 +125,7 @@ print_panel_install_summary() {
     echo "  distro: ${distro}"
     echo "  init: $(detect_init_label)"
     echo "  package_manager: ${PKG_MANAGER:-not detected}"
-    echo "  release: repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} base=${MGPANEL_RELEASE_BASE_URL}"
+    echo "  release: repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} base=${XBOARD_RELEASE_BASE_URL}"
     echo "  release_assets: ${panel_asset}, ${FRONTEND_RELEASE_ASSET}, ${INSTALL_UI_RELEASE_ASSET}"
     print_required_command_summary curl ca-certificates tar
 }
@@ -161,8 +161,8 @@ check_port_available() {
     label=$1
     port_value=$2
 
-    if [ "$MGPANEL_INSTALL_SKIP_PORT_CHECK" = "1" ]; then
-        echo "  ${label}: skipped (MGPANEL_INSTALL_SKIP_PORT_CHECK=1)"
+    if [ "$XBOARD_INSTALL_SKIP_PORT_CHECK" = "1" ]; then
+        echo "  ${label}: skipped (XBOARD_INSTALL_SKIP_PORT_CHECK=1)"
         return 0
     fi
 
@@ -186,8 +186,8 @@ check_port_available() {
 
 print_panel_port_summary() {
     echo "Port preflight (warning only):"
-    check_port_available "http" "$MGPANEL_PANEL_HTTP_PORT"
-    check_port_available "grpc" "$MGPANEL_PANEL_GRPC_PORT"
+    check_port_available "http" "$XBOARD_PANEL_HTTP_PORT"
+    check_port_available "grpc" "$XBOARD_PANEL_GRPC_PORT"
 }
 
 strip_quotes() {
@@ -331,9 +331,9 @@ dependency_package_name() {
     dep_key=$(printf '%s' "$dep_name" | tr '[:lower:]-' '[:upper:]_')
     manager_key=$(pkg_manager_env_key "$manager")
 
-    eval "override_pkg=\${MGPANEL_PKG_${dep_key}_${manager_key}:-}"
+    eval "override_pkg=\${XBOARD_PKG_${dep_key}_${manager_key}:-}"
     if [ -z "$override_pkg" ]; then
-        eval "override_pkg=\${MGPANEL_PKG_${dep_key}:-}"
+        eval "override_pkg=\${XBOARD_PKG_${dep_key}:-}"
     fi
 
     if [ -n "$override_pkg" ]; then
@@ -864,10 +864,10 @@ render_install_service_file() {
     fi
 
     install_root=$(dirname "$INSTALL_DIR")
-    install_dir_placeholder="__MGPANEL_INSTALL_DIR__"
+    install_dir_placeholder="__XBOARD_INSTALL_DIR__"
     escaped_install_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[&#\\]/\\&/g')
     escaped_install_root=$(printf '%s' "$install_root" | sed 's/[&#\\]/\\&/g')
-    if ! sed -e "s#/opt/mgpanel/panel#${install_dir_placeholder}#g" -e "s#/opt/mgpanel#${escaped_install_root}#g" -e "s#${install_dir_placeholder}#${escaped_install_dir}#g" "$source_path" > "$temp_service"; then
+    if ! sed -e "s#/opt/xboard/panel#${install_dir_placeholder}#g" -e "s#/opt/xboard#${escaped_install_root}#g" -e "s#${install_dir_placeholder}#${escaped_install_dir}#g" "$source_path" > "$temp_service"; then
         echo "Error: failed to render service file ${source_path}."
         rm -f "$temp_service"
         return 1
@@ -898,7 +898,7 @@ install_openrc_service() {
     cat > "$temp_script" <<EOF
 #!/sbin/openrc-run
 name="${service_name}"
-description="mgpanel ${service_name} service"
+description="xboard ${service_name} service"
 directory="${INSTALL_DIR}"
 command="${binary_path}"
 command_args="${command_args}"
@@ -942,35 +942,35 @@ install_release_asset() {
     asset_name=$1
     target_path=$2
 
-    base="${MGPANEL_RELEASE_BASE_URL%/}"
+    base="${XBOARD_RELEASE_BASE_URL%/}"
 
-    if [ "$MGPANEL_RELEASE_TAG" = "latest" ]; then
-        url="${base}/${MGPANEL_RELEASE_REPO}/releases/latest/download/${asset_name}"
-        checksum_url="${base}/${MGPANEL_RELEASE_REPO}/releases/latest/download/SHA256SUMS.txt"
+    if [ "$XBOARD_RELEASE_TAG" = "latest" ]; then
+        url="${base}/${XBOARD_RELEASE_REPO}/releases/latest/download/${asset_name}"
+        checksum_url="${base}/${XBOARD_RELEASE_REPO}/releases/latest/download/SHA256SUMS.txt"
     else
-        url="${base}/${MGPANEL_RELEASE_REPO}/releases/download/${MGPANEL_RELEASE_TAG}/${asset_name}"
-        checksum_url="${base}/${MGPANEL_RELEASE_REPO}/releases/download/${MGPANEL_RELEASE_TAG}/SHA256SUMS.txt"
+        url="${base}/${XBOARD_RELEASE_REPO}/releases/download/${XBOARD_RELEASE_TAG}/${asset_name}"
+        checksum_url="${base}/${XBOARD_RELEASE_REPO}/releases/download/${XBOARD_RELEASE_TAG}/SHA256SUMS.txt"
     fi
 
     echo "Release asset: ${asset_name}"
-    echo "Release source: repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} url=${url}"
+    echo "Release source: repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} url=${url}"
 
     if ! command -v curl >/dev/null 2>&1; then
         echo "Error: curl not found for release download of ${asset_name}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         return 1
     fi
 
     if ! has_ca_certificates; then
         echo "Error: CA certificates not found for release download of ${asset_name}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         return 1
     fi
 
     download_tmp_asset=$(mktemp)
     if [ -z "$download_tmp_asset" ]; then
         echo "Error: failed to create temporary file for ${asset_name}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         return 1
     fi
 
@@ -983,42 +983,42 @@ install_release_asset() {
 
     if ! curl --fail --silent --show-error --location --retry 3 --retry-delay 1 --output "$download_tmp_asset" "$url"; then
         echo "Error: failed to download release asset ${asset_name}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
 
     if [ ! -s "$download_tmp_asset" ]; then
         echo "Error: downloaded ${asset_name} is empty."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
 
     if ! curl --fail --silent --show-error --location --retry 3 --retry-delay 1 --output "$download_tmp_checksums" "$checksum_url"; then
         echo "Error: failed to download checksum manifest SHA256SUMS.txt."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} checksum_url=${checksum_url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} checksum_url=${checksum_url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
 
     if [ ! -s "$download_tmp_checksums" ]; then
         echo "Error: downloaded checksum manifest is empty."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} checksum_url=${checksum_url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} checksum_url=${checksum_url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
 
     if ! verify_checksum "$asset_name" "$download_tmp_asset" "$download_tmp_checksums"; then
         echo "Error: checksum verification failed for release asset ${asset_name}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} checksum_url=${checksum_url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} checksum_url=${checksum_url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
 
     if ! install_file "$download_tmp_asset" "$target_path"; then
         echo "Error: failed to install ${asset_name} into ${target_path}."
-        echo "repo=${MGPANEL_RELEASE_REPO} tag=${MGPANEL_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
+        echo "repo=${XBOARD_RELEASE_REPO} tag=${XBOARD_RELEASE_TAG} os=${OS} arch=${ARCH} url=${url}"
         rm -f "$download_tmp_asset" "$download_tmp_checksums"
         return 1
     fi
@@ -1206,18 +1206,18 @@ install_binary() {
 resolve_service_file() {
     service_name=$1
 
-    if [ "$service_name" = "agent.service" ] && [ -n "${MGPANEL_AGENT_SERVICE_FILE:-}" ] && [ -f "${MGPANEL_AGENT_SERVICE_FILE}" ]; then
-        echo "${MGPANEL_AGENT_SERVICE_FILE}"
+    if [ "$service_name" = "agent.service" ] && [ -n "${XBOARD_AGENT_SERVICE_FILE:-}" ] && [ -f "${XBOARD_AGENT_SERVICE_FILE}" ]; then
+        echo "${XBOARD_AGENT_SERVICE_FILE}"
         return 0
     fi
 
-    if [ "$service_name" = "mgpanel.service" ] && [ -n "${MGPANEL_PANEL_SERVICE_FILE:-}" ] && [ -f "${MGPANEL_PANEL_SERVICE_FILE}" ]; then
-        echo "${MGPANEL_PANEL_SERVICE_FILE}"
+    if [ "$service_name" = "xboard.service" ] && [ -n "${XBOARD_PANEL_SERVICE_FILE:-}" ] && [ -f "${XBOARD_PANEL_SERVICE_FILE}" ]; then
+        echo "${XBOARD_PANEL_SERVICE_FILE}"
         return 0
     fi
 
-    if [ -n "${MGPANEL_SERVICE_FILE:-}" ] && [ -f "${MGPANEL_SERVICE_FILE}" ]; then
-        echo "${MGPANEL_SERVICE_FILE}"
+    if [ -n "${XBOARD_SERVICE_FILE:-}" ] && [ -f "${XBOARD_SERVICE_FILE}" ]; then
+        echo "${XBOARD_SERVICE_FILE}"
         return 0
     fi
 
@@ -1241,18 +1241,18 @@ write_default_service_template() {
     fi
 
     case "$service_name" in
-        mgpanel.service)
+        xboard.service)
             cat > "$temp_service" <<'EOF'
 [Unit]
-Description=MGPanel Panel Service
+Description=XBoard Panel Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/mgpanel/panel
-EnvironmentFile=-/etc/default/mgpanel
-ExecStart=/opt/mgpanel/panel/mgpanel serve --config /opt/mgpanel/panel/config.yml
+WorkingDirectory=/opt/xboard/panel
+EnvironmentFile=-/etc/default/xboard
+ExecStart=/opt/xboard/panel/xboard serve --config /opt/xboard/panel/config.yml
 Restart=always
 RestartSec=5s
 
@@ -1287,23 +1287,23 @@ run_uninstall_mode() {
 
     if is_systemd_available; then
         has_service_manager=1
-        run_privileged systemctl disable --now mgpanel >/dev/null 2>&1 || true
+        run_privileged systemctl disable --now xboard >/dev/null 2>&1 || true
     else
-        echo "Systemd is not available on this host. Skipping systemctl operations for mgpanel."
+        echo "Systemd is not available on this host. Skipping systemctl operations for xboard."
     fi
 
     if is_openrc_available; then
         has_service_manager=1
-        run_privileged "$OPENRC_SERVICE_CMD" mgpanel stop >/dev/null 2>&1 || true
-        run_privileged "$OPENRC_UPDATE_CMD" del mgpanel default >/dev/null 2>&1 || run_privileged "$OPENRC_UPDATE_CMD" del mgpanel >/dev/null 2>&1 || true
+        run_privileged "$OPENRC_SERVICE_CMD" xboard stop >/dev/null 2>&1 || true
+        run_privileged "$OPENRC_UPDATE_CMD" del xboard default >/dev/null 2>&1 || run_privileged "$OPENRC_UPDATE_CMD" del xboard >/dev/null 2>&1 || true
     fi
 
     if [ "$has_service_manager" = "0" ]; then
         echo "No supported service manager detected. Removed files only."
     fi
 
-    run_privileged rm -f /etc/systemd/system/mgpanel.service || true
-    run_privileged rm -f /etc/init.d/mgpanel || true
+    run_privileged rm -f /etc/systemd/system/xboard.service || true
+    run_privileged rm -f /etc/init.d/xboard || true
 
     if is_systemd_available; then
         if ! run_privileged systemctl daemon-reload; then
@@ -1312,7 +1312,7 @@ run_uninstall_mode() {
         fi
     fi
 
-    run_privileged rm -f "$INSTALL_DIR/mgpanel" || true
+    run_privileged rm -f "$INSTALL_DIR/xboard" || true
     run_privileged rm -rf "$INSTALL_DIR/web/user-vite/dist" || true
     run_privileged rm -rf "$INSTALL_DIR/web/install" || true
     run_privileged rm -f "$INSTALL_DIR/config.yml" || true
@@ -1362,7 +1362,7 @@ fi
 
 set_stage "check download dependencies"
 if ! ensure_download_dependencies; then
-    echo "Error: release download dependency check failed for mgpanel."
+    echo "Error: release download dependency check failed for xboard."
     fail_stage "dependency check failed"
 fi
 
@@ -1394,12 +1394,12 @@ trap panel_install_cleanup_on_exit 0
 trap panel_install_handle_signal 2 15
 
 set_stage "prepare release assets"
-prepared_binary_name="mgpanel"
+prepared_binary_name="xboard"
 if [ "$OS" = "windows" ]; then
-    prepared_binary_name="mgpanel.exe"
-    prepared_binary_asset="mgpanel-${OS}-${ARCH}.exe"
+    prepared_binary_name="xboard.exe"
+    prepared_binary_asset="xboard-${OS}-${ARCH}.exe"
 else
-    prepared_binary_asset="mgpanel-${OS}-${ARCH}"
+    prepared_binary_asset="xboard-${OS}-${ARCH}"
 fi
 prepared_binary_path="$PREPARED_RELEASE_DIR/$prepared_binary_name"
 
@@ -1517,7 +1517,7 @@ if [ ! -f "$INSTALL_DIR/config.yml" ] && [ ! -f "$INSTALL_DIR/.env" ]; then
     else
         # Fallback: download config.example.yml from GitHub release
         echo "config.example.yml not found locally, downloading from GitHub..."
-        EXAMPLE_URL="https://raw.githubusercontent.com/${MGPANEL_RELEASE_REPO}/main/config.example.yml"
+        EXAMPLE_URL="https://raw.githubusercontent.com/${XBOARD_RELEASE_REPO}/main/config.example.yml"
         TMP_CONFIG=$(mktemp)
         if [ -n "$TMP_CONFIG" ] && curl --fail --silent --show-error --location --retry 3 --retry-delay 1 --output "$TMP_CONFIG" "$EXAMPLE_URL"; then
             if install_file "$TMP_CONFIG" "$INSTALL_DIR/config.yml"; then
@@ -1537,10 +1537,10 @@ if [ ! -f "$INSTALL_DIR/config.yml" ] && [ ! -f "$INSTALL_DIR/.env" ]; then
                 fail_stage "failed to create temporary config file"
             fi
             cat > "$CONFIG_TEMP" <<EOF
-# MGPanel Configuration
+# XBoard Configuration
 
 http:
-  addr: "0.0.0.0:${MGPANEL_PANEL_HTTP_PORT:-8080}"
+  addr: "0.0.0.0:${XBOARD_PANEL_HTTP_PORT:-8080}"
   shutdown_timeout: "15s"
 
 log:
@@ -1553,7 +1553,7 @@ log:
 
 database:
   driver: "sqlite"
-  path: "data/mgpanel.db"
+  path: "data/xboard.db"
 
 auth:
   signing_key: "change-me"
@@ -1572,23 +1572,23 @@ fi
 
 set_stage "install service"
 if [ "$SKIP_SYSTEMD" = "1" ]; then
-    echo "Skipping mgpanel.service installation (MGPANEL_INSTALL_SKIP_SYSTEMD=1)."
+    echo "Skipping xboard.service installation (XBOARD_INSTALL_SKIP_SYSTEMD=1)."
 elif is_systemd_available; then
-    SERVICE_FILE=$(resolve_service_file "mgpanel.service")
+    SERVICE_FILE=$(resolve_service_file "xboard.service")
     TEMPLATE_SOURCE="$SERVICE_FILE"
     TEMP_TEMPLATE=""
     if [ -z "$TEMPLATE_SOURCE" ]; then
-        if TEMP_TEMPLATE=$(write_default_service_template "mgpanel.service"); then
+        if TEMP_TEMPLATE=$(write_default_service_template "xboard.service"); then
             TEMPLATE_SOURCE="$TEMP_TEMPLATE"
-            echo "mgpanel.service template not found; using embedded default template."
+            echo "xboard.service template not found; using embedded default template."
         fi
     fi
     if [ -n "$TEMPLATE_SOURCE" ]; then
-        if ! render_install_service_file "$TEMPLATE_SOURCE" /etc/systemd/system/mgpanel.service; then
+        if ! render_install_service_file "$TEMPLATE_SOURCE" /etc/systemd/system/xboard.service; then
             if [ -n "$TEMP_TEMPLATE" ]; then
                 rm -f "$TEMP_TEMPLATE"
             fi
-            echo "Error: failed to install mgpanel.service."
+            echo "Error: failed to install xboard.service."
             fail_stage "systemd service installation failed"
         fi
         if [ -n "$TEMP_TEMPLATE" ]; then
@@ -1598,20 +1598,20 @@ elif is_systemd_available; then
             echo "Error: failed to run systemctl daemon-reload."
             fail_stage "systemd daemon reload failed"
         fi
-        if ! run_privileged systemctl enable mgpanel; then
-            echo "Error: failed to enable mgpanel service."
+        if ! run_privileged systemctl enable xboard; then
+            echo "Error: failed to enable xboard service."
             fail_stage "systemd service enable failed"
         fi
-        if ! run_privileged systemctl start mgpanel; then
-            echo "Error: failed to start mgpanel service."
+        if ! run_privileged systemctl start xboard; then
+            echo "Error: failed to start xboard service."
             fail_stage "systemd service start failed"
         fi
-        echo "mgpanel.service installed."
+        echo "xboard.service installed."
     else
-        echo "Warning: deploy/mgpanel.service not found and embedded template generation failed."
+        echo "Warning: deploy/xboard.service not found and embedded template generation failed."
     fi
 elif is_openrc_available; then
-    if ! install_openrc_service "mgpanel" "${INSTALL_DIR}/mgpanel" "serve --config ${INSTALL_DIR}/config.yml"; then
+    if ! install_openrc_service "xboard" "${INSTALL_DIR}/xboard" "serve --config ${INSTALL_DIR}/config.yml"; then
         fail_stage "OpenRC service installation failed"
     fi
 else

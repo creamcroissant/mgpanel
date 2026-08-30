@@ -172,7 +172,7 @@ func (s *userKnowledgeService) processBody(ctx context.Context, body string, use
 	}
 	subscribeURL := s.subscribeURL(ctx, user)
 	replacements := []string{
-		"{{siteName}}", s.settingString(ctx, "app_name", "MGPanel"),
+		"{{siteName}}", s.settingString(ctx, "app_name", "XBoard"),
 		"{{subscribeUrl}}", subscribeURL,
 		"{{urlEncodeSubscribeUrl}}", url.QueryEscape(subscribeURL),
 		"{{safeBase64SubscribeUrl}}", safeBase64(subscribeURL),

@@ -1,6 +1,6 @@
-# MGPanel User Frontend (Vite + React)
+# XBoard User Frontend (Vite + React)
 
-User/Admin SPA for MGPanel. Built assets are embedded into the backend binary and can also be shipped via release tarballs.
+User/Admin SPA for XBoard. Built assets are embedded into the backend binary and can also be shipped via release tarballs.
 
 ## Stack
 

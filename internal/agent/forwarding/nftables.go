@@ -15,7 +15,7 @@ import (
 
 const defaultNFTBin = "/usr/sbin/nft"
 
-const defaultNFTTableName = "mgpanel_forwarding"
+const defaultNFTTableName = "xboard_forwarding"
 
 // NFTablesExecutor 使用 nftables 应用转发规则。
 type NFTablesExecutor struct {

@@ -56,7 +56,7 @@ export default function Register() {
               {t("auth.register")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Create your MGPanel account
+              Create your XBoard account
             </p>
           </div>
         </CardHeader>

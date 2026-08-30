@@ -113,7 +113,7 @@ func (p *CloudFrontProvider) SyncDistribution(ctx context.Context, site interfac
 	}
 
 	apiConfig := DistributionConfig{
-		CallerReference: fmt.Sprintf("mgpanel-%s-%d", cfg.Domain, time.Now().UnixNano()),
+		CallerReference: fmt.Sprintf("xboard-%s-%d", cfg.Domain, time.Now().UnixNano()),
 		Comment:         cfg.Comment,
 		Enabled:         cfg.Enabled,
 		Aliases:         aliases,

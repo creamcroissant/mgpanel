@@ -125,7 +125,7 @@ func (s *verificationService) SendEmailCode(ctx context.Context, input EmailVeri
 		return err
 	}
 
-	appName := s.settingString(ctx, "app_name", "MGPanel")
+	appName := s.settingString(ctx, "app_name", "XBoard")
 	appURL := s.settingString(ctx, "app_url", "")
 	subject := fmt.Sprintf(emailSubjectFmt, appName)
 

@@ -32,7 +32,7 @@ func init() {
 
 func main() {
 	if version {
-		fmt.Printf("MGPanel Agent %s\n", Version)
+		fmt.Printf("XBoard Agent %s\n", Version)
 		return
 	}
 

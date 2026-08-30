@@ -21,12 +21,12 @@ import (
 // payload is a protowire-encoded {name=1,uuid=2,password=3,flow=4} message
 // covering every protocol, in addition to the official vless/vmess accounts
 // that the fork also accepts.
-const mgpanelManagedUserAccount = "mgpanel.user.ManagedUser"
+const xboardManagedUserAccount = "xboard.user.ManagedUser"
 
 // singboxClient implements APIClient for the sing-box fork (creamcroissant/
 // sing-box_with_api) via its unified gRPC HandlerService — the same wire
 // contract as Xray, with the account payload carried as
-// mgpanel.user.ManagedUser.
+// xboard.user.ManagedUser.
 type singboxClient struct {
 	address string
 	conn    *grpc.ClientConn
@@ -115,7 +115,7 @@ func (c *singboxClient) AddUser(ctx context.Context, inboundTag string, u UserCr
 		User: &protocol.User{
 			Email: u.Email,
 			Account: &serial.TypedMessage{
-				Type:  mgpanelManagedUserAccount,
+				Type:  xboardManagedUserAccount,
 				Value: encodeManagedUser(u),
 			},
 		},
@@ -152,7 +152,7 @@ func (c *singboxClient) alterInbound(ctx context.Context, inboundTag, opType str
 }
 
 // singboxUserFromProto converts a protocol.User into a UserCredential. The
-// fork's UserService accepts mgpanel.user.ManagedUser (protowire), and for
+// fork's UserService accepts xboard.user.ManagedUser (protowire), and for
 // interop also the official vless/vmess accounts. Inbounds without an account
 // degrade to email-only.
 func singboxUserFromProto(u *protocol.User) (UserCredential, error) {
@@ -165,7 +165,7 @@ func singboxUserFromProto(u *protocol.User) (UserCredential, error) {
 	}
 	typ := trimTypePrefix(acc.GetType())
 	switch typ {
-	case mgpanelManagedUserAccount:
+	case xboardManagedUserAccount:
 		return decodeManagedUser(acc.GetValue(), u.GetEmail())
 	case xrayAccountTypeVLess:
 		var a vless.Account

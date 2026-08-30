@@ -126,7 +126,7 @@ func Generate() (SecretsData, error) {
 	if err != nil {
 		return SecretsData{}, fmt.Errorf("failed to generate reality short id: %w", err)
 	}
-	certPEM, keyPEM, err := keygen.GenerateSelfSignedCert("mgpanel-agent", []string{"localhost"}, 825) // 825 days ~ 2.25 years
+	certPEM, keyPEM, err := keygen.GenerateSelfSignedCert("xboard-agent", []string{"localhost"}, 825) // 825 days ~ 2.25 years
 	if err != nil {
 		return SecretsData{}, fmt.Errorf("failed to generate self-signed tls cert: %w", err)
 	}

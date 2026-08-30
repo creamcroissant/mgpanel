@@ -26,7 +26,7 @@ import LatencyProbePanel from "./LatencyProbePanel";
 
 
 const DEFAULT_DEPLOY_SCRIPT_URL =
-  "https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh";
+  "https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh";
 
 function sanitizeShellArgument(value: string): string {
   return value.replace(/[\r\n]/g, "").trim();
@@ -47,7 +47,7 @@ function buildDeployCommand(communicationKey: string, grpcAddress: string, grpcT
   const tlsArg = grpcTlsEnabled ? " -t true" : "";
   return [
     `curl -fsSL ${shellEscapeSingleQuoted(deployScriptURL)} -o /tmp/agent.sh`,
-    `sudo INSTALL_DIR=/opt/mgpanel/agent sh /tmp/agent.sh -k ${shellEscapeSingleQuoted(communicationKey)} -g ${shellEscapeSingleQuoted(grpcAddress)}${tlsArg}`,
+    `sudo INSTALL_DIR=/opt/xboard/agent sh /tmp/agent.sh -k ${shellEscapeSingleQuoted(communicationKey)} -g ${shellEscapeSingleQuoted(grpcAddress)}${tlsArg}`,
   ].join(" && ");
 }
 

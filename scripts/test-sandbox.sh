@@ -14,7 +14,7 @@
 #   scripts/test-sandbox.sh go test ./internal/... -count=1 -short -cover
 set -euo pipefail
 
-SANDBOX_TMP=$(mktemp -d /tmp/mgpanel-sandbox-XXXXXX)
+SANDBOX_TMP=$(mktemp -d /tmp/xboard-sandbox-XXXXXX)
 trap 'rm -rf "$SANDBOX_TMP" 2>/dev/null || true' EXIT
 
 GOCACHE="${GOCACHE:-/root/.cache/go-build}"
@@ -35,5 +35,5 @@ exec bwrap \
   --setenv HOME /root \
   --setenv GOFLAGS "" \
   --setenv GOPROXY "https://proxy.golang.org,direct" \
-  --chdir /opt/work/mgpanel/mgpanel \
+  --chdir /opt/work/xboard/xboard \
   -- "$@"

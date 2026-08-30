@@ -40,10 +40,10 @@ type Manager struct {
 }
 
 // NewManager creates a Manager with the given caddy binary path and config
-// directory.  If configDir is empty, /opt/work/mgpanel/caddy/ is used.
+// directory.  If configDir is empty, /opt/work/xboard/caddy/ is used.
 func NewManager(binPath, configDir string) *Manager {
 	if configDir == "" {
-		configDir = "/opt/work/mgpanel/caddy/"
+		configDir = "/opt/work/xboard/caddy/"
 	}
 	installer := NewCaddyInstaller()
 	installer.binDir = filepath.Dir(binPath)

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const defaultCgroupBase = "/sys/fs/cgroup/mgpanel"
+const defaultCgroupBase = "/sys/fs/cgroup/xboard"
 
 var errCgroupUnsupported = errors.New("cgroup v2 not supported")
 

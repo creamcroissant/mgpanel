@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package xray.app.stats.command;
 
-option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/xray/stats/command;statscommand";
+option go_package = "github.com/creamcroissant/xboard/pkg/pb/xray/stats/command;statscommand";
 
 // GetStatsRequest requests a specific stat counter by name.
 message GetStatsRequest {

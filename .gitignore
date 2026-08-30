@@ -3,9 +3,9 @@
 /dist/
 /bin/
 /out/
-/mgpanel
+/xboard
 /agent
-mgpanelctl
+xboardctl
 
 # Environment
 .env
@@ -41,7 +41,7 @@ web/user-vite/test-results/
 web/user-vite/playwright-report/
 
 # Legacy & Archives
-Mgpanel
+Xboard
 .claude
 sing-box-custom-builder
 .github/prompts/

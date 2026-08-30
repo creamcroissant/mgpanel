@@ -111,7 +111,7 @@ func ICMPPing(ctx context.Context, addr string, timeout time.Duration) (time.Dur
 		Body: &icmp.Echo{
 			ID:   reqID,
 			Seq:  1,
-			Data: []byte("mgpanel-cdn-probe"),
+			Data: []byte("xboard-cdn-probe"),
 		},
 	}
 

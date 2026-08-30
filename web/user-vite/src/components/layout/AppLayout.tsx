@@ -19,7 +19,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     if (typeof window === "undefined") {
       return false;
     }
-    return window.localStorage.getItem("mgpanel.sidebar.collapsed") === "true";
+    return window.localStorage.getItem("xboard.sidebar.collapsed") === "true";
   });
 
   const noticeQuery = useQuery({
@@ -57,7 +57,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   );
 
   useEffect(() => {
-    window.localStorage.setItem("mgpanel.sidebar.collapsed", String(sidebarCollapsed));
+    window.localStorage.setItem("xboard.sidebar.collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
   return (

@@ -127,7 +127,7 @@ func (u *Uploader) tailLogFiles() []*agentv1.AgentLogEntry {
 
 	switch u.source {
 	case "agent", "all":
-		agentFiles, _ := filepath.Glob(filepath.Join(u.logDir, "mgpanel-agent-*.log"))
+		agentFiles, _ := filepath.Glob(filepath.Join(u.logDir, "xboard-agent-*.log"))
 		logFiles = append(logFiles, agentFiles...)
 	}
 	if u.source == "core" || u.source == "all" {
@@ -197,7 +197,7 @@ func inferLogLevel(line string) string {
 
 func (u *Uploader) resolveSource(path string) string {
 	base := filepath.Base(path)
-	if strings.HasPrefix(base, "mgpanel-agent") {
+	if strings.HasPrefix(base, "xboard-agent") {
 		return "agent"
 	}
 	if strings.HasPrefix(base, "core-") {

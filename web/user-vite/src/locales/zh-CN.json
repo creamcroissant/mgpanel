@@ -40,7 +40,7 @@
     "logout": "退出"
   },
   "install": {
-    "title": "初始化 MGPanel",
+    "title": "初始化 XBoard",
     "subtitle": "创建您的管理员账户以开始使用",
     "email": "邮箱地址",
     "emailPlaceholder": "admin@example.com",
@@ -89,7 +89,7 @@
     "registerSuccess": "注册成功",
     "emailOrUsername": "邮箱或用户名",
     "loggingIn": "登录中...",
-    "welcomeBack": "欢迎回到 MGPanel"
+    "welcomeBack": "欢迎回到 XBoard"
   },
   "dashboard": {
     "welcome": "欢迎回来",
@@ -1728,7 +1728,7 @@
           "grpcTlsEnabled": "启用 TLS"
         },
         "placeholders": {
-          "siteName": "例如：MGPanel",
+          "siteName": "例如：XBoard",
           "siteDesc": "简短描述站点用途",
           "siteUrl": "https://panel.example.com",
           "siteLogo": "https://example.com/logo.png",

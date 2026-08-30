@@ -18,7 +18,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof localStorage !== "undefined") {
-      return (localStorage.getItem("mgpanel-theme") as Theme) || "system";
+      return (localStorage.getItem("xboard-theme") as Theme) || "system";
     }
     return "system";
   });
@@ -45,7 +45,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
 
     updateTheme();
-    localStorage.setItem("mgpanel-theme", theme);
+    localStorage.setItem("xboard-theme", theme);
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");

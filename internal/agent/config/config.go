@@ -27,23 +27,23 @@ const (
 	defaultProxyDrainTimeout      = 5 * time.Second
 	defaultProxyNftBin            = "/usr/sbin/nft"
 	defaultProxyConntrackBin      = "conntrack"
-	defaultProxyNftTableName      = "mgpanel_proxy"
-	defaultProxyPIDDir            = "/var/run/mgpanel/cores"
-	defaultProxyCgroupBasePath    = "/sys/fs/cgroup/mgpanel"
+	defaultProxyNftTableName      = "xboard_proxy"
+	defaultProxyPIDDir            = "/var/run/xboard/cores"
+	defaultProxyCgroupBasePath    = "/sys/fs/cgroup/xboard"
 
-	defaultInstallScriptPath      = "/opt/mgpanel/deploy/agent.sh"
-	defaultSingBoxBinaryPath      = "/opt/mgpanel/bin/sing-box"
-	defaultXrayBinaryPath         = "/opt/mgpanel/bin/xray"
+	defaultInstallScriptPath      = "/opt/xboard/deploy/agent.sh"
+	defaultSingBoxBinaryPath      = "/opt/xboard/bin/sing-box"
+	defaultXrayBinaryPath         = "/opt/xboard/bin/xray"
 	defaultSingBoxReleaseRepo     = "creamcroissant/sing-box_with_api"
 	defaultXrayReleaseRepo        = "XTLS/Xray-core"
 	defaultCoreReleaseBaseURL     = "https://github.com"
-	defaultCoreInstallDir         = "/opt/mgpanel/agent/cores"
+	defaultCoreInstallDir         = "/opt/xboard/agent/cores"
 	defaultUpdateHealthTimeout    = 2 * time.Minute
 	defaultUpdateMaxCrashCount    = 3
 	defaultUpdateJitterMax        = 30 * time.Second
 	defaultUpdateMaxDownloadBytes = 200 * 1024 * 1024
 
-	defaultSecretsFile = "/etc/mgpanel/agent/secrets.json"
+	defaultSecretsFile = "/etc/xboard/agent/secrets.json"
 
 	// defaultV2RayAPIListen is the default listen address for the sing-box
 	// v2ray_api experimental section (runtime user management via HandlerService).
@@ -258,7 +258,7 @@ type ProtocolConfig struct {
 	PostHook string `yaml:"post_hook"`
 
 	// SecretsFile is the path to the node-level secrets file. When empty it
-	// defaults to /etc/mgpanel/agent/secrets.json. Never stored in the panel spec.
+	// defaults to /etc/xboard/agent/secrets.json. Never stored in the panel spec.
 	SecretsFile string `yaml:"secrets_file"`
 
 	// Custom commands for custom init system
@@ -554,7 +554,7 @@ func applyDefaults(cfg *Config) error {
 		cfg.Forwarding.SyncInterval = 30 * time.Second
 	}
 	if cfg.Forwarding.TableName == "" {
-		cfg.Forwarding.TableName = "mgpanel_forwarding"
+		cfg.Forwarding.TableName = "xboard_forwarding"
 	}
 	if cfg.Forwarding.NftBin == "" {
 		cfg.Forwarding.NftBin = defaultProxyNftBin
@@ -600,10 +600,10 @@ func applyDefaults(cfg *Config) error {
 
 	// CDN defaults
 	if strings.TrimSpace(cfg.CDN.BinPath) == "" {
-		cfg.CDN.BinPath = "/opt/mgpanel/caddy/caddy"
+		cfg.CDN.BinPath = "/opt/xboard/caddy/caddy"
 	}
 	if strings.TrimSpace(cfg.CDN.ConfigDir) == "" {
-		cfg.CDN.ConfigDir = "/opt/mgpanel/caddy"
+		cfg.CDN.ConfigDir = "/opt/xboard/caddy"
 	}
 	if strings.TrimSpace(cfg.CDN.AdminAddr) == "" {
 		cfg.CDN.AdminAddr = "localhost:2019"

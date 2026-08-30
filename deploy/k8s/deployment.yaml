@@ -1,31 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mgpanel
+  name: xboard
   labels:
-    app: mgpanel
+    app: xboard
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mgpanel
+      app: xboard
   template:
     metadata:
       labels:
-        app: mgpanel
+        app: xboard
     spec:
       containers:
-      - name: mgpanel
-        image: mgpanel:latest
+      - name: xboard
+        image: xboard:latest
         ports:
         - containerPort: 8080
         envFrom:
         - configMapRef:
-            name: mgpanel-config
+            name: xboard-config
         volumeMounts:
         - name: data
           mountPath: /data
       volumes:
       - name: data
         persistentVolumeClaim:
-          claimName: mgpanel-pvc
+          claimName: xboard-pvc

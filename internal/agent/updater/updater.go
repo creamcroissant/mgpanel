@@ -22,7 +22,7 @@ import (
 
 const (
 	DefaultReleaseBaseURL = "https://github.com"
-	DefaultReleaseRepo    = "creamcroissant/mgpanel"
+	DefaultReleaseRepo    = "creamcroissant/xboard2p"
 	DefaultReleaseTag     = "latest"
 
 	StatusIdle          = "idle"

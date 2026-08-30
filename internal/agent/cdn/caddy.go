@@ -35,8 +35,8 @@ type CaddyInstaller struct {
 // NewCaddyInstaller creates a new CaddyInstaller with default paths and download URL.
 func NewCaddyInstaller() *CaddyInstaller {
 	return &CaddyInstaller{
-		binDir:      "/opt/work/mgpanel/caddy/",
-		binPath:     "/opt/work/mgpanel/caddy/caddy",
+		binDir:      "/opt/work/xboard/caddy/",
+		binPath:     "/opt/work/xboard/caddy/caddy",
 		downloadURL: DefaultLinuxAmd64URL,
 		client: &http.Client{
 			Timeout: 5 * time.Minute,

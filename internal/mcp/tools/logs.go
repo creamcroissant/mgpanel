@@ -93,7 +93,7 @@ func (h *ServerLogHandler) Handle(ctx context.Context, _ any) (*ToolCallResult, 
 	}
 	var files []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), "mgpanel-") && strings.HasSuffix(e.Name(), ".log") {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "xboard-") && strings.HasSuffix(e.Name(), ".log") {
 			files = append(files, e.Name())
 		}
 	}

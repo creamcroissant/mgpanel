@@ -116,14 +116,14 @@ jobs:
 
           mkdir -p dist/release
 
-          MGPANEL_BIN="mgpanel-${GOOS}-${GOARCH}${EXT}"
+          XBOARD_BIN="xboard-${GOOS}-${GOARCH}${EXT}"
           AGENT_BIN="agent-${GOOS}-${GOARCH}${EXT}"
 
-          echo "Building ${MGPANEL_BIN}"
+          echo "Building ${XBOARD_BIN}"
           go build -trimpath \
             -ldflags "-s -w -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
-            -o "dist/release/${MGPANEL_BIN}" \
-            ./cmd/mgpanel
+            -o "dist/release/${XBOARD_BIN}" \
+            ./cmd/xboard
 
           echo "Building ${AGENT_BIN}"
           go build -trimpath \
@@ -131,7 +131,7 @@ jobs:
             -o "dist/release/${AGENT_BIN}" \
             ./cmd/agent
 
-          sha256sum "dist/release/${MGPANEL_BIN}" > "dist/release/${MGPANEL_BIN}.sha256"
+          sha256sum "dist/release/${XBOARD_BIN}" > "dist/release/${XBOARD_BIN}.sha256"
           sha256sum "dist/release/${AGENT_BIN}" > "dist/release/${AGENT_BIN}.sha256"
 
       - name: Upload release artifact
@@ -164,11 +164,11 @@ jobs:
       - name: Verify expected release assets exist
         run: |
           set -euo pipefail
-          test -f dist/release/mgpanel-linux-amd64
-          test -f dist/release/mgpanel-linux-arm64
-          test -f dist/release/mgpanel-darwin-amd64
-          test -f dist/release/mgpanel-darwin-arm64
-          test -f dist/release/mgpanel-windows-amd64.exe
+          test -f dist/release/xboard-linux-amd64
+          test -f dist/release/xboard-linux-arm64
+          test -f dist/release/xboard-darwin-amd64
+          test -f dist/release/xboard-darwin-arm64
+          test -f dist/release/xboard-windows-amd64.exe
 
           test -f dist/release/agent-linux-amd64
           test -f dist/release/agent-linux-arm64
@@ -203,22 +203,22 @@ jobs:
           mkdir -p "${WORKDIR_SH}/local/local/releases/download/local" "${WORKDIR_BASH}/local/local/releases/download/local"
           cp dist/release/agent-linux-amd64 "${WORKDIR_SH}/local/local/releases/download/local/agent-linux-amd64"
           cp dist/release/agent-linux-amd64 "${WORKDIR_BASH}/local/local/releases/download/local/agent-linux-amd64"
-          cp dist/release/mgpanel-linux-amd64 "${WORKDIR_SH}/local/local/releases/download/local/mgpanel-linux-amd64"
-          cp dist/release/mgpanel-linux-amd64 "${WORKDIR_BASH}/local/local/releases/download/local/mgpanel-linux-amd64"
+          cp dist/release/xboard-linux-amd64 "${WORKDIR_SH}/local/local/releases/download/local/xboard-linux-amd64"
+          cp dist/release/xboard-linux-amd64 "${WORKDIR_BASH}/local/local/releases/download/local/xboard-linux-amd64"
           cp dist/release/frontend-dist.tar.gz "${WORKDIR_SH}/local/local/releases/download/local/frontend-dist.tar.gz"
           cp dist/release/frontend-dist.tar.gz "${WORKDIR_BASH}/local/local/releases/download/local/frontend-dist.tar.gz"
           cp dist/release/install-ui.tar.gz "${WORKDIR_SH}/local/local/releases/download/local/install-ui.tar.gz"
           cp dist/release/install-ui.tar.gz "${WORKDIR_BASH}/local/local/releases/download/local/install-ui.tar.gz"
 
           AGENT_SHA="$(sha256sum dist/release/agent-linux-amd64 | awk '{print $1}')"
-          MGPANEL_SHA="$(sha256sum dist/release/mgpanel-linux-amd64 | awk '{print $1}')"
+          XBOARD_SHA="$(sha256sum dist/release/xboard-linux-amd64 | awk '{print $1}')"
           FRONTEND_SHA="$(sha256sum dist/release/frontend-dist.tar.gz | awk '{print $1}')"
           INSTALL_UI_SHA="$(sha256sum dist/release/install-ui.tar.gz | awk '{print $1}')"
           SCRIPT_SHA="$(sha256sum deploy/agent.sh | awk '{print $1}')"
           SERVICE_SHA="$(sha256sum deploy/agent.service | awk '{print $1}')"
           printf '%s  %s\n%s  %s\n%s  %s\n%s  %s\n%s  %s\n%s  %s\n' \
             "${AGENT_SHA}" "agent-linux-amd64" \
-            "${MGPANEL_SHA}" "mgpanel-linux-amd64" \
+            "${XBOARD_SHA}" "xboard-linux-amd64" \
             "${FRONTEND_SHA}" "frontend-dist.tar.gz" \
             "${INSTALL_UI_SHA}" "install-ui.tar.gz" \
             "${SCRIPT_SHA}" "deploy/agent.sh" \
@@ -231,10 +231,10 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             sh ./agent.sh -k "workflow-token-sh" -g "127.0.0.1:19090"
             test -x "${WORKDIR_SH}/out/agent"
             test -f "${WORKDIR_SH}/out/config.yml"
@@ -242,10 +242,10 @@ jobs:
 
           (
             cd "${WORKDIR_BASH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             bash ./agent.sh -k "workflow-token-bash" -g "127.0.0.1:19090"
             test -x "${WORKDIR_BASH}/out/agent"
             test -f "${WORKDIR_BASH}/out/config.yml"
@@ -253,21 +253,21 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             sh ./panel.sh
-            test -x "${WORKDIR_SH}/panel-out/mgpanel"
+            test -x "${WORKDIR_SH}/panel-out/xboard"
             test -f "${WORKDIR_SH}/panel-out/web/user-vite/dist/index.html"
             test -f "${WORKDIR_SH}/panel-out/web/install/index.html"
             mkdir -p "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets"
             touch "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets/stale.txt"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" sh ./panel.sh
             test ! -e "${WORKDIR_SH}/panel-out/web/user-vite/dist/assets/stale.txt"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh --uninstall
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" sh ./panel.sh --uninstall
-            test ! -e "${WORKDIR_SH}/panel-out/mgpanel"
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" sh ./panel.sh --uninstall
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" sh ./panel.sh --uninstall
+            test ! -e "${WORKDIR_SH}/panel-out/xboard"
             test ! -e "${WORKDIR_SH}/panel-out/config.yml"
             test ! -e "${WORKDIR_SH}/panel-out/.env"
             test ! -e "${WORKDIR_SH}/panel-out/web/user-vite/dist"
@@ -276,21 +276,21 @@ jobs:
 
           (
             cd "${WORKDIR_BASH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             bash ./panel.sh
-            test -x "${WORKDIR_BASH}/panel-out/mgpanel"
+            test -x "${WORKDIR_BASH}/panel-out/xboard"
             test -f "${WORKDIR_BASH}/panel-out/web/user-vite/dist/index.html"
             test -f "${WORKDIR_BASH}/panel-out/web/install/index.html"
             mkdir -p "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets"
             touch "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets/stale.txt"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" bash ./panel.sh
             test ! -e "${WORKDIR_BASH}/panel-out/web/user-vite/dist/assets/stale.txt"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh --uninstall
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" MGPANEL_RELEASE_REPO="local/local" MGPANEL_RELEASE_TAG="local" bash ./panel.sh --uninstall
-            test ! -e "${WORKDIR_BASH}/panel-out/mgpanel"
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" bash ./panel.sh --uninstall
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/panel-out" XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" XBOARD_RELEASE_REPO="local/local" XBOARD_RELEASE_TAG="local" bash ./panel.sh --uninstall
+            test ! -e "${WORKDIR_BASH}/panel-out/xboard"
             test ! -e "${WORKDIR_BASH}/panel-out/config.yml"
             test ! -e "${WORKDIR_BASH}/panel-out/.env"
             test ! -e "${WORKDIR_BASH}/panel-out/web/user-vite/dist"
@@ -299,18 +299,18 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" \
             sh ./agent.sh --uninstall
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" sh ./agent.sh --uninstall
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/out" sh ./agent.sh --uninstall
             test ! -e "${WORKDIR_SH}/out/agent"
             test ! -e "${WORKDIR_SH}/out/config.yml"
           )
 
           (
             cd "${WORKDIR_BASH}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" \
             bash ./agent.sh --uninstall
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" bash ./agent.sh --uninstall
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/out" bash ./agent.sh --uninstall
             test ! -e "${WORKDIR_BASH}/out/agent"
             test ! -e "${WORKDIR_BASH}/out/config.yml"
           )
@@ -319,13 +319,13 @@ jobs:
             cd "${WORKDIR_SH}"
             mkdir -p "${WORKDIR_SH}/custom-install"
             touch "${WORKDIR_SH}/custom-install/unknown.keep"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             sh ./agent.sh -k "custom-token-sh" -g "127.0.0.1:19090"
             test -f "${WORKDIR_SH}/custom-install/unknown.keep"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/custom-install" \
             sh ./agent.sh --uninstall
             test -f "${WORKDIR_SH}/custom-install/unknown.keep"
             test ! -e "${WORKDIR_SH}/custom-install/agent"
@@ -336,13 +336,13 @@ jobs:
             cd "${WORKDIR_BASH}"
             mkdir -p "${WORKDIR_BASH}/custom-install"
             touch "${WORKDIR_BASH}/custom-install/unknown.keep"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR_BASH}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             bash ./agent.sh -k "custom-token-bash" -g "127.0.0.1:19090"
             test -f "${WORKDIR_BASH}/custom-install/unknown.keep"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_BASH}/custom-install" \
             bash ./agent.sh --uninstall
             test -f "${WORKDIR_BASH}/custom-install/unknown.keep"
             test ! -e "${WORKDIR_BASH}/custom-install/agent"
@@ -351,7 +351,7 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-out" \
+            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/conflict-out" \
               sh ./agent.sh --uninstall -k "conflict-key" -g "127.0.0.1:19090"; then
               echo "agent.sh --uninstall should fail when mixed with install parameters" >&2
               exit 1
@@ -360,7 +360,7 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-arg-fail-out" \
+            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-arg-fail-out" \
               sh ./agent.sh --host-token "forbidden-token" -g "127.0.0.1:19090"; then
               echo "agent.sh should fail when --host-token is provided for install" >&2
               exit 1
@@ -369,19 +369,19 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-env-fail-out" \
-              MGPANEL_AGENT_HOST_TOKEN="forbidden-token" \
-              MGPANEL_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
+            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-env-fail-out" \
+              XBOARD_AGENT_HOST_TOKEN="forbidden-token" \
+              XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
               sh ./agent.sh; then
-              echo "agent.sh should fail when MGPANEL_AGENT_HOST_TOKEN is provided for install" >&2
+              echo "agent.sh should fail when XBOARD_AGENT_HOST_TOKEN is provided for install" >&2
               exit 1
             fi
           )
 
           (
             cd "${WORKDIR_SH}"
-            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-mixed-fail-out" \
-              MGPANEL_AGENT_HOST_TOKEN="forbidden-token" \
+            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/host-token-mixed-fail-out" \
+              XBOARD_AGENT_HOST_TOKEN="forbidden-token" \
               sh ./agent.sh -k "conflict-key" -g "127.0.0.1:19090"; then
               echo "agent.sh should fail when communication key and host token are mixed" >&2
               exit 1
@@ -390,12 +390,12 @@ jobs:
 
           (
             cd "${WORKDIR_SH}"
-            if MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/install-download-fail-out" \
-              MGPANEL_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
-              MGPANEL_RELEASE_REPO="local/local" \
-              MGPANEL_RELEASE_TAG="missing" \
-              MGPANEL_AGENT_COMMUNICATION_KEY="strict-install-token" \
-              MGPANEL_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
+            if XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR_SH}/install-download-fail-out" \
+              XBOARD_RELEASE_BASE_URL="file://${WORKDIR_SH}" \
+              XBOARD_RELEASE_REPO="local/local" \
+              XBOARD_RELEASE_TAG="missing" \
+              XBOARD_AGENT_COMMUNICATION_KEY="strict-install-token" \
+              XBOARD_AGENT_GRPC_ADDRESS="127.0.0.1:19090" \
               sh ./agent.sh; then
               echo "agent.sh should fail when release binary download fails" >&2
               exit 1
@@ -428,10 +428,10 @@ jobs:
 
           (
             cd "${WORKDIR}"
-            MGPANEL_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR}/out" \
-            MGPANEL_RELEASE_BASE_URL="file://${WORKDIR}" \
-            MGPANEL_RELEASE_REPO="local/local" \
-            MGPANEL_RELEASE_TAG="local" \
+            XBOARD_INSTALL_SKIP_SYSTEMD=1 INSTALL_DIR="${WORKDIR}/out" \
+            XBOARD_RELEASE_BASE_URL="file://${WORKDIR}" \
+            XBOARD_RELEASE_REPO="local/local" \
+            XBOARD_RELEASE_TAG="local" \
             sh ./agent.sh -k "release-check-token" -g "127.0.0.1:19090"
             test -f "${WORKDIR}/out/config.yml"
           )
@@ -586,7 +586,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/release/mgpanel-*
+            dist/release/xboard-*
             dist/release/agent-*
             dist/release/frontend-dist.tar.gz
             dist/release/install-ui.tar.gz

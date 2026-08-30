@@ -34,7 +34,7 @@ func (m Model) renderHostListView() string {
 	var b strings.Builder
 
 	// 头部
-	header := styleHeader.Width(m.width).Render("  MGPanel Server Monitor")
+	header := styleHeader.Width(m.width).Render("  XBoard Server Monitor")
 	b.WriteString(header)
 	b.WriteString("\n\n")
 

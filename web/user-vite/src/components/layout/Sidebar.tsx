@@ -211,7 +211,7 @@ export default function Sidebar({
                       <span className="text-sm font-bold text-primary-foreground">X</span>
                     </div>
                     <span className="ml-3 max-w-[120px] overflow-hidden whitespace-nowrap text-lg font-semibold tracking-tight opacity-100 transition-all duration-300 ease-in-out">
-                      MGPanel
+                      XBoard
                     </span>
                   </div>
                 )}
@@ -321,7 +321,7 @@ export default function Sidebar({
                 isCollapsed ? "flex h-6 w-10 items-center justify-center" : "max-w-full"
               )}
             >
-              {isCollapsed ? "©" : `© ${new Date().getFullYear()} MGPanel`}
+              {isCollapsed ? "©" : `© ${new Date().getFullYear()} XBoard`}
             </p>
           </div>
         </div>

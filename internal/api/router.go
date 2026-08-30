@@ -32,13 +32,13 @@ func resolveRateLimitConfig() (middleware.RateLimitConfig, bool) {
 	}
 	enabled := true
 
-	if raw := strings.TrimSpace(os.Getenv("MGPANEL_RATE_LIMIT_DISABLED")); raw != "" {
+	if raw := strings.TrimSpace(os.Getenv("XBOARD_RATE_LIMIT_DISABLED")); raw != "" {
 		if raw == "1" || strings.EqualFold(raw, "true") || strings.EqualFold(raw, "yes") {
 			enabled = false
 		}
 	}
 
-	if raw := strings.TrimSpace(os.Getenv("MGPANEL_RATE_LIMIT_LIMIT")); raw != "" {
+	if raw := strings.TrimSpace(os.Getenv("XBOARD_RATE_LIMIT_LIMIT")); raw != "" {
 		if value, err := strconv.Atoi(raw); err == nil {
 			if value <= 0 {
 				enabled = false
@@ -48,7 +48,7 @@ func resolveRateLimitConfig() (middleware.RateLimitConfig, bool) {
 		}
 	}
 
-	if raw := strings.TrimSpace(os.Getenv("MGPANEL_RATE_LIMIT_WINDOW_SECONDS")); raw != "" {
+	if raw := strings.TrimSpace(os.Getenv("XBOARD_RATE_LIMIT_WINDOW_SECONDS")); raw != "" {
 		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
 			config.Window = time.Duration(value) * time.Second
 		}

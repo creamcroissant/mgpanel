@@ -39,10 +39,10 @@ const (
 	prefMarkRule = 5000
 	defaultIface = "wgmesh0"
 
-	nftTable         = "mgpanel_relay"
-	sysctlConfPath   = "/etc/sysctl.d/90-mgpanel-relay.conf"
+	nftTable         = "xboard_relay"
+	sysctlConfPath   = "/etc/sysctl.d/90-xboard-relay.conf"
 	sysctlConfBody   = "net.ipv4.ip_forward = 1\n"
-	ruleMarkerPrefix = "# mgpanel-relay:"
+	ruleMarkerPrefix = "# xboard-relay:"
 )
 
 // Config 可注入的二进制路径与常量覆盖（空值用默认；测试指向 stub）。
@@ -52,7 +52,7 @@ type Config struct {
 	SysctlBinary   string // 默认 "sysctl"
 	WgBinary       string // 默认 "wg"；用于入口角色扩展出口 peer AllowedIPs
 	InterfaceName  string // 默认 wgmesh0
-	SysctlConfPath string // 默认 /etc/sysctl.d/90-mgpanel-relay.conf
+	SysctlConfPath string // 默认 /etc/sysctl.d/90-xboard-relay.conf
 	Logger         *slog.Logger
 }
 
@@ -396,7 +396,7 @@ func (m *Manager) ensureTunnel(ctx context.Context, r Role) error {
 
 // ensureTunnelForwardNat 出口侧隧道内转发/NAT（按 iface 幂等）：
 //   - ip_forward 常驻(sysctl.d，同 mesh mid 基础设施复用)
-//   - nft mgpanel_relay 表内: forward-ok 链 `iifname <iface> accept`
+//   - nft xboard_relay 表内: forward-ok 链 `iifname <iface> accept`
 //     postrouting-nat 链 `ip saddr <tunnelNet> masquerade`
 //
 // 规则以 comment "xr<id>" 打标，存在即跳过。
@@ -455,7 +455,7 @@ func (m *Manager) ensureTunnelForwardNat(ctx context.Context, r Role) error {
 
 // writeTempKeyFile 将 base64 私钥落为 0600 临时文件（wg private-key 参数只收文件路径）。
 func writeTempKeyFile(privB64 string) (string, error) {
-	f, err := os.CreateTemp("", "mgpanel-wg-key-*")
+	f, err := os.CreateTemp("", "xboard-wg-key-*")
 	if err != nil {
 		return "", err
 	}
