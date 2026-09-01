@@ -1581,6 +1581,11 @@
         "country": "Country/Region",
         "region": "Region",
         "confirm": "Apply"
+      },
+      "matchValue": {
+        "empty": "No match values",
+        "search": "Type to search preset match values…",
+        "custom": "(add as custom value, press Enter)"
       }
     },
     "system": {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea } from "@/components/ui";
+import { MatchValuePicker } from "./MatchValuePicker";
 
 interface RoutingRuleEditorProps {
   value: string;  // JSON string of routing config_data
@@ -186,11 +187,23 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.inbound.domain")}</label>
-              <Input value={stringFromArr(editRule.domain)} onChange={(e) => updateEditRuleField("domain", arrFromString(e.target.value))} placeholder="example.com, google.com" />
+              <MatchValuePicker
+                kind="domain"
+                values={editRule.domain ?? []}
+                onChange={(v) => updateEditRuleField("domain", v)}
+                placeholder="google.com, github.com"
+              />
+              <p className="text-xs text-muted-foreground">{t("admin.configCenter.matchValue.search")}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.routing.ip")}</label>
-              <Input value={stringFromArr(editRule.ip)} onChange={(e) => updateEditRuleField("ip", arrFromString(e.target.value))} placeholder="10.0.0.0/8, 1.1.1.1" />
+              <MatchValuePicker
+                kind="ip"
+                values={editRule.ip ?? []}
+                onChange={(v) => updateEditRuleField("ip", v)}
+                placeholder="10.0.0.0/8, 1.1.1.1"
+              />
+              <p className="text-xs text-muted-foreground">{t("admin.configCenter.matchValue.search")}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.inbound.port")}</label>
@@ -213,7 +226,13 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.inbound.protocol")}</label>
-              <Input value={stringFromArr(editRule.protocol)} onChange={(e) => updateEditRuleField("protocol", arrFromString(e.target.value))} placeholder="http, tls, bittorrent" />
+              <MatchValuePicker
+                kind="protocol"
+                values={editRule.protocol ?? []}
+                onChange={(v) => updateEditRuleField("protocol", v)}
+                placeholder="http, tls, bittorrent"
+              />
+              <p className="text-xs text-muted-foreground">{t("admin.configCenter.matchValue.search")}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.routing.inboundTag")}</label>
@@ -223,9 +242,15 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
               <label className="text-sm font-medium">{t("admin.configCenter.routing.outboundTag")}</label>
               <Input value={editRule.outboundTag ?? ""} onChange={(e) => updateEditRuleField("outboundTag", e.target.value || undefined)} placeholder="direct, block" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium">{t("admin.configCenter.routing.ruleSet")}</label>
-              <Input value={stringFromArr(editRule.rule_set)} onChange={(e) => updateEditRuleField("rule_set", arrFromString(e.target.value))} placeholder="geosite-openai" />
+              <MatchValuePicker
+                kind="rule_set"
+                values={editRule.rule_set ?? []}
+                onChange={(v) => updateEditRuleField("rule_set", v)}
+                placeholder="geosite-openai, geoip-cn"
+              />
+              <p className="text-xs text-muted-foreground">{t("admin.configCenter.matchValue.search")}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.routing.action")}</label>

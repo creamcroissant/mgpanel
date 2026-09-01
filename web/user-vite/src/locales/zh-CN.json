@@ -1579,6 +1579,11 @@
         "country": "国家/地区",
         "region": "地区",
         "confirm": "开始下发"
+      },
+      "matchValue": {
+        "empty": "暂无匹配值",
+        "search": "输入关键字搜索预设匹配值…",
+        "custom": "（添加为自定义值，回车确认）"
       }
     },
     "system": {
