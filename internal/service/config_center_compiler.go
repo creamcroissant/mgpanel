@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/creamcroissant/mgpanel/internal/repository"
-	"github.com/creamcroissant/mgpanel/internal/template"
+	"github.com/creamcroissant/xboard/internal/repository"
+	"github.com/creamcroissant/xboard/internal/template"
 )
 
 var (
@@ -179,9 +179,11 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 		}
 		enabledSpecs = append(enabledSpecs, item)
 	}
-	if len(enabledSpecs) == 0 {
-		return nil, fmt.Errorf("%w (no enabled inbound specs found / 未找到启用的入站配置)", ErrArtifactCompileInvalidRequest)
-	}
+	// 注意：不因 enabledSpecs 为空而提前返回。
+	// mesh 基础产物（mesh-direct/mesh-inbound/rule-sets/routing-policy）不依赖 spec，
+	// 只要是 mesh 成员（存在 WG IP）就应生成——无 spec 绑定的 mesh 节点（如仅作出口/
+	// 中继的 agent）也能拿到可下发的配置。若该 host 既无 spec 也不是 mesh 成员，
+	// 产物为空，由上层（PrepareApplyRun）拒绝为无可交付配置（422）。
 
 	sort.Slice(enabledSpecs, func(i, j int) bool {
 		leftTag := normalizeTag(enabledSpecs[i].Tag)

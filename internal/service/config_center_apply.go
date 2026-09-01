@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/xboard/internal/repository"
 )
 
 var (
@@ -214,12 +215,17 @@ func (s *applyOrchestratorService) PrepareApplyRun(ctx context.Context, req Prep
 		return nil, err
 	}
 	if len(artifacts) == 0 && s.compiler != nil {
-		// 跨主机/未渲染: 按需渲染该 host 自身绑定的 spec 产物
+		// 跨主机/未渲染: 按需渲染该 host 自身绑定的 spec 产物。
+		// 渲染失败不吞错：记录 WARN 供排查（失败常见于 host 无 spec 绑定且非 mesh 成员）。
 		if _, rerr := s.compiler.RenderArtifacts(ctx, RenderArtifactsRequest{
 			AgentHostID:     req.AgentHostID,
 			CoreType:        coreType,
 			DesiredRevision: req.TargetRevision,
-		}); rerr == nil {
+		}); rerr != nil {
+			slog.Warn("apply: on-demand artifact render failed",
+				"agent_host_id", req.AgentHostID, "core_type", coreType,
+				"target_revision", req.TargetRevision, "error", rerr)
+		} else {
 			artifacts, err = s.artifacts.List(ctx, filter)
 			if err != nil {
 				return nil, err
