@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creamcroissant/xboard/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type mockAgentLifecycleOperationRepo struct {

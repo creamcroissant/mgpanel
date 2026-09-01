@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creamcroissant/xboard/internal/repository"
-	"github.com/creamcroissant/xboard/internal/security"
+	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/security"
 )
 
 type captureSecurityRecorder struct {

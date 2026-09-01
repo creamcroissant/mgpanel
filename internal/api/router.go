@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/creamcroissant/xboard/internal/api/handler"
-	"github.com/creamcroissant/xboard/internal/api/middleware"
-	"github.com/creamcroissant/xboard/internal/async"
-	"github.com/creamcroissant/xboard/internal/service"
-	"github.com/creamcroissant/xboard/internal/support/i18n"
+	"github.com/creamcroissant/mgpanel/internal/api/handler"
+	"github.com/creamcroissant/mgpanel/internal/api/middleware"
+	"github.com/creamcroissant/mgpanel/internal/async"
+	"github.com/creamcroissant/mgpanel/internal/service"
+	"github.com/creamcroissant/mgpanel/internal/support/i18n"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/creamcroissant/xboard/internal/config"
+	"github.com/creamcroissant/mgpanel/internal/config"
 )
 
 func resolveRateLimitConfig() (middleware.RateLimitConfig, bool) {

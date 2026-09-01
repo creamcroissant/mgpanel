@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/creamcroissant/xboard/internal/repository"
-	"github.com/creamcroissant/xboard/internal/template"
+	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/template"
 )
 
 var (

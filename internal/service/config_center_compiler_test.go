@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/creamcroissant/xboard/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 type mockDesiredArtifactRepo struct {

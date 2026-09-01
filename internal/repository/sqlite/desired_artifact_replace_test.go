@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/creamcroissant/xboard/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
 // TestDesiredArtifact_ReplaceRevisionRollback verifies that a mid-batch

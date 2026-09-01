@@ -90,7 +90,9 @@ func (g *agentOperationGuard) CheckIdle(ctx context.Context, req AgentOperationG
 		return nil
 	}
 	g.recordBlockedAttempt(ctx, req, *blocker)
-	return &AgentOperationBusyError{Blocker: *blocker}
+	// Queue 模式: 有进行中操作时不拒绝, 记入审计后放行
+	// 由 agent 串行队列按序处理, 无需面板侧互斥
+	return nil
 }
 
 func (g *agentOperationGuard) findBlocker(ctx context.Context, req AgentOperationGuardRequest) (*repository.OperationBlocker, error) {
