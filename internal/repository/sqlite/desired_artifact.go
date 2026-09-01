@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/xboard/internal/repository"
 )
 
 type desiredArtifactRepo struct {
@@ -113,8 +113,14 @@ func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agen
 	return err
 }
 
-// ReplaceRevision 在单事务内删除指定维度(host+core+revision，可选 sourceTags)
-// 的旧 artifacts 并写入新批次；任一步失败整体回滚，杜绝"删完未写入"的中间态。
+// ReplaceRevision 在单事务内删除指定维度(host+core+revision)的同名旧 artifacts
+// 并写入新批次；任一步失败整体回滚，杜绝"删完未写入"的中间态。
+//
+// 删除条件按 filename 维度（而非 source_tag）：desired_artifacts 的 UNIQUE 约束是
+// (agent_host_id, core_type, desired_revision, filename)。同一文件重渲染后 source_tag
+// 可能变化（如 mesh-direct.json 从 policy-A 改属 policy-B），若按旧 source_tag 过滤
+// 会漏删旧记录 → INSERT 同名文件时撞 UNIQUE(2067)。按 filename 删除与约束一致，
+// 覆盖同一 revision 下的同名产物，且不影响同 revision 的其他文件名。
 func (r *desiredArtifactRepo) ReplaceRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, artifacts []*repository.DesiredArtifact, sourceTags ...string) (int64, error) {
 	tx, err := beginTxWithRetry(ctx, r.db)
 	if err != nil {
@@ -124,13 +130,41 @@ func (r *desiredArtifactRepo) ReplaceRevision(ctx context.Context, agentHostID i
 
 	query := "DELETE FROM desired_artifacts WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ?"
 	args := []any{agentHostID, coreType, desiredRevision}
+	// 删除条件语义（保持与调用方契约一致）：
+	//  - 无 sourceTags：整批替换，删除该 (host,core,revision) 维度全部旧产物；
+	//  - 有 sourceTags：scoped 替换，删除本次 sourceTags 名下旧产物，同时按 filename
+	//    兜底删除同名文件（desired_artifacts 的 UNIQUE 约束是 (agent_host_id, core_type,
+	//    desired_revision, filename)。同一文件重渲染后 source_tag 可能变化，如
+	//    mesh-direct.json 从 policy-A 改属 policy-B，仅按旧 source_tag 过滤会漏删旧记录
+	//    → INSERT 同名文件时撞 UNIQUE(2067)）。
+	filenameSet := make([]string, 0, len(artifacts))
+	seenFile := make(map[string]struct{}, len(artifacts))
+	for _, a := range artifacts {
+		if a == nil || strings.TrimSpace(a.Filename) == "" {
+			continue
+		}
+		if _, ok := seenFile[a.Filename]; !ok {
+			seenFile[a.Filename] = struct{}{}
+			filenameSet = append(filenameSet, a.Filename)
+		}
+	}
 	if len(sourceTags) > 0 {
+		var conds []string
 		placeholders := make([]string, len(sourceTags))
 		for i, tag := range sourceTags {
 			placeholders[i] = "?"
 			args = append(args, tag)
 		}
-		query += " AND source_tag IN (" + strings.Join(placeholders, ",") + ")"
+		conds = append(conds, "source_tag IN ("+strings.Join(placeholders, ",")+")")
+		if len(filenameSet) > 0 {
+			fph := make([]string, len(filenameSet))
+			for i := range filenameSet {
+				fph[i] = "?"
+				args = append(args, filenameSet[i])
+			}
+			conds = append(conds, "filename IN ("+strings.Join(fph, ",")+")")
+		}
+		query += " AND (" + strings.Join(conds, " OR ") + ")"
 	}
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 		return 0, fmt.Errorf("delete old artifacts: %w", err)
