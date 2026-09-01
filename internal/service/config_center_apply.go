@@ -652,6 +652,10 @@ func validateApplyResultStatusConsistency(success bool, statusValue, nextStatus 
 	if nextStatus == applyRunStatusApplying || nextStatus == applyRunStatusPending {
 		return nil
 	}
+	// rolled_back 表示"失败并已回滚"，与 success=false 语义一致，允许上报。
+	if nextStatus == applyRunStatusRolledBack && !success {
+		return nil
+	}
 	if nextStatus != expected {
 		return fmt.Errorf("%w (status and success are inconsistent)", ErrApplyOrchestratorInvalidRequest)
 	}
