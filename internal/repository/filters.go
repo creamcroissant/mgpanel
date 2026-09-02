@@ -6,7 +6,6 @@ package repository
 type UserSearchFilter struct {
 	Keyword string // Changed from Query to Keyword to match usage
 	Status  *int
-	PlanID  *int64
 	Limit   int
 	Offset  int
 }

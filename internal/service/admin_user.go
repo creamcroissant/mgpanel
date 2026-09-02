@@ -39,7 +39,6 @@ type AdminUserImportResult struct {
 type AdminUserFetchInput struct {
 	Query  string
 	Status *int
-	PlanID *int64
 	Limit  int
 	Offset int
 }
@@ -54,7 +53,6 @@ type AdminUserFetchResult struct {
 type AdminUserUpdateInput struct {
 	ID             int64   `json:"id"`
 	Email          *string `json:"email,omitempty"`
-	PlanID         *int64  `json:"plan_id,omitempty"`
 	GroupID        *int64  `json:"group_id,omitempty"`
 	ExpiredAt      *int64  `json:"expired_at,omitempty"`
 	TransferEnable *int64  `json:"transfer_enable,omitempty"`
@@ -69,7 +67,6 @@ type AdminUserUpdateInput struct {
 type AdminUserGenerateInput struct {
 	Email          string `json:"email"`
 	Password       string `json:"password"`
-	PlanID         *int64 `json:"plan_id,omitempty"`
 	GroupID        *int64 `json:"group_id,omitempty"`
 	ExpiredAt      *int64 `json:"expired_at,omitempty"`
 	TransferEnable *int64 `json:"transfer_enable,omitempty"`
@@ -81,9 +78,7 @@ type AdminUserView struct {
 	Email             string                  `json:"email"`
 	UUID              string                  `json:"uuid"`
 	Token             string                  `json:"token"`
-	PlanID            int64                   `json:"plan_id"`
 	GroupID           int64                   `json:"group_id"`
-	Plan              *AdminUserPlanSummary   `json:"plan"`
 	Group             *AdminUserGroupSummary  `json:"group"`
 	Status            int                     `json:"status"`
 	Banned            bool                    `json:"banned"`
@@ -109,12 +104,6 @@ type AdminUserView struct {
 	SubscribeURL      string                  `json:"subscribe_url"`
 }
 
-// AdminUserPlanSummary 提供管理端所需的最小套餐信息。
-type AdminUserPlanSummary struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
 // AdminUserGroupSummary 提供管理端所需的最小分组信息。
 type AdminUserGroupSummary struct {
 	ID   int64  `json:"id"`
@@ -123,7 +112,6 @@ type AdminUserGroupSummary struct {
 
 type adminUserService struct {
 	users     repository.UserRepository
-	plans     repository.PlanRepository
 	groups    repository.ServerGroupRepository
 	settings  repository.SettingRepository
 	telemetry ServerTelemetryService
@@ -134,7 +122,6 @@ type adminUserService struct {
 // NewAdminUserService 组装管理员用户流程所需仓储。
 func NewAdminUserService(
 	users repository.UserRepository,
-	plans repository.PlanRepository,
 	groups repository.ServerGroupRepository,
 	settings repository.SettingRepository,
 	telemetry ServerTelemetryService,
@@ -143,7 +130,6 @@ func NewAdminUserService(
 ) AdminUserService {
 	return &adminUserService{
 		users:     users,
-		plans:     plans,
 		groups:    groups,
 		settings:  settings,
 		telemetry: telemetry,
@@ -163,7 +149,6 @@ func (s *adminUserService) Fetch(ctx context.Context, input AdminUserFetchInput)
 	filter := repository.UserSearchFilter{
 		Keyword: strings.TrimSpace(input.Query),
 		Status:  input.Status,
-		PlanID:  input.PlanID,
 		Limit:   input.Limit,
 		Offset:  input.Offset,
 	}
@@ -175,7 +160,6 @@ func (s *adminUserService) Fetch(ctx context.Context, input AdminUserFetchInput)
 	if err != nil {
 		return nil, err
 	}
-	planMap := s.planLookup(ctx)
 	groupMap := s.groupLookup(ctx)
 	counts := s.aliveCounts(ctx, users)
 	subscribeBase := s.subscribeBase(ctx)
@@ -185,7 +169,6 @@ func (s *adminUserService) Fetch(ctx context.Context, input AdminUserFetchInput)
 			continue
 		}
 		meta := adminUserViewMeta{
-			plan:          planMap[user.PlanID],
 			group:         groupMap[user.GroupID],
 			onlineCount:   counts[user.ID],
 			subscribeBase: subscribeBase,
@@ -210,7 +193,6 @@ func (s *adminUserService) GetByID(ctx context.Context, id int64) (*AdminUserVie
 		return nil, err
 	}
 	view := s.buildView(user, adminUserViewMeta{
-		plan:          s.planByID(ctx, user.PlanID),
 		group:         s.groupByID(ctx, user.GroupID),
 		subscribeBase: s.subscribeBase(ctx),
 	})
@@ -252,11 +234,6 @@ func (s *adminUserService) Update(ctx context.Context, input AdminUserUpdateInpu
 		}
 		user.Email = email
 	}
-	var planUpdated bool
-	if input.PlanID != nil {
-		user.PlanID = *input.PlanID
-		planUpdated = true
-	}
 	if input.GroupID != nil {
 		user.GroupID = *input.GroupID
 	}
@@ -292,28 +269,11 @@ func (s *adminUserService) Update(ctx context.Context, input AdminUserUpdateInpu
 	if input.Tags != nil {
 		user.Tags = input.Tags
 	}
-	if planUpdated && s.plans != nil {
-		plan, err := s.plans.FindByID(ctx, user.PlanID)
-		if err != nil {
-			return nil, err
-		}
-		if input.GroupID == nil {
-			if plan.GroupID != nil {
-				user.GroupID = *plan.GroupID
-			} else {
-				user.GroupID = 0
-			}
-		}
-		if input.TransferEnable == nil {
-			user.TransferEnable = plan.TransferEnable
-		}
-	}
 	user.UpdatedAt = time.Now().Unix()
 	if err := s.users.Save(ctx, user); err != nil {
 		return nil, err
 	}
 	view := s.buildView(user, adminUserViewMeta{
-		plan:          s.planByID(ctx, user.PlanID),
 		group:         s.groupByID(ctx, user.GroupID),
 		subscribeBase: s.subscribeBase(ctx),
 	})
@@ -338,23 +298,9 @@ func (s *adminUserService) Generate(ctx context.Context, input AdminUserGenerate
 		return nil, err
 	}
 	var (
-		plan           *repository.Plan
-		planID         int64
 		groupID        int64
 		transferEnable int64
 	)
-	if input.PlanID != nil && *input.PlanID > 0 {
-		var err error
-		plan, err = s.plans.FindByID(ctx, *input.PlanID)
-		if err != nil {
-			return nil, err
-		}
-		planID = plan.ID
-		if plan.GroupID != nil {
-			groupID = *plan.GroupID
-		}
-		transferEnable = plan.TransferEnable
-	}
 	if input.GroupID != nil {
 		groupID = *input.GroupID
 	}
@@ -371,7 +317,6 @@ func (s *adminUserService) Generate(ctx context.Context, input AdminUserGenerate
 		Token:             makeUUID(),
 		Email:             email,
 		Password:          hashed,
-		PlanID:            planID,
 		GroupID:           groupID,
 		ExpiredAt:         valueOrZero(input.ExpiredAt),
 		TransferEnable:    transferEnable,
@@ -385,7 +330,6 @@ func (s *adminUserService) Generate(ctx context.Context, input AdminUserGenerate
 		return nil, err
 	}
 	view := s.buildView(created, adminUserViewMeta{
-		plan:          plan,
 		group:         s.groupByID(ctx, created.GroupID),
 		subscribeBase: s.subscribeBase(ctx),
 	})
@@ -403,7 +347,6 @@ func (s *adminUserService) Export(ctx context.Context, input AdminUserFetchInput
 	filter := repository.UserSearchFilter{
 		Keyword: strings.TrimSpace(input.Query),
 		Status:  input.Status,
-		PlanID:  input.PlanID,
 	}
 	// 获取符合筛选条件的全部用户
 	users, err := s.users.Search(ctx, filter)
@@ -548,7 +491,6 @@ func (s *adminUserService) Import(ctx context.Context, data []byte) (*AdminUserI
 }
 
 type adminUserViewMeta struct {
-	plan          *repository.Plan
 	group         *repository.ServerGroup
 	onlineCount   int
 	subscribeBase string
@@ -563,7 +505,6 @@ func (s *adminUserService) buildView(user *repository.User, meta adminUserViewMe
 		Email:             user.Email,
 		UUID:              strings.TrimSpace(user.UUID),
 		Token:             strings.TrimSpace(user.Token),
-		PlanID:            user.PlanID,
 		GroupID:           user.GroupID,
 		Status:            user.Status,
 		Banned:            user.Banned,
@@ -588,42 +529,10 @@ func (s *adminUserService) buildView(user *repository.User, meta adminUserViewMe
 		OnlineCount:       meta.onlineCount,
 		SubscribeURL:      buildSubscribeURL(meta.subscribeBase, user.Token),
 	}
-	if meta.plan != nil {
-		view.Plan = &AdminUserPlanSummary{ID: meta.plan.ID, Name: meta.plan.Name}
-	}
 	if meta.group != nil {
 		view.Group = &AdminUserGroupSummary{ID: meta.group.ID, Name: meta.group.Name}
 	}
 	return view
-}
-
-func (s *adminUserService) planLookup(ctx context.Context) map[int64]*repository.Plan {
-	if s == nil || s.plans == nil {
-		return nil
-	}
-	plans, err := s.plans.ListAll(ctx)
-	if err != nil {
-		return nil
-	}
-	result := make(map[int64]*repository.Plan, len(plans))
-	for _, plan := range plans {
-		if plan == nil {
-			continue
-		}
-		result[plan.ID] = plan
-	}
-	return result
-}
-
-func (s *adminUserService) planByID(ctx context.Context, id int64) *repository.Plan {
-	if s == nil || s.plans == nil || id <= 0 {
-		return nil
-	}
-	plan, err := s.plans.FindByID(ctx, id)
-	if err != nil {
-		return nil
-	}
-	return plan
 }
 
 func (s *adminUserService) groupLookup(ctx context.Context) map[int64]*repository.ServerGroup {

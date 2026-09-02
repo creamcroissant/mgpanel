@@ -15,7 +15,6 @@ type User struct {
 	PasswordAlgo      string
 	PasswordSalt      string
 	BalanceCents      int64
-	PlanID            int64
 	GroupID           int64
 	ExpiredAt         int64
 	U                 int64
@@ -42,12 +41,6 @@ type NodeUser struct {
 	Email       string
 	SpeedLimit  *int64
 	DeviceLimit *int64
-}
-
-// PlanUserCount aggregates user totals per plan for admin analytics.
-type PlanUserCount struct {
-	Total  int64
-	Active int64
 }
 
 // AccessToken stores refresh/access session metadata.
@@ -93,27 +86,6 @@ type Plugin struct {
 	Type      string
 	IsEnabled bool
 	Config    string
-}
-
-// Plan models the plans table for subscription listings.
-type Plan struct {
-	ID                 int64
-	GroupID            *int64
-	Name               string
-	Prices             map[string]float64
-	Sell               bool
-	TransferEnable     int64
-	SpeedLimit         *int64
-	DeviceLimit        *int64
-	Show               bool
-	Renew              bool
-	Content            string
-	Tags               []string
-	ResetTrafficMethod *int64
-	CapacityLimit      *int64
-	Sort               int64
-	CreatedAt          int64
-	UpdatedAt          int64
 }
 
 // ServerGroup represents a logical grouping of servers.

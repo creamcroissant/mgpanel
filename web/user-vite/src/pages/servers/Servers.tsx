@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Server, SlidersHorizontal, Tag } from "lucide-react";
+import { Search, Server, SlidersHorizontal } from "lucide-react";
 import { fetchUserServers } from "@/api/server";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
-  Badge,
   Button,
   EmptyState,
   ErrorBanner,
@@ -13,11 +12,11 @@ import {
   Loading,
   PageShell,
   PageToolbar,
-  ResourceCard,
-  ResponsiveGrid,
 } from "@/components/ui";
+import { ServerCard } from "@/components/server";
+import { getServerStatus } from "@/lib/country";
 
-const STATUS_FILTERS = ["all", "online", "offline"] as const;
+const STATUS_FILTERS = ["all", "online", "degraded", "offline"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 export default function Servers() {
@@ -42,14 +41,24 @@ export default function Servers() {
   const filteredServers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return servers.filter((server) => {
+      const serverStatus = getServerStatus(server);
       const matchesKeyword =
         !keyword ||
         server.name.toLowerCase().includes(keyword) ||
         server.type.toLowerCase().includes(keyword) ||
+        (server.country && server.country.toLowerCase().includes(keyword)) ||
+        (server.region && server.region.toLowerCase().includes(keyword)) ||
         (server.tags ?? []).some((tag) => tag.toLowerCase().includes(keyword));
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "online" ? server.is_online === true : server.is_online !== true);
+
+      let matchesStatus = true;
+      if (statusFilter === "online") {
+        matchesStatus = serverStatus === 1;
+      } else if (statusFilter === "degraded") {
+        matchesStatus = serverStatus === 2;
+      } else if (statusFilter === "offline") {
+        matchesStatus = serverStatus === 0;
+      }
+
       const matchesType = typeFilter === "all" || server.type === typeFilter;
       return matchesKeyword && matchesStatus && matchesType;
     });
@@ -96,7 +105,17 @@ export default function Servers() {
                 variant={statusFilter === filter ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter(filter)}
+                className="gap-1.5"
               >
+                {filter === "online" && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                )}
+                {filter === "degraded" && (
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                )}
+                {filter === "offline" && (
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                )}
                 {t(`servers.filters.${filter}`)}
               </Button>
             ))}
@@ -146,45 +165,11 @@ export default function Servers() {
           size="lg"
         />
       ) : (
-        <ResponsiveGrid minColWidth={280} gap={16}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredServers.map((server) => (
-            <ResourceCard
-              key={server.id}
-              data-testid="server-resource-card"
-              icon={<Server className="h-5 w-5" />}
-              title={server.name}
-              description={t("servers.cardDescription", { type: server.type, rate: server.rate })}
-              status={
-                <Badge variant={server.is_online ? "success" : "danger"}>
-                  {server.is_online ? t("servers.online") : t("servers.offline")}
-                </Badge>
-              }
-              meta={
-                <>
-                  <Badge variant="outline">{server.type}</Badge>
-                  <Badge variant="secondary">{t("servers.rateValue", { rate: server.rate })}</Badge>
-                </>
-              }
-              footer={
-                server.tags && server.tags.length > 0 ? (
-                  <div className="flex min-w-0 flex-wrap gap-1.5">
-                    {server.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex min-w-0 items-center gap-1 rounded-md border bg-muted/30 px-2 py-1 text-xs text-muted-foreground"
-                      >
-                        <Tag className="h-3 w-3 shrink-0" />
-                        <span className="break-all">{tag}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  t("servers.noTags")
-                )
-              }
-            />
+            <ServerCard key={server.id} server={server} />
           ))}
-        </ResponsiveGrid>
+        </div>
       )}
     </PageShell>
   );

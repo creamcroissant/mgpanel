@@ -24,16 +24,6 @@ export {
   resetUserPassword,
 } from "./user";
 
-// Plan API
-export {
-  getPlans,
-  getPlan,
-  createPlan,
-  updatePlan,
-  deletePlan,
-  updatePlanSort,
-} from "./plan";
-
 // Notice API
 export {
   getNotices,

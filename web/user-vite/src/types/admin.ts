@@ -54,8 +54,6 @@ export interface AdminUser {
   username?: string;
   uuid: string;
   token: string;
-  plan_id?: number;
-  plan_name?: string;
   group_id?: number;
   transfer_enable: number;
   transfer_used: number;
@@ -67,25 +65,6 @@ export interface AdminUser {
   status: number;
   banned: boolean;
   telegram_id?: number;
-  created_at: number;
-  updated_at: number;
-}
-
-// Admin plan interface
-export interface AdminPlan {
-  id: number;
-  name: string;
-  content?: string;
-  transfer_enable: number;
-  speed_limit?: number;
-  device_limit?: number;
-  group_id?: number;
-  show: boolean;
-  sell: boolean;
-  renew: boolean;
-  sort: number;
-  reset_traffic_method?: number;
-  reset_traffic_value?: number;
   created_at: number;
   updated_at: number;
 }
@@ -726,7 +705,6 @@ export interface CreateUserRequest {
   email?: string;
   username?: string;
   password: string;
-  plan_id?: number;
   group_id?: number;
   is_admin?: boolean;
   is_staff?: boolean;
@@ -739,31 +717,12 @@ export interface UpdateUserRequest {
   email?: string;
   username?: string;
   password?: string;
-  plan_id?: number;
   group_id?: number;
   is_admin?: boolean;
   is_staff?: boolean;
   banned?: boolean;
   expired_at?: number;
   transfer_enable?: number;
-}
-
-// Create/Update plan request
-export interface CreatePlanRequest {
-  name: string;
-  content?: string;
-  transfer_enable: number;
-  speed_limit?: number;
-  device_limit?: number;
-  group_id?: number;
-  show?: boolean;
-  sell?: boolean;
-  renew?: boolean;
-  sort?: number;
-}
-
-export interface UpdatePlanRequest extends Partial<CreatePlanRequest> {
-  id: number;
 }
 
 // Create/Update notice request

@@ -9,17 +9,6 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
-// countryEmoji maps ISO 3166-1 alpha-2 country codes to regional indicator flag emoji.
-var countryEmoji = map[string]string{
-	"HK": "🇭🇰", "JP": "🇯🇵", "SG": "🇸🇬", "US": "🇺🇸", "TW": "🇹🇼",
-	"KR": "🇰🇷", "GB": "🇬🇧", "DE": "🇩🇪", "FR": "🇫🇷", "NL": "🇳🇱",
-	"CA": "🇨🇦", "AU": "🇦🇺", "IN": "🇮🇳", "AE": "🇦🇪", "RU": "🇷🇺",
-	"BR": "🇧🇷", "AR": "🇦🇷", "ZA": "🇿🇦", "NG": "🇳🇬", "TH": "🇹🇭",
-	"VN": "🇻🇳", "MY": "🇲🇾", "PH": "🇵🇭", "ID": "🇮🇩", "MO": "🇲🇴",
-	"CH": "🇨🇭", "SE": "🇸🇪", "NO": "🇳🇴", "FI": "🇫🇮", "DK": "🇩🇰",
-	"PT": "🇵🇹", "ES": "🇪🇸", "IT": "🇮🇹",
-}
-
 // NodeNamer generates auto-names for server nodes based on a configurable
 // template (e.g. "{flag}{region}_{agent_name}{serial}") and manages per-agent
 // serial counting so that the first inbound on an agent gets no serial suffix
@@ -38,11 +27,19 @@ func NewNodeNamer(settings AdminSystemSettingsService) *NodeNamer {
 	}
 }
 
-// FlagEmoji returns the flag emoji for a 2-letter ISO country code, or the
-// code itself when no mapping exists.
+// FlagEmoji converts a 2-letter ISO 3166-1 alpha-2 country code to its
+// corresponding regional indicator flag emoji using standard Unicode offset calculation.
+// Returns the input code as fallback if it is not a valid 2-letter uppercase ASCII code.
 func FlagEmoji(countryCode string) string {
-	if emoji, ok := countryEmoji[countryCode]; ok {
-		return emoji
+	code := strings.ToUpper(strings.TrimSpace(countryCode))
+	if len(code) != 2 {
+		return countryCode
+	}
+	r1, r2 := rune(code[0]), rune(code[1])
+	if r1 >= 'A' && r1 <= 'Z' && r2 >= 'A' && r2 <= 'Z' {
+		// Regional Indicator Symbol Letter A is U+1F1E6 (127462)
+		const base = 0x1F1E6
+		return string([]rune{base + (r1 - 'A'), base + (r2 - 'A')})
 	}
 	return countryCode
 }

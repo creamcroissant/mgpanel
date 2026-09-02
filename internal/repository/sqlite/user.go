@@ -108,7 +108,6 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 		password_algo,
 		password_salt,
 		balance,
-		plan_id,
 		group_id,
 		expired_at,
 		u,
@@ -126,7 +125,7 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 		tags,
 		created_at,
 		updated_at)
-		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	              ON CONFLICT(id) DO UPDATE SET
 	                uuid = excluded.uuid,
 	                is_admin = excluded.is_admin,
@@ -137,7 +136,6 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 	                password_algo = excluded.password_algo,
 	                password_salt = excluded.password_salt,
 	                balance = excluded.balance,
-	                plan_id = excluded.plan_id,
 	                group_id = excluded.group_id,
 	                expired_at = excluded.expired_at,
 	                u = excluded.u,
@@ -174,7 +172,6 @@ func (r *userRepo) Save(ctx context.Context, user *repository.User) error {
 		user.PasswordAlgo,
 		user.PasswordSalt,
 		user.BalanceCents,
-		user.PlanID,
 		user.GroupID,
 		user.ExpiredAt,
 		user.U,
@@ -213,7 +210,6 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 		password_algo,
 		password_salt,
 		balance,
-		plan_id,
 		group_id,
 		expired_at,
 		u,
@@ -229,7 +225,7 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 		tags,
 		created_at,
 		updated_at)
-		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		              VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	now := time.Now().Unix()
 	user.CreatedAt = now
 	user.UpdatedAt = now
@@ -247,7 +243,6 @@ func (r *userRepo) Create(ctx context.Context, user *repository.User) (*reposito
 		user.PasswordAlgo,
 		user.PasswordSalt,
 		user.BalanceCents,
-		user.PlanID,
 		user.GroupID,
 		user.ExpiredAt,
 		user.U,
@@ -280,14 +275,6 @@ func (r *userRepo) HasAdmin(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
-}
-
-func (r *userRepo) ActiveCountByPlan(ctx context.Context, planID int64, nowUnix int64) (int64, error) {
-	// 统计套餐下仍处于有效期的用户数量。
-	query := `SELECT COUNT(*) FROM users WHERE plan_id = ? AND (expired_at = 0 OR expired_at > ?)`
-	var count int64
-	err := r.db.QueryRowContext(ctx, query, planID, nowUnix).Scan(&count)
-	return count, err
 }
 
 func (r *userRepo) AdjustBalance(ctx context.Context, userID int64, deltaCents int64) (bool, error) {
@@ -353,94 +340,51 @@ func (r *userRepo) ListActiveForGroups(ctx context.Context, groupIDs []int64, no
 	if len(groupIDs) == 0 {
 		return nil, nil
 	}
-	// This is tricky: users are related to plans, plans are related to groups (now via junction table).
-	// But `users` table also has `group_id` legacy field?
-	// The requirement is usually: User has Plan -> Plan has Groups -> User can access Groups.
-	// But V2bX/MGPanel often syncs users to nodes based on Plan/Group permissions.
-	// The original query likely used `users.group_id` or `users.plan_id`.
-	// Let's assume we fetch users whose Plan allows access to any of the groupIDs.
-	// This requires joining users, plans, plan_server_groups.
-
+	// 用户通过自身 group_id 关联节点分组。
 	placeholders := make([]string, len(groupIDs))
-	args := make([]any, len(groupIDs)+1)
+	args := make([]any, 0, len(groupIDs)+1)
 	for i, id := range groupIDs {
 		placeholders[i] = "?"
-		args[i] = id
+		args = append(args, id)
 	}
-	args[len(groupIDs)] = nowUnix
+	args = append(args, nowUnix)
 
-	// Join users -> plans -> plan_server_groups
-	// We want users where plan_server_groups.group_id IN (...)
 	query := `
 		SELECT u.id, u.uuid, u.email, u.speed_limit, u.device_limit
 		FROM users u
-		JOIN plan_server_groups psg ON u.plan_id = psg.plan_id
-		WHERE psg.group_id IN (` + strings.Join(placeholders, ",") + `)
+		WHERE u.group_id IN (` + strings.Join(placeholders, ",") + `)
 		  AND (u.expired_at = 0 OR u.expired_at > ?)
 		  AND u.banned = 0
 		  AND u.status = 1
 	`
-	// Wait, we also need to consider legacy `group_id` on user?
-	// If user.group_id matches? Usually user.group_id is for manual override or admin?
-	// Let's stick to plan-based logic for now as `plan_server_groups` is the new standard.
-
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var users []*repository.NodeUser
+	var result []*repository.NodeUser
 	for rows.Next() {
-		var u repository.NodeUser
-		var speed, device sql.NullInt64
-		if err := rows.Scan(&u.ID, &u.UUID, &u.Email, &speed, &device); err != nil {
+		var nu repository.NodeUser
+		var speedLimit, deviceLimit sql.NullInt64
+		if err := rows.Scan(&nu.ID, &nu.UUID, &nu.Email, &speedLimit, &deviceLimit); err != nil {
 			return nil, err
 		}
-		u.SpeedLimit = nullableIntPtr(speed)
-		u.DeviceLimit = nullableIntPtr(device)
-		users = append(users, &u)
-	}
-	return users, rows.Err()
-}
-
-func (r *userRepo) PlanCounts(ctx context.Context, planIDs []int64, nowUnix int64) (map[int64]repository.PlanUserCount, error) {
-	if len(planIDs) == 0 {
-		return nil, nil
-	}
-	placeholders := make([]string, len(planIDs))
-	args := make([]any, len(planIDs))
-	for i, id := range planIDs {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-
-	query := `SELECT plan_id, COUNT(*), SUM(CASE WHEN (expired_at = 0 OR expired_at > ?) AND banned = 0 THEN 1 ELSE 0 END)
-	          FROM users WHERE plan_id IN (` + strings.Join(placeholders, ",") + `) GROUP BY plan_id`
-	
-	// Prepend nowUnix to args for the SUM condition
-	finalArgs := append([]any{nowUnix}, args...)
-	
-	rows, err := r.db.QueryContext(ctx, query, finalArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[int64]repository.PlanUserCount)
-	for rows.Next() {
-		var planID int64
-		var total, active int64
-		if err := rows.Scan(&planID, &total, &active); err != nil {
-			return nil, err
+		if speedLimit.Valid {
+			v := speedLimit.Int64
+			nu.SpeedLimit = &v
 		}
-		result[planID] = repository.PlanUserCount{Total: total, Active: active}
+		if deviceLimit.Valid {
+			v := deviceLimit.Int64
+			nu.DeviceLimit = &v
+		}
+		result = append(result, &nu)
 	}
 	return result, rows.Err()
 }
 
 func (r *userRepo) Search(ctx context.Context, filter repository.UserSearchFilter) ([]*repository.User, error) {
-	baseQuery := `SELECT id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at FROM users`
+	baseQuery := `SELECT id, uuid, token, username, email, password, password_algo, password_salt, balance, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at FROM users`
 	var conds []string
 	var args []any
 
@@ -452,10 +396,6 @@ func (r *userRepo) Search(ctx context.Context, filter repository.UserSearchFilte
 	if filter.Status != nil {
 		conds = append(conds, "status = ?")
 		args = append(args, *filter.Status)
-	}
-	if filter.PlanID != nil {
-		conds = append(conds, "plan_id = ?")
-		args = append(args, *filter.PlanID)
 	}
 
 	query := baseQuery
@@ -506,10 +446,6 @@ func (r *userRepo) CountFiltered(ctx context.Context, filter repository.UserSear
 		conds = append(conds, "status = ?")
 		args = append(args, *filter.Status)
 	}
-	if filter.PlanID != nil {
-		conds = append(conds, "plan_id = ?")
-		args = append(args, *filter.PlanID)
-	}
 
 	if len(conds) > 0 {
 		query += " WHERE " + strings.Join(conds, " AND ")
@@ -543,7 +479,6 @@ func scanUser(row userScanner) (*repository.User, error) {
 		&algo,
 		&salt,
 		&u.BalanceCents,
-		&u.PlanID,
 		&u.GroupID,
 		&u.ExpiredAt,
 		&u.U,
@@ -598,7 +533,7 @@ func userSelectBy(field string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("invalid user select field: %s", field)
 	}
-	const cols = `id, uuid, token, username, email, password, password_algo, password_salt, balance, plan_id, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at`
+	const cols = `id, uuid, token, username, email, password, password_algo, password_salt, balance, group_id, expired_at, u, d, transfer_enable, speed_limit, device_limit, is_admin, status, banned, traffic_exceeded, last_login_at, remarks, tags, created_at, updated_at`
 	return fmt.Sprintf("SELECT %s FROM users WHERE %s = ?", cols, col), nil
 }
 

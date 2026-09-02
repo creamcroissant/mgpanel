@@ -2,11 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import {
-  MatchCandidate,
-  MatchFieldKind,
-  searchCandidates,
-} from "./presets/matchValuePresets";
+import { searchCandidates } from "./presets/matchValuePresets";
+import type { MatchFieldKind } from "./presets/matchValuePresets";
 
 /**
  * 匹配值搜索选择器

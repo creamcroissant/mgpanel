@@ -18,7 +18,6 @@ type Store struct {
 	settingsRepo            *settingRepo
 	serversRepo             *serverRepo
 	usersRepo               *userRepo
-	plansRepo               *planRepo
 	subscriptionSourcesRepo *subscriptionSourceRepo
 	statUsersRepo           *statUserRepo
 	statServersRepo         *statServerRepo
@@ -34,7 +33,6 @@ type Store struct {
 	users                  repository.UserRepository
 	settings               repository.SettingRepository
 	plugins                repository.PluginRepository
-	plans                  repository.PlanRepository
 	loginLogs              repository.LoginLogRepository
 	tokens                 repository.TokenRepository
 	servers                repository.ServerRepository
@@ -101,9 +99,6 @@ func WithCache(c cache.Store) StoreOption {
 		if s.usersRepo != nil {
 			s.usersRepo.cache = c
 		}
-		if s.plansRepo != nil {
-			s.plansRepo.cache = c
-		}
 		if s.subscriptionSourcesRepo != nil {
 			s.subscriptionSourcesRepo.cache = c
 		}
@@ -120,7 +115,6 @@ func WithCache(c cache.Store) StoreOption {
 func NewStore(db *sql.DB, opts ...StoreOption) *Store {
 	usersRepo := &userRepo{db: db}
 	settingsRepo := &settingRepo{db: db}
-	plansRepo := &planRepo{db: db}
 	serversRepo := &serverRepo{db: db}
 	statUsersRepo := &statUserRepo{db: db}
 	statServersRepo := &statServerRepo{db: db}
@@ -129,7 +123,6 @@ func NewStore(db *sql.DB, opts ...StoreOption) *Store {
 		db:                     db,
 		usersRepo:              usersRepo,
 		settingsRepo:           settingsRepo,
-		plansRepo:              plansRepo,
 		serversRepo:            serversRepo,
 		statUsersRepo:          statUsersRepo,
 		statServersRepo:        statServersRepo,
@@ -145,7 +138,6 @@ func NewStore(db *sql.DB, opts ...StoreOption) *Store {
 		users:                  usersRepo,
 		settings:               settingsRepo,
 		plugins:                &pluginRepo{db: db},
-		plans:                  plansRepo,
 		loginLogs:              &loginLogRepo{db: db},
 		tokens:                 &tokenRepo{db: db},
 		servers:                serversRepo,
@@ -241,10 +233,6 @@ func (s *Store) Settings() repository.SettingRepository {
 
 func (s *Store) Plugins() repository.PluginRepository {
 	return s.plugins
-}
-
-func (s *Store) Plans() repository.PlanRepository {
-	return s.plans
 }
 
 func (s *Store) LoginLogs() repository.LoginLogRepository {

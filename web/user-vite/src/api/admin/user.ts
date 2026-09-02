@@ -9,7 +9,6 @@ import type {
 
 interface UserSearchParams extends PaginationParams {
   search?: string;
-  plan_id?: number;
   status?: number;
   is_admin?: boolean;
 }

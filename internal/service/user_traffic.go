@@ -52,18 +52,16 @@ type UserTrafficService interface {
 type userTrafficService struct {
 	trafficRepo       repository.UserTrafficRepository
 	userRepo          repository.UserRepository
-	plans             repository.PlanRepository
 	statCollector     TrafficStatCollectorWithHost
 	notificationQueue *async.NotificationQueue
 	settings          repository.SettingRepository
 }
 
 // NewUserTrafficService creates a new UserTrafficService.
-func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRepo repository.UserRepository, plans repository.PlanRepository) UserTrafficService {
+func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRepo repository.UserRepository) UserTrafficService {
 	return &userTrafficService{
 		trafficRepo: trafficRepo,
 		userRepo:    userRepo,
-		plans:       plans,
 	}
 }
 
@@ -71,7 +69,6 @@ func NewUserTrafficService(trafficRepo repository.UserTrafficRepository, userRep
 func NewUserTrafficServiceWithCollector(
 	trafficRepo repository.UserTrafficRepository,
 	userRepo repository.UserRepository,
-	plans repository.PlanRepository,
 	collector TrafficStatCollectorWithHost,
 	notificationQueue *async.NotificationQueue,
 	settings repository.SettingRepository,
@@ -79,7 +76,6 @@ func NewUserTrafficServiceWithCollector(
 	return &userTrafficService{
 		trafficRepo:       trafficRepo,
 		userRepo:          userRepo,
-		plans:             plans,
 		statCollector:     collector,
 		notificationQueue: notificationQueue,
 		settings:          settings,
@@ -312,14 +308,6 @@ func (s *userTrafficService) ResetExpiredPeriods(ctx context.Context) (int, erro
 		}
 		if user == nil {
 			continue
-		}
-
-		// Check if user's plan prohibits traffic reset
-		if user.PlanID > 0 && s.plans != nil {
-			plan, err := s.plans.FindByID(ctx, user.PlanID)
-			if err == nil && plan != nil && plan.ResetTrafficMethod != nil && *plan.ResetTrafficMethod == planResetNever {
-				continue
-			}
 		}
 
 		// Create new period based on settings

@@ -120,7 +120,6 @@ func (s *installService) CreateAdmin(ctx context.Context, input InstallInput) (*
 		Email:             email,
 		Password:          hashValue,
 		BalanceCents:      0,
-		PlanID:            0,
 		GroupID:           0,
 		ExpiredAt:         0,
 		U:                 0,

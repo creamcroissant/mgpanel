@@ -13,7 +13,6 @@ const Install = lazy(() => import("@/pages/install"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Subscription = lazy(() => import("@/pages/subscription"));
 const Servers = lazy(() => import("@/pages/servers"));
-const Plans = lazy(() => import("@/pages/plans"));
 const TrafficStats = lazy(() => import("@/pages/traffic"));
 const Knowledge = lazy(() => import("@/pages/knowledge"));
 const Settings = lazy(() => import("@/pages/settings"));
@@ -22,7 +21,6 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 // Admin pages
 const AdminAgents = lazy(() => import("@/pages/admin/agents"));
 const AdminUsers = lazy(() => import("@/pages/admin/users"));
-const AdminPlans = lazy(() => import("@/pages/admin/plans"));
 const AdminNotices = lazy(() => import("@/pages/admin/notices"));
 const AdminKnowledge = lazy(() => import("@/pages/admin/knowledge"));
 const AdminSystem = lazy(() => import("@/pages/admin/system"));
@@ -141,7 +139,6 @@ export default function App() {
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
         <Route path={ROUTES.SUBSCRIPTION} element={<Subscription />} />
         <Route path={ROUTES.SERVERS} element={<Servers />} />
-        <Route path={ROUTES.PLANS} element={<Plans />} />
         <Route path={ROUTES.TRAFFIC} element={<TrafficStats />} />
         <Route path={ROUTES.KNOWLEDGE} element={<Knowledge />} />
         <Route path={ROUTES.SETTINGS} element={<Settings />} />
@@ -151,7 +148,6 @@ export default function App() {
       <Route element={<RequireAdminAuth />}>
         <Route path={ADMIN_ROUTES.AGENTS} element={<AdminAgents />} />
         <Route path={ADMIN_ROUTES.USERS} element={<AdminUsers />} />
-        <Route path={ADMIN_ROUTES.PLANS} element={<AdminPlans />} />
         <Route path={ADMIN_ROUTES.NOTICES} element={<AdminNotices />} />
         <Route path={ADMIN_ROUTES.KNOWLEDGE} element={<AdminKnowledge />} />
         <Route path={ADMIN_ROUTES.SYSTEM} element={<AdminSystem />} />

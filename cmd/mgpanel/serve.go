@@ -168,7 +168,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	registrationService := service.NewRegistrationService(store.Users(), store.Settings(), infra.Hasher, verifyService, infra.Cache)
 	mailLinkService := service.NewMailLinkService(store.Users(), store.Settings(), queuedNotifier, infra.Cache)
 	commService := service.NewCommService(store.Settings(), store.Plugins())
-	planService := service.NewPlanService(store.Plans(), store.Users(), store.Settings(), store.ServerGroups(), logger)
 	i18nManager, err := i18n.NewManager(
 		i18n.WithLogger(logger),
 		i18n.WithDefaultLang("en-US"),
@@ -177,11 +176,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	adminPlanService := service.NewAdminPlanService(store.Plans(), i18nManager)
 	serverTelemetryService := service.NewServerTelemetryServiceWithLogger(infra.Cache, store.Settings(), store.Servers(), store.StatServers(), logger)
 	adminUserService := service.NewAdminUserService(
 		store.Users(),
-		store.Plans(),
 		store.ServerGroups(),
 		store.Settings(),
 		serverTelemetryService,
@@ -208,7 +205,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Multi-accumulator for multi-granularity statistics (hourly, daily, monthly)
 	multiAccumulator := job.NewMultiAccumulator(3) // 0=hourly, 1=daily, 2=monthly
 	serverTrafficService := service.NewServerTrafficService(store.Users(), multiAccumulator)
-	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), store.Plans(), multiAccumulator, notificationQueue, store.Settings())
+	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), multiAccumulator, notificationQueue, store.Settings())
 	userServerSelectionService := service.NewUserServerSelectionService(store.UserTraffic())
 	trafficQueue := async.NewTrafficQueue()
 	subLogQueue := async.NewSubscriptionLogQueue(store.SubscriptionLogs(), logger)
@@ -327,7 +324,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	binaryVersionService := service.NewBinaryVersionServiceWithOptions(store.BinaryVersionStates(), store.AgentHosts(), buildBinaryVersionProvider(), service.BinaryVersionServiceOptions{CoreOperations: store.CoreOperations()})
 	shortLinkService := service.NewShortLinkService(store.ShortLinks(), store.Users(), store.Settings())
 	subscriptionSourceService := service.NewSubscriptionSourceService(store.SubscriptionSources(), service.SubscriptionSourceServiceOptions{})
-	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), store.Plans(), userServerSelectionService, serverTelemetryService)
+	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), userServerSelectionService, serverTelemetryService)
 	// 订阅热路径不持久化过滤原因（写放大优化）；需要重建时手动开启。
 	subscriptionFilterService.SetPersistReasons(false)
 	coreOperationService := service.NewCoreOperationService(store.CoreOperations(), agentOperationGuard)
@@ -451,7 +448,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Auth:                service.NewAuthService(store.Users(), store.Settings(), store.LoginLogs(), store.Tokens(), infra.Hasher, infra.Token, infra.RateLimiter, infra.Audit, infra.Cache),
 		AdminPath:           service.NewAdminPathService(store.Settings()),
 		Install:             installService,
-		AdminPlan:           adminPlanService,
 		AdminUser:           adminUserService,
 		AdminServer:         adminServerService,
 		AdminStat:           adminStatService,
@@ -471,10 +467,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Register:            registrationService,
 		MailLink:            mailLinkService,
 		Comm:                commService,
-		Plan:                planService,
-		Server:              service.NewServerService(store.Users(), store.Servers(), store.Plans()),
+		Server:              service.NewServerService(store.Users(), store.Servers(), store.AgentHosts()),
 		Subscription: func() service.SubscriptionService {
-			svc := service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.Plans(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, subscriptionFilterService)
+			svc := service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, subscriptionFilterService)
 			svc.SetCache(infra.Cache)
 			return svc
 		}(),
@@ -570,7 +565,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		mcpRegistry.Register(tools.NewServerStatsHandler(adminNodeStatService))
 		mcpRegistry.Register(tools.NewUserListHandler(adminUserService))
 		mcpRegistry.Register(tools.NewUserDetailHandler(adminUserService))
-		mcpRegistry.Register(tools.NewPlanListHandler(planService))
 		mcpRegistry.Register(tools.NewCDNSiteListHandler(cdnService))
 		mcpRegistry.Register(tools.NewMeshNetworkHandler(meshService))
 		mcpRegistry.Register(tools.NewOperationLogsListHandler(operationLogService))

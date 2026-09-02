@@ -51,14 +51,6 @@ var (
 	ErrInvalidToken = errors.New("service: invalid token / 令牌无效")
 	// ErrInvalidServerType indicates node_type not recognized.
 	ErrInvalidServerType = errors.New("service: invalid server type / 节点类型无效")
-	// ErrInvalidPeriod indicates the requested plan period has no price.
-	ErrInvalidPeriod = errors.New("service: invalid plan period / 套餐周期无效")
-	// ErrPlanSoldOut indicates the plan capacity has been reached.
-	ErrPlanSoldOut = errors.New("service: plan sold out / 套餐已售罄")
-	// ErrPlanUnavailable indicates the plan cannot be purchased under current conditions.
-	ErrPlanUnavailable = errors.New("service: plan unavailable / 套餐不可用")
-	// ErrResetTrafficNotAllowed indicates data reset packages cannot be purchased.
-	ErrResetTrafficNotAllowed = errors.New("service: reset traffic not allowed / 不允许重置流量")
 	// ErrUserNotEligible indicates the user cannot access subscription data.
 	ErrUserNotEligible = errors.New("service: user not eligible for subscription / 用户不满足订阅条件")
 	// ErrNotImplemented indicates functionality has not been ported yet.

@@ -143,7 +143,6 @@ func (s *registrationService) Register(ctx context.Context, input RegistrationIn
 		Password:          hashed,
 		PasswordAlgo:      "",
 		PasswordSalt:      "",
-		PlanID:            0,
 		ExpiredAt:         0,
 		U:                 0,
 		D:                 0,

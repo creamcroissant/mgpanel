@@ -156,7 +156,6 @@ type adminUserFetchPayload struct {
 	PageSize int                    `json:"pageSize"`
 	Current  int                    `json:"current"`
 	Keyword  string                 `json:"keyword"`
-	PlanID   *int64                 `json:"plan_id"`
 	Status   *int                   `json:"status"`
 	Filter   []adminUserTableFilter `json:"filter"`
 	Sort     []adminUserTableSort   `json:"sort"`
@@ -194,7 +193,6 @@ func parseAdminUserFetchBody(r *http.Request) (adminUserFetchParams, error) {
 		offset = 0
 	}
 	keyword := strings.TrimSpace(payload.Keyword)
-	planID := payload.PlanID
 	status := payload.Status
 	for _, filter := range payload.Filter {
 		id := strings.ToLower(strings.TrimSpace(filter.ID))
@@ -214,10 +212,6 @@ func parseAdminUserFetchBody(r *http.Request) (adminUserFetchParams, error) {
 			if value := strings.TrimSpace(filter.firstString()); value != "" {
 				keyword = value
 			}
-		case "plan_id", "planid", "plan":
-			if parsed, ok := filter.firstInt64(); ok {
-				planID = &parsed
-			}
 		case "status":
 			if parsed, ok := filter.firstInt(); ok {
 				status = &parsed
@@ -227,7 +221,6 @@ func parseAdminUserFetchBody(r *http.Request) (adminUserFetchParams, error) {
 	input := service.AdminUserFetchInput{
 		Query:  keyword,
 		Status: status,
-		PlanID: planID,
 		Limit:  pageSize,
 		Offset: offset,
 	}
@@ -242,12 +235,6 @@ func parseAdminUserFetchQuery(r *http.Request) (adminUserFetchParams, error) {
 			status = &parsed
 		}
 	}
-	var planID *int64
-	if planStr := strings.TrimSpace(query.Get("plan_id")); planStr != "" {
-		if parsed, err := strconv.ParseInt(planStr, 10, 64); err == nil {
-			planID = &parsed
-		}
-	}
 	limit := clampQueryInt(query.Get("limit"), 20)
 	offset := clampQueryInt(query.Get("offset"), 0)
 	page := 1
@@ -257,7 +244,6 @@ func parseAdminUserFetchQuery(r *http.Request) (adminUserFetchParams, error) {
 	input := service.AdminUserFetchInput{
 		Query:  query.Get("keyword"),
 		Status: status,
-		PlanID: planID,
 		Limit:  limit,
 		Offset: offset,
 	}

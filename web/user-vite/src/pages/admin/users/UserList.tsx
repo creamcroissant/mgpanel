@@ -184,7 +184,7 @@ export default function UserList() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("admin.users.email")}</TableHead>
-                <TableHead>{t("admin.users.plan")}</TableHead>
+                <TableHead>{t("admin.users.group")}</TableHead>
                 <TableHead className="text-right">{t("admin.users.traffic")}</TableHead>
                 <TableHead>{t("admin.users.expiredAt")}</TableHead>
                 <TableHead>{t("admin.users.status")}</TableHead>
@@ -213,7 +213,7 @@ export default function UserList() {
                         {user.is_admin && <Badge variant="warning">{t("admin.users.admin")}</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell>{user.plan_name || "-"}</TableCell>
+                    <TableCell>{user.group_id || "-"}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatBytes(user.u + user.d)} / {formatBytes(user.transfer_enable)}
                     </TableCell>
@@ -250,8 +250,8 @@ export default function UserList() {
                 </div>
 
                 <dl className="mt-4 grid grid-cols-2 gap-3">
-                  <ResponsiveListField label={t("admin.users.plan")}>
-                    {user.plan_name || "-"}
+                  <ResponsiveListField label={t("admin.users.group")}>
+                    {user.group_id || "-"}
                   </ResponsiveListField>
                   <ResponsiveListField label={t("admin.users.status")}>
                     {renderUserStatus(user)}

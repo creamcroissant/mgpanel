@@ -75,7 +75,6 @@ func (s *repoBackedUserService) Profile(ctx context.Context, userID string) (map
 	return map[string]any{
 		"id":                 user.ID,
 		"email":              user.Email,
-		"plan_id":            user.PlanID,
 		"expired_at":         user.ExpiredAt,
 		"transfer_enable":    user.TransferEnable,
 		"transfer_used":      user.U + user.D,
@@ -99,11 +98,6 @@ func (s *repoBackedUserService) UpdateProfile(ctx context.Context, userID string
 	}
 	if email, ok := payload["email"].(string); ok && email != "" {
 		user.Email = email
-	}
-	if planRaw, ok := payload["plan_id"]; ok {
-		if planID, convErr := parseNumeric(planRaw); convErr == nil {
-			user.PlanID = planID
-		}
 	}
 	user.UpdatedAt = time.Now().Unix()
 	return s.users.Save(ctx, user)

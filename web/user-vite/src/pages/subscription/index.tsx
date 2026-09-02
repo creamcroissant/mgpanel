@@ -83,10 +83,9 @@ export default function SubscriptionWorkspace() {
   const expiresAt = user.expired_at ? formatDate(user.expired_at) : t("subscription.neverExpires");
 
   const planItems: KeyValueItem[] = [
-    { label: t("plans.currentPlan"), value: user.plan?.name || t("plans.noPlan") },
-    { label: t("subscription.trafficQuota"), value: hasTrafficQuota ? formatBytes(transferEnable) : t("plans.unlimited") },
+    { label: t("subscription.trafficQuota"), value: hasTrafficQuota ? formatBytes(transferEnable) : t("common.unlimited") },
     { label: t("subscription.usedTraffic"), value: formatBytes(transferUsed) },
-    { label: t("subscription.remainingTraffic"), value: hasTrafficQuota ? formatBytes(remainingTraffic) : t("plans.unlimited") },
+    { label: t("subscription.remainingTraffic"), value: hasTrafficQuota ? formatBytes(remainingTraffic) : t("common.unlimited") },
     { label: t("subscription.expiresAt"), value: expiresAt },
     { label: t("subscription.accountId"), value: user.uuid || String(user.id) },
   ];
@@ -175,7 +174,7 @@ export default function SubscriptionWorkspace() {
         </SectionCard>
       </div>
 
-      <SectionCard title={t("subscription.planSnapshot")} description={t("subscription.planSnapshotHint")}>
+      <SectionCard title={t("subscription.accountOverview")} description={t("subscription.accountOverviewHint")}>
         <KeyValueGrid items={planItems} />
       </SectionCard>
 

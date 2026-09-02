@@ -20,7 +20,6 @@ type Store interface {
 	Users() UserRepository
 	Settings() SettingRepository
 	Plugins() PluginRepository
-	Plans() PlanRepository
 	LoginLogs() LoginLogRepository
 	Tokens() TokenRepository
 	Servers() ServerRepository
@@ -160,11 +159,9 @@ type UserRepository interface {
 	Save(ctx context.Context, user *User) error
 	Create(ctx context.Context, user *User) (*User, error)
 	HasAdmin(ctx context.Context) (bool, error)
-	ActiveCountByPlan(ctx context.Context, planID int64, nowUnix int64) (int64, error)
 	AdjustBalance(ctx context.Context, userID int64, deltaCents int64) (bool, error)
 	IncrementTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error
 	ListActiveForGroups(ctx context.Context, groupIDs []int64, nowUnix int64) ([]*NodeUser, error)
-	PlanCounts(ctx context.Context, planIDs []int64, nowUnix int64) (map[int64]PlanUserCount, error)
 	Search(ctx context.Context, filter UserSearchFilter) ([]*User, error)
 	CountFiltered(ctx context.Context, filter UserSearchFilter) (int64, error)
 	Count(ctx context.Context) (int64, error)
@@ -186,22 +183,6 @@ type SettingRepository interface {
 // PluginRepository 提供插件元数据与配置访问。
 type PluginRepository interface {
 	FindEnabledByCode(ctx context.Context, code string) (*Plugin, error)
-}
-
-// PlanRepository 管理订阅套餐相关数据。
-type PlanRepository interface {
-	ListVisible(ctx context.Context) ([]*Plan, error)
-	ListAll(ctx context.Context) ([]*Plan, error)
-	FindByID(ctx context.Context, id int64) (*Plan, error)
-	Create(ctx context.Context, plan *Plan) (*Plan, error)
-	Update(ctx context.Context, plan *Plan) error
-	Delete(ctx context.Context, id int64) error
-	Sort(ctx context.Context, ids []int64, updatedAt int64) error
-	BindGroups(ctx context.Context, planID int64, groupIDs []int64) error
-	UnbindGroups(ctx context.Context, planID int64) error
-	ReplaceGroups(ctx context.Context, planID int64, groupIDs []int64) error
-	UpdateWithGroups(ctx context.Context, plan *Plan, groupIDs []int64) error
-	GetGroups(ctx context.Context, planID int64) ([]int64, error)
 }
 
 // ServerRepository 管理节点相关数据。

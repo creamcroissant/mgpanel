@@ -95,7 +95,6 @@ type subscriptionService struct {
 	users     repository.UserRepository
 	servers   repository.ServerRepository
 	settings  repository.SettingRepository
-	plans     repository.PlanRepository
 	templates repository.SubscriptionTemplateRepository
 	sources   SubscriptionSourceService
 	filter    SubscriptionFilterService
@@ -123,15 +122,15 @@ type protocolSettings struct {
 }
 
 // NewSubscriptionService 组装订阅服务依赖。
-func NewSubscriptionService(users repository.UserRepository, servers repository.ServerRepository, settings repository.SettingRepository, plans repository.PlanRepository, templates repository.SubscriptionTemplateRepository, sources SubscriptionSourceService, manager *protocol.Manager, telemetry ServerTelemetryService, subLogs *async.SubscriptionLogQueue, obfuscate bool, selection UserServerSelectionService, i18nMgr *i18n.Manager, filters ...SubscriptionFilterService) SubscriptionService {
+func NewSubscriptionService(users repository.UserRepository, servers repository.ServerRepository, settings repository.SettingRepository, templates repository.SubscriptionTemplateRepository, sources SubscriptionSourceService, manager *protocol.Manager, telemetry ServerTelemetryService, subLogs *async.SubscriptionLogQueue, obfuscate bool, selection UserServerSelectionService, i18nMgr *i18n.Manager, filters ...SubscriptionFilterService) SubscriptionService {
 	var filter SubscriptionFilterService
 	if len(filters) > 0 {
 		filter = filters[0]
 	}
-	return &subscriptionService{users: users, servers: servers, settings: settings, plans: plans, templates: templates, sources: sources, filter: filter, protocols: manager, telemetry: telemetry, subLogs: subLogs, obfuscate: obfuscate, selection: selection, i18n: i18nMgr}
+	return &subscriptionService{users: users, servers: servers, settings: settings, templates: templates, sources: sources, filter: filter, protocols: manager, telemetry: telemetry, subLogs: subLogs, obfuscate: obfuscate, selection: selection, i18n: i18nMgr}
 }
 
-// queryServers 根据用户显式选择、用户分组与套餐分组决定可用节点。
+// queryServers 根据用户显式选择与用户分组决定可用节点。
 func (s *subscriptionService) queryServers(ctx context.Context, user *repository.User, lang string) ([]*repository.Server, error) {
 	if s.servers == nil {
 		return nil, s.translateError(lang, "subscription.error.repo_unavailable", "server repository unavailable / 节点仓库不可用")
@@ -140,20 +139,10 @@ func (s *subscriptionService) queryServers(ctx context.Context, user *repository
 		return []*repository.Server{}, nil
 	}
 
-	// 0. 先收集用户与套餐关联分组（用于校验显式选择节点权限）
+	// 0. 收集用户分组（用于校验显式选择节点权限）
 	groupIDs := make([]int64, 0, 4)
 	if user.GroupID > 0 {
 		groupIDs = append(groupIDs, user.GroupID)
-	}
-	if user.PlanID > 0 && s.plans != nil {
-		planGroups, err := s.plans.GetGroups(ctx, user.PlanID)
-		if err != nil {
-			// 分组信息影响访问控制，查询失败时直接返回错误
-			return nil, err
-		}
-		if len(planGroups) > 0 {
-			groupIDs = append(groupIDs, planGroups...)
-		}
 	}
 
 	// 1. 优先处理用户显式选中的节点
@@ -699,7 +688,7 @@ func personalizeNodeNames(nodes []protocol.Node, user *repository.User, showUser
 	now := time.Now().Unix()
 	var suffix string
 
-	// 按套餐到期时间生成提示后缀
+	// 按到期时间生成提示后缀
 	if user.ExpiredAt > 0 {
 		daysLeft := (user.ExpiredAt - now) / 86400
 		if daysLeft <= 0 {

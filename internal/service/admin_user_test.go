@@ -15,12 +15,11 @@ import (
 func TestAdminUserServiceFetch(t *testing.T) {
 	repo := newAdminUserRepoStub()
 	repo.searchResults = []*repository.User{
-		{ID: 1, Email: "demo@example.com", PlanID: 2, GroupID: 3, Status: 1, TransferEnable: 1024},
+		{ID: 1, Email: "demo@example.com", GroupID: 3, Status: 1, TransferEnable: 1024},
 	}
 	repo.countFilteredResult = 50
 	svc := NewAdminUserService(
 		repo,
-		&adminUserPlanRepoStub{},
 		&adminUserGroupRepoStub{},
 		&adminUserSettingRepoStub{},
 		&adminUserTelemetryStub{},
@@ -54,7 +53,6 @@ func TestAdminUserServiceUpdate(t *testing.T) {
 	repo.users[10] = &repository.User{ID: 10, Email: "Old@example.com", Status: 1}
 	svc := NewAdminUserService(
 		repo,
-		&adminUserPlanRepoStub{},
 		&adminUserGroupRepoStub{},
 		&adminUserSettingRepoStub{},
 		&adminUserTelemetryStub{},
@@ -77,29 +75,27 @@ func TestAdminUserServiceUpdate(t *testing.T) {
 
 func TestAdminUserServiceGenerate(t *testing.T) {
 	repo := newAdminUserRepoStub()
-	planRepo := &adminUserPlanRepoStub{plans: map[int64]*repository.Plan{5: {ID: 5, GroupID: ptrInt64(9), TransferEnable: 2048}}}
 	svc := NewAdminUserService(
 		repo,
-		planRepo,
 		&adminUserGroupRepoStub{},
 		&adminUserSettingRepoStub{},
 		&adminUserTelemetryStub{},
 		hash.MustBcryptHasher(4),
 		nil,
 	)
-	planID := int64(5)
 	transfer := int64(4096)
+	groupID := int64(9)
 	user, err := svc.Generate(context.Background(), AdminUserGenerateInput{
 		Email:          "Gen@Example.com",
 		Password:       "Secret123",
-		PlanID:         &planID,
+		GroupID:        &groupID,
 		TransferEnable: &transfer,
 	})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
-	if user == nil || user.PlanID != 5 {
-		t.Fatalf("expected plan assignment, got %+v", user)
+	if user == nil || user.GroupID != 9 {
+		t.Fatalf("expected group assignment, got %+v", user)
 	}
 	if repo.createdUser == nil || repo.createdUser.TransferEnable != 4096 {
 		t.Fatalf("expected transfer override to persist, got %+v", repo.createdUser)
@@ -189,10 +185,6 @@ func (r *adminUserRepoStub) ListActiveForGroups(context.Context, []int64, int64)
 	return nil, nil
 }
 
-func (r *adminUserRepoStub) PlanCounts(context.Context, []int64, int64) (map[int64]repository.PlanUserCount, error) {
-	return map[int64]repository.PlanUserCount{}, nil
-}
-
 func (r *adminUserRepoStub) Search(_ context.Context, filter repository.UserSearchFilter) ([]*repository.User, error) {
 	r.lastSearch = filter
 	if r.searchResults != nil {
@@ -246,68 +238,6 @@ func (r *adminUserRepoStub) Delete(_ context.Context, id int64) error {
 	return nil
 }
 
-type adminUserPlanRepoStub struct {
-	plans map[int64]*repository.Plan
-}
-
-func (p *adminUserPlanRepoStub) ListVisible(context.Context) ([]*repository.Plan, error) {
-	return nil, repository.ErrNotFound
-}
-
-func (p *adminUserPlanRepoStub) ListAll(context.Context) ([]*repository.Plan, error) {
-	return nil, nil
-}
-
-func (p *adminUserPlanRepoStub) FindByID(_ context.Context, id int64) (*repository.Plan, error) {
-	if plan, ok := p.plans[id]; ok {
-		return plan, nil
-	}
-	return nil, repository.ErrNotFound
-}
-
-func (p *adminUserPlanRepoStub) Create(ctx context.Context, plan *repository.Plan) (*repository.Plan, error) {
-	if plan.ID == 0 {
-		plan.ID = int64(len(p.plans) + 1)
-	}
-	clone := *plan
-	if p.plans == nil {
-		p.plans = map[int64]*repository.Plan{}
-	}
-	p.plans[clone.ID] = &clone
-	return &clone, nil
-}
-
-func (p *adminUserPlanRepoStub) Update(context.Context, *repository.Plan) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) Delete(context.Context, int64) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) Sort(context.Context, []int64, int64) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) BindGroups(context.Context, int64, []int64) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) UnbindGroups(context.Context, int64) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) GetGroups(context.Context, int64) ([]int64, error) {
-	return nil, nil
-}
-
-func (p *adminUserPlanRepoStub) ReplaceGroups(context.Context, int64, []int64) error {
-	return nil
-}
-
-func (p *adminUserPlanRepoStub) UpdateWithGroups(ctx context.Context, plan *repository.Plan, groupIDs []int64) error {
-	return p.Update(ctx, plan)
-}
 
 type adminUserGroupRepoStub struct{}
 

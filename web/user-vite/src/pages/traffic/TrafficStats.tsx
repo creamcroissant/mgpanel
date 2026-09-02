@@ -118,7 +118,7 @@ export default function TrafficStats() {
     },
     {
       label: t("traffic.remaining"),
-      value: transferEnable > 0 ? formatBytes(remainingTraffic) : t("plans.unlimited"),
+      value: transferEnable > 0 ? formatBytes(remainingTraffic) : t("common.unlimited"),
       hint: t("traffic.remainingHint"),
     },
   ];
@@ -126,7 +126,7 @@ export default function TrafficStats() {
   const cycleItems: KeyValueItem[] = [
     {
       label: t("dashboard.totalTraffic"),
-      value: transferEnable > 0 ? formatBytes(transferEnable) : t("plans.unlimited"),
+      value: transferEnable > 0 ? formatBytes(transferEnable) : t("common.unlimited"),
     },
     {
       label: t("dashboard.usedTraffic"),

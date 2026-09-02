@@ -1,4 +1,4 @@
-export type { UserProfile, Plan, PlanPrice } from "./user";
+export type { UserProfile } from "./user";
 export type { ServerNode, ServerGroup } from "./server";
 export type {
   ApiResponse,
@@ -10,7 +10,6 @@ export type {
 export type {
   AgentHost,
   AdminUser,
-  AdminPlan,
   AdminNotice,
   AdminKnowledgeSummary,
   AdminKnowledgeDetail,
@@ -83,8 +82,6 @@ export type {
   UpdateAgentHostRequest,
   CreateUserRequest,
   UpdateUserRequest,
-  CreatePlanRequest,
-  UpdatePlanRequest,
   CreateNoticeRequest,
   UpdateNoticeRequest,
   ForwardingRule,

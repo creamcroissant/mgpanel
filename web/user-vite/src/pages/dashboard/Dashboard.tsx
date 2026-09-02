@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   BookOpen,
-  CreditCard,
   Database,
   Link as LinkIcon,
   MonitorDot,
@@ -85,8 +84,8 @@ export default function Dashboard() {
   const expired = user.expired_at ? isExpired(user.expired_at) : false;
   const days = user.expired_at ? daysUntil(user.expired_at) : Infinity;
   const usageTone = usagePercent >= 90 ? "danger" : usagePercent >= 70 ? "warning" : "success";
-  const planStatus = !user.plan_id ? t("dashboard.noPlan") : expired ? t("dashboard.expired") : t("dashboard.active");
-  const planBadgeVariant = expired ? "danger" : !user.plan_id ? "secondary" : days <= 7 ? "warning" : "success";
+  const accountStatus = expired ? t("dashboard.expired") : t("dashboard.active");
+  const statusBadgeVariant = expired ? "danger" : days <= 7 ? "warning" : "success";
   const expiryText = !user.expired_at
     ? t("dashboard.never")
     : expired
@@ -118,13 +117,6 @@ export default function Dashboard() {
       action: t("dashboard.openTraffic"),
     },
     {
-      href: ROUTES.PLANS,
-      icon: <CreditCard className="h-5 w-5" />,
-      title: t("nav.plans"),
-      description: t("dashboard.openPlansHint"),
-      action: t("dashboard.openPlans"),
-    },
-    {
       href: ROUTES.KNOWLEDGE,
       icon: <BookOpen className="h-5 w-5" />,
       title: t("nav.knowledge"),
@@ -144,9 +136,8 @@ export default function Dashboard() {
     { label: t("dashboard.usedTraffic"), value: formatBytes(transferUsed) },
     { label: t("dashboard.totalTraffic"), value: formatBytes(transferEnable) },
     { label: t("dashboard.remainingTraffic"), value: formatBytes(remainingTraffic) },
-    { label: t("dashboard.currentPlan"), value: user.plan?.name || planStatus },
     { label: t("dashboard.expiredAt"), value: expiryText },
-    { label: t("dashboard.planStatus"), value: <Badge variant={planBadgeVariant}>{planStatus}</Badge> },
+    { label: t("dashboard.accountStatus"), value: <Badge variant={statusBadgeVariant}>{accountStatus}</Badge> },
   ];
 
   return (

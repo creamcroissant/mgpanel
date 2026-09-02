@@ -127,17 +127,12 @@ export default function Settings() {
       hint: t("settings.accountStatusHint"),
     },
     {
-      label: t("dashboard.currentPlan"),
-      value: user.plan?.name ?? t("dashboard.noPlan"),
-      hint: t("settings.planHint"),
-    },
-    {
       label: t("dashboard.remainingTraffic"),
-      value: transferEnable > 0 ? formatBytes(remainingTraffic) : t("plans.unlimited"),
+      value: transferEnable > 0 ? formatBytes(remainingTraffic) : t("common.unlimited"),
       hint: t("settings.remainingTrafficHint"),
     },
     {
-      label: t("plans.expiresAt"),
+      label: t("subscription.expiresAt"),
       value: user.expired_at ? formatDate(user.expired_at) : t("dashboard.never"),
       hint: t("settings.expiresAtHint"),
     },
@@ -286,7 +281,7 @@ export default function Settings() {
             icon={<SlidersHorizontal className="h-5 w-5" />}
             title={t("settings.portalPreferences")}
             description={t("settings.portalPreferencesHint")}
-            status={<Badge variant="outline">{t("plans.readonly")}</Badge>}
+            status={<Badge variant="outline">{t("settings.readonly")}</Badge>}
           />
           <ResourceCard
             icon={<CalendarDays className="h-5 w-5" />}

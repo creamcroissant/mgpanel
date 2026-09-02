@@ -106,7 +106,6 @@ type subscriptionFilterService struct {
 	servers         repository.ServerRepository
 	sources   repository.SubscriptionSourceRepository
 	reasons   repository.SubscriptionFilterReasonRepository
-	plans     repository.PlanRepository
 	selection UserServerSelectionService
 	telemetry ServerTelemetryService
 
@@ -134,8 +133,8 @@ type subscriptionFilterSourceReasonGroup struct {
 	reasons    []*repository.SubscriptionFilterReason
 }
 
-func NewSubscriptionFilterService(servers repository.ServerRepository, sources repository.SubscriptionSourceRepository, reasons repository.SubscriptionFilterReasonRepository, plans repository.PlanRepository, selection UserServerSelectionService, telemetry ServerTelemetryService) SubscriptionFilterService {
-	return &subscriptionFilterService{servers: servers, sources: sources, reasons: reasons, plans: plans, selection: selection, telemetry: telemetry}
+func NewSubscriptionFilterService(servers repository.ServerRepository, sources repository.SubscriptionSourceRepository, reasons repository.SubscriptionFilterReasonRepository, selection UserServerSelectionService, telemetry ServerTelemetryService) SubscriptionFilterService {
+	return &subscriptionFilterService{servers: servers, sources: sources, reasons: reasons,  selection: selection, telemetry: telemetry}
 }
 
 // SetPersistReasons 切换过滤原因持久化模式，结构化日志记录变更。
@@ -398,13 +397,6 @@ func (s *subscriptionFilterService) userGroupIDs(ctx context.Context, user *repo
 	groupIDs := make([]int64, 0, 4)
 	if user.GroupID > 0 {
 		groupIDs = append(groupIDs, user.GroupID)
-	}
-	if user.PlanID > 0 && s.plans != nil {
-		planGroups, err := s.plans.GetGroups(ctx, user.PlanID)
-		if err != nil {
-			return nil, err
-		}
-		groupIDs = append(groupIDs, planGroups...)
 	}
 	return groupIDs, nil
 }
