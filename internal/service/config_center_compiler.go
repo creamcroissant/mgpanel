@@ -441,7 +441,9 @@ func (s *artifactCompilerService) RenderCoreConfigs(ctx context.Context, req Ren
 // 默认 127.0.0.1:19194，与 agent 端 ensureV2RayAPIConfig 兜底默认一致）。
 //
 // 生成文件 experimental-v2ray-api.json：
-//   {"experimental":{"v2ray_api":{"listen":<listen>,"stats":{"enabled":true}}}}
+//
+//	{"experimental":{"v2ray_api":{"listen":<listen>,"stats":{"enabled":true}}}}
+//
 // 与 mesh-*.json 同为 sing-box -C 合并的 fragment 文件。
 //
 // 幂等语义：同批次已存在同名 fragment 时跳过（由调用方 filenameSet 校验已覆盖 spec 产物；
@@ -662,6 +664,15 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 			if p.TargetSetID == nil || *p.TargetSetID <= 0 {
 				continue
 			}
+			// 规则级出口池（loadbalance）：该规则命中流量在目标出口集成员间
+			// 按粘性开关分摊 —— sticky=source-hash(固定出口) / 非sticky=round-robin(轮询)。
+			// 池成员复用 spec/set 阶段已生成的成员 socks；若该集未被任何 spec 绑定
+			// （成员 socks 未生成），此处惰性补生成。池产物独立命名避免多规则共享冲突。
+			poolArtifacts, err := s.buildRoutingPolicyPool(ctx, req, coreType, p, peerWGIP, setMemberOutboundGen)
+			if err != nil {
+				return nil, fmt.Errorf("build routing policy pool for policy %d: %w", p.ID, err)
+			}
+			artifacts = append(artifacts, poolArtifacts...)
 			ruleContent := renderRoutingPolicyRule(coreType, p)
 			if len(ruleContent) == 0 {
 				continue
@@ -676,6 +687,104 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	}
 
 	return artifacts, nil
+}
+
+// buildRoutingPolicyPool 为一条路由规则生成独立 loadbalance 出口池（粘性分摊）。
+// 产物：
+//   - 缺失成员 socks outbound（mesh-exit-{agentID}.json，复用全局去重 map）
+//   - 池 outbound：mesh-policy-{id}-pool.json
+//     sing-box: type=loadbalance，sticky→source-hash，否则 round-robin，
+//     成员=[mesh-exit-{agentID}...] + direct 兑底
+//     xray: 无 loadbalance → 返回空（规则仍指向 mesh-exit-set-{id} 的 balancer）
+//
+// 仅对 sing-box 生成（xray 规则渲染沿用原出口集 balancer）。
+func (s *artifactCompilerService) buildRoutingPolicyPool(
+	ctx context.Context,
+	req RenderArtifactsRequest,
+	coreType string,
+	p *repository.RoutingPolicy,
+	peerWGIP map[int64]string,
+	setMemberOutboundGen map[int64]struct{},
+) ([]*repository.DesiredArtifact, error) {
+	if p == nil || p.TargetSetID == nil || *p.TargetSetID <= 0 {
+		return nil, nil
+	}
+	if coreType == "xray" || s.exitNodeSets == nil || s.meshPeers == nil {
+		return nil, nil
+	}
+
+	setID := *p.TargetSetID
+	members, err := s.exitNodeSets.ListMembers(ctx, setID)
+	if err != nil {
+		return nil, err
+	}
+
+	var memberOutboundTags []string
+	var out []*repository.DesiredArtifact
+	for _, m := range members {
+		if !m.Enabled {
+			continue
+		}
+		wgIP, ok := peerWGIP[m.AgentHostID]
+		if !ok {
+			continue // 成员不在 mesh 中，跳过
+		}
+		if m.AgentHostID == req.AgentHostID {
+			continue // 跳过自身
+		}
+		exitTag := fmt.Sprintf("mesh-exit-%d", m.AgentHostID)
+		memberOutboundTags = append(memberOutboundTags, exitTag)
+
+		// 每个成员只生成一次 socks outbound（可能已被 spec 出口集或其它规则生成）
+		if _, gen := setMemberOutboundGen[m.AgentHostID]; gen {
+			continue
+		}
+		setMemberOutboundGen[m.AgentHostID] = struct{}{}
+		outboundContent := renderMeshSocksOutbound(coreType, wgIP, 1080, exitTag)
+		out = append(out, &repository.DesiredArtifact{
+			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
+			Filename: fmt.Sprintf("mesh-exit-%d.json", m.AgentHostID), SourceTag: fmt.Sprintf("exit-%d", m.AgentHostID),
+			Content: outboundContent, ContentHash: artifactHash(outboundContent),
+		})
+	}
+	if len(memberOutboundTags) == 0 {
+		return nil, nil
+	}
+
+	// 本地 direct 兑底
+	poolMembers := append([]string{}, memberOutboundTags...)
+	poolMembers = append(poolMembers, "direct")
+
+	strategy := "round-robin"
+	if p.Sticky {
+		strategy = "source-hash"
+	}
+	poolContent := renderMeshLoadBalanceOutbound(coreType, fmt.Sprintf("mesh-policy-%d-pool", p.ID), poolMembers, strategy)
+	out = append(out, &repository.DesiredArtifact{
+		AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
+		Filename: fmt.Sprintf("mesh-policy-%d-pool.json", p.ID), SourceTag: fmt.Sprintf("policy-%d-pool", p.ID),
+		Content: poolContent, ContentHash: artifactHash(poolContent),
+	})
+	return out, nil
+}
+
+// renderMeshLoadBalanceOutbound 生成 sing-box loadbalance outbound（粘性/分摊池）。
+func renderMeshLoadBalanceOutbound(coreType, tag string, memberOutboundTags []string, strategy string) []byte {
+	if coreType != "sing-box" {
+		return nil
+	}
+	data := map[string]any{
+		"outbounds": []any{
+			map[string]any{
+				"type":      "loadbalance",
+				"tag":       tag,
+				"outbounds": memberOutboundTags,
+				"strategy":  strategy,
+			},
+		},
+	}
+	b, _ := json.Marshal(data)
+	return b
 }
 
 // buildMeshExitSetArtifacts 为出口集合（ExitNodeSetID）生成
@@ -878,7 +987,6 @@ func (s *artifactCompilerService) buildRelaySpecRouting(
 	return artifacts, true, nil
 }
 
-
 // renderMeshSocksInbound 生成 sing-box / Xray 的 socks inbound 配置（监听 WG IP:port）。
 func renderMeshSocksInbound(coreType, listenIP string, port int, tag string) []byte {
 	if coreType == "xray" {
@@ -989,7 +1097,14 @@ func renderRoutingPolicyRule(coreType string, p *repository.RoutingPolicy) []byt
 	if p == nil || p.TargetSetID == nil {
 		return nil
 	}
-	outboundTag := fmt.Sprintf("mesh-exit-set-%d", *p.TargetSetID)
+	// sing-box 规则指向规则级 loadbalance 池（粘性/分摊在池内执行）；
+	// xray 无 loadbalance/source-hash，保持指向出口集 balancer。
+	var outboundTag string
+	if coreType == "xray" {
+		outboundTag = fmt.Sprintf("mesh-exit-set-%d", *p.TargetSetID)
+	} else {
+		outboundTag = fmt.Sprintf("mesh-policy-%d-pool", p.ID)
+	}
 
 	if coreType == "xray" {
 		// Xray routing rule: type=field + domain 匹配

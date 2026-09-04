@@ -21,6 +21,7 @@ const (
 	SubscriptionFilterReasonGroupDenied      = "group_denied"
 	SubscriptionFilterReasonTagMismatch      = "tag_mismatch"
 	SubscriptionFilterReasonTypeMismatch     = "type_mismatch"
+	SubscriptionFilterReasonBannedByAdmin    = "banned_by_admin"
 )
 
 type SubscriptionFilterService interface {
@@ -104,10 +105,11 @@ type SubscriptionFilterReasonListResult struct {
 
 type subscriptionFilterService struct {
 	servers         repository.ServerRepository
-	sources   repository.SubscriptionSourceRepository
-	reasons   repository.SubscriptionFilterReasonRepository
-	selection UserServerSelectionService
-	telemetry ServerTelemetryService
+	sources         repository.SubscriptionSourceRepository
+	reasons         repository.SubscriptionFilterReasonRepository
+	selection       UserServerSelectionService
+	telemetry       ServerTelemetryService
+	deny            UserServerDenyService
 
 	persistReasons atomic.Bool // 低频持久化开关；默认关闭（热路径写放大优化）
 }
@@ -133,8 +135,8 @@ type subscriptionFilterSourceReasonGroup struct {
 	reasons    []*repository.SubscriptionFilterReason
 }
 
-func NewSubscriptionFilterService(servers repository.ServerRepository, sources repository.SubscriptionSourceRepository, reasons repository.SubscriptionFilterReasonRepository, selection UserServerSelectionService, telemetry ServerTelemetryService) SubscriptionFilterService {
-	return &subscriptionFilterService{servers: servers, sources: sources, reasons: reasons,  selection: selection, telemetry: telemetry}
+func NewSubscriptionFilterService(servers repository.ServerRepository, sources repository.SubscriptionSourceRepository, reasons repository.SubscriptionFilterReasonRepository, selection UserServerSelectionService, telemetry ServerTelemetryService, deny UserServerDenyService) SubscriptionFilterService {
+	return &subscriptionFilterService{servers: servers, sources: sources, reasons: reasons, selection: selection, telemetry: telemetry, deny: deny}
 }
 
 // SetPersistReasons 切换过滤原因持久化模式，结构化日志记录变更。
@@ -160,6 +162,7 @@ func (s *subscriptionFilterService) Filter(ctx context.Context, req Subscription
 		return nil, err
 	}
 	selectedIDs, selectionActive := s.userSelectedServerIDs(ctx, req.User)
+	deniedIDs := s.userDeniedServerIDs(ctx, req.User)
 
 	accepted := make([]*repository.Server, 0, len(servers))
 	selfReasons := make([]*repository.SubscriptionFilterReason, 0)
@@ -167,7 +170,7 @@ func (s *subscriptionFilterService) Filter(ctx context.Context, req Subscription
 		if server == nil {
 			continue
 		}
-		if reason := s.evaluateServer(ctx, server, req, groupIDs, selectedIDs, selectionActive, external); reason != nil {
+		if reason := s.evaluateServer(ctx, server, req, groupIDs, selectedIDs, selectionActive, deniedIDs, external); reason != nil {
 			selfReasons = append(selfReasons, reason)
 			continue
 		}
@@ -254,9 +257,31 @@ func (s *subscriptionFilterService) GetFilterSummary(ctx context.Context, req Su
 	}, nil
 }
 
-func (s *subscriptionFilterService) evaluateServer(ctx context.Context, server *repository.Server, req SubscriptionFilterRequest, groupIDs []int64, selectedIDs map[int64]struct{}, selectionActive bool, external subscriptionFilterExternalReasons) *repository.SubscriptionFilterReason {
+func (s *subscriptionFilterService) userDeniedServerIDs(ctx context.Context, user *repository.User) map[int64]struct{} {
+	if user == nil || s == nil || s.deny == nil {
+		return nil
+	}
+	ids, err := s.deny.GetUserDeniedServerIDs(ctx, user.ID)
+	if err != nil || len(ids) == 0 {
+		return nil
+	}
+	denied := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			denied[id] = struct{}{}
+		}
+	}
+	return denied
+}
+
+func (s *subscriptionFilterService) evaluateServer(ctx context.Context, server *repository.Server, req SubscriptionFilterRequest, groupIDs []int64, selectedIDs map[int64]struct{}, selectionActive bool, deniedIDs map[int64]struct{}, external subscriptionFilterExternalReasons) *repository.SubscriptionFilterReason {
 	if server.Show == 0 {
 		return newSubscriptionFilterReason(SubscriptionSourceTypeSelfHosted, 0, server.ID, server.Name, SubscriptionFilterReasonHidden, "server hidden")
+	}
+	if denied := deniedIDs; denied != nil {
+		if _, ok := denied[server.ID]; ok {
+			return newSubscriptionFilterReason(SubscriptionSourceTypeSelfHosted, 0, server.ID, server.Name, SubscriptionFilterReasonBannedByAdmin, "blacklist: server denied for user")
+		}
 	}
 	if selectionActive {
 		if _, ok := selectedIDs[server.ID]; !ok {
@@ -485,6 +510,8 @@ func normalizeSubscriptionFilterReason(reason string) string {
 		return SubscriptionFilterReasonTagMismatch
 	case SubscriptionFilterReasonTypeMismatch:
 		return SubscriptionFilterReasonTypeMismatch
+	case SubscriptionFilterReasonBannedByAdmin:
+		return SubscriptionFilterReasonBannedByAdmin
 	default:
 		return ""
 	}

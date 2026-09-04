@@ -48,6 +48,8 @@ export const ruleFormSchema = z.object({
   match_type: z.enum(["geosite", "domain", "ip_cidr"]),
   match_value: matchValueSchema,
   priority: z.coerce.number().int("优先级须为整数").min(0, "优先级不能为负").max(100000),
+  // 粘性路由：命中流量固定同一出口（源地址哈希），避免多出口 IP 间漂移；关掉则轮询分摊
+  sticky: z.boolean(),
   enabled: z.boolean(),
 });
 
@@ -79,7 +81,7 @@ export interface FieldSpec {
   key: string;
   labelKey: string;
   labelFallback: string;
-  type: "text" | "textarea" | "number" | "select" | "switch";
+  type: "text" | "textarea" | "matchValues" | "number" | "select" | "switch";
   options?: readonly { value: string; labelKey: string; fallback: string }[];
   placeholder?: string;
   required?: boolean;
@@ -101,12 +103,19 @@ export const RULE_FIELDS: FieldSpec[] = [
     key: "match_value",
     labelKey: "admin.topology.rule.matchValue",
     labelFallback: "匹配值",
-    type: "textarea",
+    type: "matchValues",
     required: true,
     placeholder: "netflix 或 netflix,disney,hbo（逗号分隔多值）",
     help: "逗号分隔多个值，保存后按顺序生成匹配项",
   },
   { key: "priority", labelKey: "admin.topology.rule.priority", labelFallback: "优先级（越小越先匹配）", type: "number", required: true },
+  {
+    key: "sticky",
+    labelKey: "admin.topology.rule.sticky",
+    labelFallback: "粘性路由（固定同一出口）",
+    type: "switch",
+    help: "开启：同一来源的连接固定到同一出口节点，避免在多出口 IP 间漂移；关闭：在多出口间轮询分摊",
+  },
   // target_set_id 由画布连线维护（f4 波次），Drawer 内只读展示语义归属
   { key: "target_set_name", labelKey: "admin.topology.rule.targetSet", labelFallback: "目标出口集（由画布连线决定）", type: "text", readOnly: true },
   { key: "enabled", labelKey: "admin.topology.common.enabled", labelFallback: "启用", type: "switch" },

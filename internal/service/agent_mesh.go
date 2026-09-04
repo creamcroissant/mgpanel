@@ -77,27 +77,45 @@ func (s *agentMeshService) ListPeerLatencySnapshot(ctx context.Context) ([]MeshP
 }
 
 type agentMeshService struct {
-	peers         repository.AgentMeshPeerRepository
-	hosts         repository.AgentHostRepository
-	listenPort    int
-	networkCIDR   string
-	peerLatencies map[string]MeshPeerLatencyView
-	peerLatMu     sync.RWMutex
-	router        *MeshRouter
-	lifecycleOps  AgentLifecycleOperationService
+	peers            repository.AgentMeshPeerRepository
+	hosts            repository.AgentHostRepository
+	listenPort       int
+	networkCIDR      string
+	peerLatencies    map[string]MeshPeerLatencyView
+	lastPushedRoutes map[int64]string // agentHostID -> md5(SetRoutingTablesPayload) 路由内容防抖缓存
+	routeHashMu      sync.RWMutex     // 独立保护 lastPushedRoutes，避免与 peerLatMu 嵌套死锁
+	peerLatMu        sync.RWMutex
+	router           *MeshRouter
+	lifecycleOps     AgentLifecycleOperationService
 }
 
 // NewAgentMeshService creates a new AgentMeshService.
 func NewAgentMeshService(peers repository.AgentMeshPeerRepository, hosts repository.AgentHostRepository, lifecycleOps AgentLifecycleOperationService) AgentMeshService {
 	return &agentMeshService{
-		peers:         peers,
-		hosts:         hosts,
-		listenPort:    51820,
-		networkCIDR:   "10.144.0.0/24",
-		peerLatencies: make(map[string]MeshPeerLatencyView),
-		router:        NewMeshRouter(),
-		lifecycleOps:  lifecycleOps,
+		peers:            peers,
+		hosts:            hosts,
+		listenPort:       51820,
+		networkCIDR:      "10.144.0.0/24",
+		peerLatencies:    make(map[string]MeshPeerLatencyView),
+		lastPushedRoutes: make(map[int64]string),
+		router:           NewMeshRouter(),
+		lifecycleOps:     lifecycleOps,
 	}
+}
+
+func (s *agentMeshService) isRouteTableUnchanged(agentHostID int64, hash string) bool {
+	s.routeHashMu.RLock()
+	defer s.routeHashMu.RUnlock()
+	return s.lastPushedRoutes != nil && s.lastPushedRoutes[agentHostID] == hash
+}
+
+func (s *agentMeshService) recordPushedRouteHash(agentHostID int64, hash string) {
+	s.routeHashMu.Lock()
+	defer s.routeHashMu.Unlock()
+	if s.lastPushedRoutes == nil {
+		s.lastPushedRoutes = make(map[int64]string)
+	}
+	s.lastPushedRoutes[agentHostID] = hash
 }
 
 func (s *agentMeshService) JoinNetwork(ctx context.Context, agentHostID int64, networkID string) (string, string, error) {

@@ -34,6 +34,10 @@ type RoutingPolicyUpsertRequest struct {
 	MatchValue  string `json:"match_value"`
 	Action      string `json:"action"`
 	TargetSetID *int64 `json:"target_set_id"`
+	// Sticky 粘性路由开关：命中该规则的流量在出口池内按源地址哈希固定出口
+	// （true）还是轮询分摊（false）。默认 true（创建未传时启用粘性）。
+	// 仅 sing-box loadbalance source-hash/round-robin 生效。
+	Sticky *bool `json:"sticky"`
 	// SpecID 非 nil 表示入站规则（仅对绑定入站生效）；nil 为全局策略。
 	// 更新时 nil 沿用现有值（与 TargetSetID 同语义）。
 	SpecID  *int64 `json:"spec_id"`
@@ -43,8 +47,8 @@ type RoutingPolicyUpsertRequest struct {
 type routingPolicyService struct {
 	policies repository.RoutingPolicyRepository
 	// specs 用于校验 SpecID 引用存在性；nil 时跳过校验（测试/旧装配点）。
-	specs   repository.InboundSpecRepository
-	logger  *slog.Logger
+	specs  repository.InboundSpecRepository
+	logger *slog.Logger
 
 	// onChange 策略变更后的联动回调（由装配层注入，用于触发受影响 host 重渲染）；nil 安全。
 	onChange func(context.Context) error
@@ -136,6 +140,9 @@ func (s *routingPolicyService) Update(ctx context.Context, req RoutingPolicyUpse
 	if policy.TargetSetID == nil {
 		policy.TargetSetID = existing.TargetSetID
 	}
+	if req.Sticky == nil {
+		policy.Sticky = existing.Sticky
+	}
 	if policy.SpecID == nil {
 		policy.SpecID = existing.SpecID
 	}
@@ -162,6 +169,10 @@ func (s *routingPolicyService) buildPolicy(req RoutingPolicyUpsertRequest) *repo
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	sticky := true
+	if req.Sticky != nil {
+		sticky = *req.Sticky
+	}
 	matchType := normalizeRoutingMatchType(req.MatchType)
 	if matchType == "" {
 		matchType = "geosite"
@@ -174,6 +185,7 @@ func (s *routingPolicyService) buildPolicy(req RoutingPolicyUpsertRequest) *repo
 		MatchValue:  strings.TrimSpace(req.MatchValue),
 		Action:      strings.TrimSpace(req.Action),
 		TargetSetID: req.TargetSetID,
+		Sticky:      sticky,
 		SpecID:      req.SpecID,
 		Enabled:     enabled,
 	}

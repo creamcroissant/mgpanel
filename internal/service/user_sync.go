@@ -64,17 +64,21 @@ func (s *agentUserSyncService) ResolveForToken(ctx context.Context, token string
 }
 
 type userSyncService struct {
-	specs repository.InboundSpecRepository
-	users repository.UserRepository
-	logger interface {
+	specs   repository.InboundSpecRepository
+	servers repository.ServerRepository
+	users   repository.UserRepository
+	deny    UserServerDenyService
+	logger  interface {
 		Error(msg string, args ...any)
 	}
 }
 
 // NewUserSyncService builds a UserSyncService over the inbound-spec and user
-// repositories. A nil logger falls back to the package default.
-func NewUserSyncService(specs repository.InboundSpecRepository, users repository.UserRepository) UserSyncService {
-	return &userSyncService{specs: specs, users: users}
+// repositories. deny（用户节点黑名单）与 servers（用于匹配 host 上节点集合）
+// 为可选：传入 nil 时沿用全量注入行为（阶段二黑名单降级为不生效）。
+// A nil logger falls back to the package default.
+func NewUserSyncService(specs repository.InboundSpecRepository, users repository.UserRepository, deny UserServerDenyService, servers repository.ServerRepository) UserSyncService {
+	return &userSyncService{specs: specs, servers: servers, users: users, deny: deny}
 }
 
 // ComputeForHost returns the desired v2ray-api user targets for every enabled
@@ -94,6 +98,10 @@ func (s *userSyncService) ComputeForHost(ctx context.Context, hostID int64) ([]I
 	if err != nil {
 		return nil, fmt.Errorf("list active users: %w", err)
 	}
+	// 阶段二（节点黑名单）：若某用户被禁用该 host 的全部节点（servers 集合），
+	// 则从 v2ray-api 用户同步中剔除，实现 mesh 网络层硬阻断。
+	// 与 agent.GetUsersForAgent 的语义一致：仅"全禁"才剔除，部分禁仍保留。
+	activeUsers = s.excludeHostDeniedUsers(ctx, hostID, activeUsers)
 
 	targets := make([]InboundUserTarget, 0, len(specs))
 	for _, spec := range specs {
@@ -115,6 +123,45 @@ func (s *userSyncService) ComputeForHost(ctx context.Context, hostID int64) ([]I
 		targets = append(targets, target)
 	}
 	return targets, nil
+}
+
+// excludeHostDeniedUsers 剔除已禁用 host 全部节点的活跃用户。
+// 需要 deny 服务与 servers 仓储同时可用；任一缺失或查询失败时保持原列表（降级不阻断）。
+func (s *userSyncService) excludeHostDeniedUsers(ctx context.Context, hostID int64, users []*repository.User) []*repository.User {
+	if s == nil || s.deny == nil || s.servers == nil || len(users) == 0 {
+		return users
+	}
+	servers, err := s.servers.FindByAgentHostID(ctx, hostID)
+	if err != nil || len(servers) == 0 {
+		return users // 无节点信息时不剔除（无法判定全禁）
+	}
+	deniedSoFar := 0
+	out := users[:0]
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		ids, err := s.deny.GetUserDeniedServerIDs(ctx, user.ID)
+		if err != nil {
+			out = append(out, user)
+			continue
+		}
+		if agentServersAllDenied(servers, ids) {
+			deniedSoFar++
+			continue // 该用户已禁用本 host 全部节点 → 不注入
+		}
+		out = append(out, user)
+	}
+	if deniedSoFar > 0 {
+		s.loggerError("user_sync: excluded users denied on all host servers", "host_id", hostID, "excluded", deniedSoFar)
+	}
+	return out
+}
+
+func (s *userSyncService) loggerError(msg string, args ...any) {
+	if s != nil && s.logger != nil {
+		s.logger.Error(msg, args...)
+	}
 }
 
 // listEnabledSpecs pages through specs bound to hostID (host-specific or a

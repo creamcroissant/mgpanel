@@ -261,3 +261,35 @@ export function searchCandidates(kind: MatchFieldKind, keyword: string, limit = 
     )
     .slice(0, limit);
 }
+
+/**
+ * 拓扑（mesh）匹配值候选：按匹配类型提供候选。
+ * 拓扑语义中 geosite 值是不带 "geosite-" 前缀的裸分类名（如 netflix），
+ * 后端 compiler 会按类型自动补全 rule_set/geosite 前缀；domain/ip_cidr 直用常见候选。
+ */
+export type TopologyMatchType = "geosite" | "domain" | "ip_cidr";
+
+export function topologyMatchCandidates(matchType: TopologyMatchType): MatchCandidate[] {
+  if (matchType === "domain") return DOMAIN_CANDIDATES;
+  if (matchType === "ip_cidr") return IP_CANDIDATES;
+  return GEOSITE_CANDIDATES.map((c) => ({
+    value: c.value.replace(/^geosite-/, ""),
+    fill: c.fill,
+    descZh: c.descZh,
+    descEn: c.descEn,
+  }));
+}
+
+/** 拓扑匹配值搜索（裸值，匹配 value / descZh / descEn，大小写不敏感） */
+export function searchTopologyMatchCandidates(matchType: TopologyMatchType, keyword: string, limit = 50): MatchCandidate[] {
+  const all = topologyMatchCandidates(matchType);
+  const kw = keyword.trim().toLowerCase();
+  if (!kw) return all.slice(0, limit);
+  return all
+    .filter((c) =>
+      c.value.toLowerCase().includes(kw) ||
+      (c.descZh ?? "").toLowerCase().includes(kw) ||
+      (c.descEn ?? "").toLowerCase().includes(kw)
+    )
+    .slice(0, limit);
+}

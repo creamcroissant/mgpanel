@@ -102,6 +102,72 @@ func (r *userTrafficRepo) ReplaceUserSelections(ctx context.Context, userID int6
 	return tx.Commit()
 }
 
+// GetUserDeniedServerIDs returns all server IDs denied (blacklisted) for a user.
+func (r *userTrafficRepo) GetUserDeniedServerIDs(ctx context.Context, userID int64) ([]int64, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT server_id FROM user_server_denies WHERE user_id = ?
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// ClearUserDenies removes all denied (blacklisted) server entries for a user.
+func (r *userTrafficRepo) ClearUserDenies(ctx context.Context, userID int64) error {
+	_, err := execWithRetry(ctx, r.db, `
+		DELETE FROM user_server_denies WHERE user_id = ?
+	`, userID) // idempotent: no error if not found
+	return err
+}
+
+// ReplaceUserDenies atomically replaces all denied (blacklisted) server IDs for a user.
+func (r *userTrafficRepo) ReplaceUserDenies(ctx context.Context, userID int64, serverIDs []int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_server_denies WHERE user_id = ?
+	`, userID); err != nil {
+		return err
+	}
+
+	if len(serverIDs) == 0 {
+		return tx.Commit()
+	}
+
+	now := time.Now().Unix()
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT OR IGNORE INTO user_server_denies (user_id, server_id, created_at)
+		VALUES (?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, serverID := range serverIDs {
+		if _, err := stmt.ExecContext(ctx, userID, serverID, now); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // GetCurrentPeriod returns the current active traffic period for a user.
 func (r *userTrafficRepo) GetCurrentPeriod(ctx context.Context, userID int64) (*repository.UserTrafficPeriod, error) {
 	now := time.Now().Unix()
@@ -177,6 +243,46 @@ func (r *userTrafficRepo) MarkPeriodExceeded(ctx context.Context, userID int64, 
 		WHERE user_id = ? AND period_start = ?
 	`, now, userID, periodStart)
 	return err
+}
+
+// UpdateCurrentPeriodQuota 更新用户当期周期的配额（额度调整即时生效）。
+// 返回该周期更新后的超限状态；无当期周期时返回 (false, nil)。
+func (r *userTrafficRepo) UpdateCurrentPeriodQuota(ctx context.Context, userID int64, quotaBytes int64, nowUnix int64) (bool, error) {
+	res, err := execWithRetry(ctx, r.db, `
+		UPDATE user_traffic_periods
+		SET quota_bytes = ?,
+		    updated_at = ?,
+		    exceeded = CASE WHEN ? > 0 AND upload_bytes + download_bytes >= ? THEN 1 ELSE 0 END
+		WHERE user_id = ? AND period_start <= ? AND period_end > ?
+	`, quotaBytes, nowUnix, quotaBytes, quotaBytes, userID, nowUnix, nowUnix)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if affected == 0 {
+		// 无当期周期：不报错，交由上层按"无需同步"处理。
+		return false, nil
+	}
+
+	// 读回更新后的超限状态。
+	var exceeded int
+	row := r.db.QueryRowContext(ctx, `
+		SELECT exceeded
+		FROM user_traffic_periods
+		WHERE user_id = ? AND period_start <= ? AND period_end > ?
+		ORDER BY period_start DESC
+		LIMIT 1
+	`, userID, nowUnix, nowUnix)
+	if err := row.Scan(&exceeded); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return exceeded == 1, nil
 }
 
 // ApplyTrafficBatchAtomic applies batch traffic updates in one transaction and returns accepted items plus exceeded user IDs.

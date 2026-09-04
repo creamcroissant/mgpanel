@@ -47,6 +47,9 @@ type UserTrafficService interface {
 	ResetExpiredPeriods(ctx context.Context) (int, error)
 	GetExceededUsers(ctx context.Context) ([]int64, error)
 	ResetUserExceededStatus(ctx context.Context, userID int64) error
+	// SyncQuotaToCurrentPeriod 将用户的 transfer_enable 同步到当期周期配额；
+	// 额度调大后若已用量 < 新额度则解除超限状态（用户服务立即恢复）。
+	SyncQuotaToCurrentPeriod(ctx context.Context, userID int64, quotaBytes int64) error
 }
 
 type userTrafficService struct {
@@ -350,6 +353,39 @@ func (s *userTrafficService) GetExceededUsers(ctx context.Context) ([]int64, err
 // ResetUserExceededStatus resets the traffic exceeded status for a user.
 func (s *userTrafficService) ResetUserExceededStatus(ctx context.Context, userID int64) error {
 	return s.userRepo.SetTrafficExceeded(ctx, userID, false)
+}
+
+// SyncQuotaToCurrentPeriod 将用户的新额度同步到当期周期配额，并在额度变化后按需
+// 调整用户的超限状态：新额度足以覆盖已用量时解除超限，否则保持（或置回）超限。
+// 无当期周期时无需处理（下个周期创建时自然使用新值）。
+func (s *userTrafficService) SyncQuotaToCurrentPeriod(ctx context.Context, userID int64, quotaBytes int64) error {
+	if s == nil || s.trafficRepo == nil {
+		return nil
+	}
+	period, err := s.trafficRepo.GetCurrentPeriod(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if period == nil {
+		// 无当期周期：无需同步，下个周期会按新额度创建。
+		return nil
+	}
+	exceeded, err := s.trafficRepo.UpdateCurrentPeriodQuota(ctx, userID, quotaBytes, time.Now().Unix())
+	if err != nil {
+		return err
+	}
+	if s.userRepo == nil {
+		return nil
+	}
+	current, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if current == nil || current.TrafficExceeded == exceeded {
+		// 状态未变化（或用户不存在）：无需更新 users.traffic_exceeded。
+		return nil
+	}
+	return s.userRepo.SetTrafficExceeded(ctx, userID, exceeded)
 }
 
 func (s *userTrafficService) calculatePeriodTimes(ctx context.Context, user *repository.User, now time.Time) (int64, int64) {

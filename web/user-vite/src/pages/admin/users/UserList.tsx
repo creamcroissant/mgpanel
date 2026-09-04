@@ -2,19 +2,23 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Search, MoreVertical, Ban, Trash2 } from "lucide-react";
+import { Plus, Search, MoreVertical, Ban, Trash2, Pencil } from "lucide-react";
 import { QUERY_KEYS } from "@/lib/constants";
-import { getUsers, createUser, toggleUserBan, deleteUser } from "@/api/admin";
-import type { AdminUser, CreateUserRequest } from "@/types";
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  toggleUserBan,
+  deleteUser,
+  getServerGroups,
+  getAdminServerNodes,
+} from "@/api/admin";
+import type { AdminUser, AdminServerGroup, AdminServerNode, CreateUserRequest, UpdateUserRequest } from "@/types";
 import { AdminPageShell, formatBytes } from "@/components/admin";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,33 +37,59 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui";
+import UserFormDialog from "./UserFormDialog";
 
 export default function UserList() {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [editingUser, setEditingUser] = useState<AdminUser | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [newUser, setNewUser] = useState<CreateUserRequest>({
-    email: "",
-    password: "",
-  });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [...QUERY_KEYS.ADMIN_USERS, page, search],
     queryFn: () => getUsers({ page, page_size: 20, search: search || undefined }),
   });
 
+  const { data: groups } = useQuery({
+    queryKey: ["admin", "server-groups"],
+    queryFn: getServerGroups,
+    staleTime: 60_000,
+  });
+  const groupOptions: AdminServerGroup[] = groups ?? [];
+
+  const { data: nodes } = useQuery({
+    queryKey: ["admin", "server-nodes"],
+    queryFn: getAdminServerNodes,
+    staleTime: 60_000,
+  });
+  const serverOptions: AdminServerNode[] = nodes ?? [];
+
   const createMutation = useMutation({
     mutationFn: createUser,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_USERS });
       setIsDialogOpen(false);
-      setNewUser({ email: "", password: "" });
       toast.success(t("admin.users.createSuccess"));
     },
     onError: (err: Error) => {
       toast.error(t("admin.users.createError"), { description: err.message });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) =>
+      updateUser({ ...(payload as unknown as Omit<UpdateUserRequest, "id">), id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_USERS });
+      setIsDialogOpen(false);
+      toast.success(t("admin.users.updateSuccess"));
+    },
+    onError: (err: Error) => {
+      toast.error(t("admin.users.updateSuccess"), { description: err.message });
     },
   });
 
@@ -88,26 +118,46 @@ export default function UserList() {
     return new Date(timestamp * 1000).toLocaleDateString();
   };
 
+  const groupNameOf = (user: AdminUser): string =>
+    user.group?.name || String(user.group_id ?? "");
+
+  const isSelf = (user: AdminUser): boolean => !!currentUser && currentUser.id === user.id;
+
+  const openCreate = () => {
+    setDialogMode("create");
+    setEditingUser(undefined);
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (user: AdminUser) => {
+    setDialogMode("edit");
+    setEditingUser(user);
+    setIsDialogOpen(true);
+  };
+
   const handleDialogChange = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
-      setNewUser({ email: "", password: "" });
+      setEditingUser(undefined);
     }
   };
 
-  const handleCreate = () => {
-    createMutation.mutate(newUser);
+  const handleSubmit = (data: {
+    create?: Record<string, unknown>;
+    edit?: { id: number; payload: Record<string, unknown> };
+  }) => {
+    if (data.create) {
+      createMutation.mutate(data.create as unknown as CreateUserRequest);
+      return;
+    }
+    if (data.edit) {
+      updateMutation.mutate({ id: data.edit.id, payload: data.edit.payload });
+    }
   };
 
   const renderUserStatus = (user: AdminUser) => (
     <Badge
-      variant={
-        user.banned
-          ? "danger"
-          : user.status === 1
-            ? "success"
-            : "default"
-      }
+      variant={user.banned ? "danger" : user.status === 1 ? "success" : "default"}
     >
       {user.banned
         ? t("admin.users.banned")
@@ -117,31 +167,42 @@ export default function UserList() {
     </Badge>
   );
 
-  const renderUserActions = (user: AdminUser) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t("common.actions")}>
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          className="gap-2"
-          onSelect={() => banMutation.mutate({ id: user.id, banned: !user.banned })}
-        >
-          <Ban className="h-4 w-4" />
-          {user.banned ? t("admin.users.unban") : t("admin.users.ban")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="gap-2 text-destructive focus:text-destructive"
-          onSelect={() => deleteMutation.mutate(user.id)}
-        >
-          <Trash2 className="h-4 w-4" />
-          {t("common.delete")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  const renderUserActions = (user: AdminUser) => {
+    const self = isSelf(user);
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label={t("common.actions")}>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem className="gap-2" onSelect={() => openEdit(user)}>
+            <Pencil className="h-4 w-4" />
+            {t("common.edit")}
+          </DropdownMenuItem>
+          {!self ? (
+            <>
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => banMutation.mutate({ id: user.id, banned: !user.banned })}
+              >
+                <Ban className="h-4 w-4" />
+                {user.banned ? t("admin.users.unban") : t("admin.users.ban")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                onSelect={() => deleteMutation.mutate(user.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("common.delete")}
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const toolbar = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -155,7 +216,7 @@ export default function UserList() {
           onKeyDown={(event) => event.key === "Enter" && refetch()}
         />
       </div>
-      <Button onClick={() => setIsDialogOpen(true)}>
+      <Button onClick={openCreate}>
         <Plus className="mr-2 h-4 w-4" />
         {t("admin.users.add")}
       </Button>
@@ -210,10 +271,15 @@ export default function UserList() {
                         <span className="font-medium text-foreground">
                           {user.email || user.username || "-"}
                         </span>
-                        {user.is_admin && <Badge variant="warning">{t("admin.users.admin")}</Badge>}
+                        <span className="flex flex-wrap gap-1">
+                          {user.is_admin && (
+                            <Badge variant="warning">{t("admin.users.admin")}</Badge>
+                          )}
+                          {isSelf(user) && <Badge variant="default">{t("admin.users.self")}</Badge>}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell>{user.group_id || "-"}</TableCell>
+                    <TableCell>{groupNameOf(user) || "-"}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatBytes(user.u + user.d)} / {formatBytes(user.transfer_enable)}
                     </TableCell>
@@ -244,14 +310,17 @@ export default function UserList() {
                     <div className="truncate font-medium text-foreground">
                       {user.email || user.username || "-"}
                     </div>
-                    {user.is_admin && <Badge variant="warning">{t("admin.users.admin")}</Badge>}
+                    <span className="flex flex-wrap gap-1">
+                      {user.is_admin && <Badge variant="warning">{t("admin.users.admin")}</Badge>}
+                      {isSelf(user) && <Badge variant="default">{t("admin.users.self")}</Badge>}
+                    </span>
                   </div>
                   {renderUserActions(user)}
                 </div>
 
                 <dl className="mt-4 grid grid-cols-2 gap-3">
                   <ResponsiveListField label={t("admin.users.group")}>
-                    {user.group_id || "-"}
+                    {groupNameOf(user) || "-"}
                   </ResponsiveListField>
                   <ResponsiveListField label={t("admin.users.status")}>
                     {renderUserStatus(user)}
@@ -287,49 +356,16 @@ export default function UserList() {
         {content}
       </AdminPageShell>
 
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("admin.users.addTitle")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("admin.users.email")}</label>
-              <Input
-                placeholder="user@example.com"
-                value={newUser.email || ""}
-                onChange={(event) => setNewUser({ ...newUser, email: event.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("admin.users.username")}</label>
-              <Input
-                placeholder={t("admin.users.usernamePlaceholder")}
-                value={newUser.username || ""}
-                onChange={(event) => setNewUser({ ...newUser, username: event.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("admin.users.password")}</label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={newUser.password}
-                onChange={(event) => setNewUser({ ...newUser, password: event.target.value })}
-                required
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => handleDialogChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending}>
-              {createMutation.isPending ? t("common.loading") : t("common.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UserFormDialog
+        open={isDialogOpen}
+        mode={dialogMode}
+        initial={editingUser}
+        groups={groupOptions}
+        servers={serverOptions}
+        saving={createMutation.isPending || updateMutation.isPending}
+        onOpenChange={handleDialogChange}
+        onSubmit={handleSubmit}
+      />
     </>
   );
 }

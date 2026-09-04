@@ -14,6 +14,8 @@ import {
   Textarea,
 } from "@/components/ui";
 import type { TopologyAgent, TopologyExitSet, TopologyPolicy, TopologySpec, RelayPathInfo } from "@/lib/topology/types";
+import { MatchValueSearch } from "../MatchValueSearch";
+import type { TopologyMatchType } from "../../../config-center/presets/matchValuePresets";
 import {
   RULE_FIELDS,
   SET_FIELDS,
@@ -141,7 +143,7 @@ function DrawerBody({ target, agents = [], exitSets = [], relayPaths = [], savin
 // ===== 表单实现 =====
 
 
-function FieldRenderer({ field, error, value, onChange }: { field: FieldSpec; error?: string; value: unknown; onChange: (v: unknown) => void }) {
+function FieldRenderer({ field, error, value, onChange, matchValueKind }: { field: FieldSpec; error?: string; value: unknown; onChange: (v: unknown) => void; matchValueKind?: TopologyMatchType }) {
   const tf = useT();
   const label = (
     <label className="mb-1 block text-xs text-muted-foreground">
@@ -156,6 +158,13 @@ function FieldRenderer({ field, error, value, onChange }: { field: FieldSpec; er
         <div className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           {(value as string) || "—"}
         </div>
+      ) : field.type === "matchValues" ? (
+        <MatchValueSearch
+          matchType={matchValueKind ?? "geosite"}
+          value={(value as string) ?? ""}
+          onChange={(v) => onChange(v)}
+          placeholder={field.placeholder}
+        />
       ) : field.type === "textarea" ? (
         <Textarea rows={2} value={(value as string) ?? ""} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
       ) : field.type === "select" ? (
@@ -194,6 +203,7 @@ function RuleForm({ policy, saving, onSave, onClose }: { policy: TopologyPolicy 
     match_type: policy?.match_type ?? "geosite",
     match_value: policy?.match_value ?? "",
     priority: policy?.priority ?? 100,
+    sticky: policy?.sticky ?? true,
     enabled: policy?.enabled ?? true,
     target_set_name: policy?.target_set_id != null ? `#${policy.target_set_id}` : tf("admin.topology.rule.noTarget", "未绑定（拖线到出口集）"),
   });
@@ -206,6 +216,7 @@ function RuleForm({ policy, saving, onSave, onClose }: { policy: TopologyPolicy 
       match_type: values.match_type,
       match_value: values.match_value,
       priority: values.priority,
+      sticky: values.sticky,
       enabled: values.enabled,
     });
     if (!parsed.success) {
@@ -224,7 +235,14 @@ function RuleForm({ policy, saving, onSave, onClose }: { policy: TopologyPolicy 
       }}
     >
       {RULE_FIELDS.map((f) => (
-        <FieldRenderer key={f.key} field={f} error={errors[f.key]} value={values[f.key]} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} />
+        <FieldRenderer
+          key={f.key}
+          field={f}
+          error={errors[f.key]}
+          value={values[f.key]}
+          onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))}
+          matchValueKind={f.key === "match_value" ? (values.match_type as TopologyMatchType) : undefined}
+        />
       ))}
       <DirtyBar dirty={dirty && !!policy} saving={saving} onSubmit={submit} onClose={onClose} submitLabel={policy ? tf("admin.topology.common.save", "保存") : tf("admin.topology.common.create", "创建")} />
     </form>

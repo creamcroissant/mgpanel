@@ -19,9 +19,9 @@ func newRoutingPolicyRepo(db *sql.DB) *routingPolicyRepo {
 
 func (r *routingPolicyRepo) Create(ctx context.Context, p *repository.RoutingPolicy) error {
 	res, err := execWithRetry(ctx, r.db, `
-		INSERT INTO routing_policies (name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, p.Name, p.CoreType, p.Priority, p.MatchType, p.MatchValue, p.Action, optionalInt64(p.TargetSetID), optionalInt64(p.SpecID), boolToInt(p.Enabled), p.CreatedAt, p.UpdatedAt)
+		INSERT INTO routing_policies (name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, sticky, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, p.Name, p.CoreType, p.Priority, p.MatchType, p.MatchValue, p.Action, optionalInt64(p.TargetSetID), optionalInt64(p.SpecID), boolToInt(p.Sticky), boolToInt(p.Enabled), p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -36,9 +36,9 @@ func (r *routingPolicyRepo) Create(ctx context.Context, p *repository.RoutingPol
 func (r *routingPolicyRepo) Update(ctx context.Context, p *repository.RoutingPolicy) error {
 	_, err := execWithRetry(ctx, r.db, `
 		UPDATE routing_policies
-		SET name = ?, core_type = ?, priority = ?, match_type = ?, match_value = ?, action = ?, target_set_id = ?, spec_id = ?, enabled = ?, updated_at = ?
+		SET name = ?, core_type = ?, priority = ?, match_type = ?, match_value = ?, action = ?, target_set_id = ?, spec_id = ?, sticky = ?, enabled = ?, updated_at = ?
 		WHERE id = ?
-	`, p.Name, p.CoreType, p.Priority, p.MatchType, p.MatchValue, p.Action, optionalInt64(p.TargetSetID), optionalInt64(p.SpecID), boolToInt(p.Enabled), p.UpdatedAt, p.ID)
+	`, p.Name, p.CoreType, p.Priority, p.MatchType, p.MatchValue, p.Action, optionalInt64(p.TargetSetID), optionalInt64(p.SpecID), boolToInt(p.Sticky), boolToInt(p.Enabled), p.UpdatedAt, p.ID)
 	return err
 }
 
@@ -49,14 +49,14 @@ func (r *routingPolicyRepo) Delete(ctx context.Context, id int64) error {
 
 func (r *routingPolicyRepo) FindByID(ctx context.Context, id int64) (*repository.RoutingPolicy, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, enabled, created_at, updated_at
+		SELECT id, name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, sticky, enabled, created_at, updated_at
 		FROM routing_policies WHERE id = ?
 	`, id)
 	return scanRoutingPolicy(row)
 }
 
 func (r *routingPolicyRepo) List(ctx context.Context, filter repository.RoutingPolicyFilter) ([]*repository.RoutingPolicy, error) {
-	query := "SELECT id, name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, enabled, created_at, updated_at FROM routing_policies WHERE 1=1"
+	query := "SELECT id, name, core_type, priority, match_type, match_value, action, target_set_id, spec_id, sticky, enabled, created_at, updated_at FROM routing_policies WHERE 1=1"
 	args := make([]any, 0, 5)
 	if filter.CoreType != nil {
 		query += " AND core_type = ?"
@@ -128,9 +128,10 @@ func scanRoutingPolicy(scanner interface {
 }) (*repository.RoutingPolicy, error) {
 	var p repository.RoutingPolicy
 	var enabled int
+	var sticky int
 	var targetSetID sql.NullInt64
 	var specID sql.NullInt64
-	err := scanner.Scan(&p.ID, &p.Name, &p.CoreType, &p.Priority, &p.MatchType, &p.MatchValue, &p.Action, &targetSetID, &specID, &enabled, &p.CreatedAt, &p.UpdatedAt)
+	err := scanner.Scan(&p.ID, &p.Name, &p.CoreType, &p.Priority, &p.MatchType, &p.MatchValue, &p.Action, &targetSetID, &specID, &sticky, &enabled, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
 	}
@@ -138,6 +139,7 @@ func scanRoutingPolicy(scanner interface {
 		return nil, err
 	}
 	p.Enabled = enabled != 0
+	p.Sticky = sticky != 0
 	if targetSetID.Valid {
 		p.TargetSetID = &targetSetID.Int64
 	}

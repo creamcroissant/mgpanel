@@ -46,15 +46,16 @@ type serverService struct {
 	users      repository.UserRepository
 	servers    repository.ServerRepository
 	agentHosts repository.AgentHostRepository
+	deny       UserServerDenyService
 }
 
 // NewServerService 组装基于 repository 的依赖。
-func NewServerService(users repository.UserRepository, servers repository.ServerRepository, agentHosts ...repository.AgentHostRepository) ServerService {
+func NewServerService(users repository.UserRepository, servers repository.ServerRepository, deny UserServerDenyService, agentHosts ...repository.AgentHostRepository) ServerService {
 	var hosts repository.AgentHostRepository
 	if len(agentHosts) > 0 {
 		hosts = agentHosts[0]
 	}
-	return &serverService{users: users, servers: servers, agentHosts: hosts}
+	return &serverService{users: users, servers: servers, agentHosts: hosts, deny: deny}
 }
 
 func (s *serverService) ListForUser(ctx context.Context, userID string) (*ServerListResult, error) {
@@ -79,6 +80,16 @@ func (s *serverService) ListForUser(ctx context.Context, userID string) (*Server
 	} else {
 		// 若未分配分组则返回空列表
 		nodes = []*repository.Server{}
+	}
+	// 节点黑名单：被禁节点不展示给用户前台
+	if deniedIDs := s.deniedServerIDs(ctx, user.ID); len(deniedIDs) > 0 && len(nodes) > 0 {
+		var kept []*repository.Server
+		for _, node := range nodes {
+			if node != nil && !isServerDenied(deniedIDs, node.ID) {
+				kept = append(kept, node)
+			}
+		}
+		nodes = kept
 	}
 	now := time.Now().Unix()
 	hostMap := make(map[int64]*repository.AgentHost)
@@ -106,6 +117,23 @@ func (s *serverService) ListForUser(ctx context.Context, userID string) (*Server
 		cacheKeys = append(cacheKeys, view.CacheKey)
 	}
 	return &ServerListResult{Nodes: views, ETag: computeETag(cacheKeys)}, nil
+}
+
+func (s *serverService) deniedServerIDs(ctx context.Context, userID int64) map[int64]struct{} {
+	if s == nil || s.deny == nil {
+		return nil
+	}
+	ids, err := s.deny.GetUserDeniedServerIDs(ctx, userID)
+	if err != nil || len(ids) == 0 {
+		return nil
+	}
+	denied := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			denied[id] = struct{}{}
+		}
+	}
+	return denied
 }
 
 func (s *serverService) Heartbeat(ctx context.Context, nodeID int) error {

@@ -191,6 +191,16 @@ func (p *BackgroundProber) GetResults() []*TargetHistory {
 	return out
 }
 
+// GetTargetHistory returns the target history for a specific target key, or nil if not found.
+func (p *BackgroundProber) GetTargetHistory(key string) *TargetHistory {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if h, ok := p.history[key]; ok {
+		return h
+	}
+	return nil
+}
+
 // GetResultsByISP returns target histories filtered by ISP.
 func (p *BackgroundProber) GetResultsByISP(isp string) []*TargetHistory {
 	p.mu.RLock()

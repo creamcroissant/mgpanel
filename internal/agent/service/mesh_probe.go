@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
-	"runtime/debug"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/agent/mesh"
@@ -24,7 +24,7 @@ type MeshProber struct {
 	logger          *slog.Logger
 	targetToPeer    map[string]string // endpoint -> WGPublicKey
 	mu              sync.RWMutex
-	lifecycleCtx    context.Context   // agent lifecycle context, set in Start()
+	lifecycleCtx    context.Context // agent lifecycle context, set in Start()
 	keepaliveCtx    context.Context
 	keepaliveCancel context.CancelFunc // cancels the previous keepalive goroutine
 	keepaliveWg     sync.WaitGroup     // waits for keepalive goroutine to exit
@@ -166,24 +166,52 @@ type KeepalivePeer struct {
 	Up     bool
 }
 
-// checkPeerHealth checks if a WireGuard peer is alive by inspecting the latest
-// handshake timestamp. A peer is considered healthy if a handshake occurred
-// within the last 120 seconds.
-func (mp *MeshProber) checkPeerHealth(ctx context.Context, pubkey string) bool {
+// fetchLatestHandshakes executes wg show latest-handshakes once and returns
+// a map of pubkey -> timestamp.
+func (mp *MeshProber) fetchLatestHandshakes(ctx context.Context) map[string]int64 {
 	cmd := exec.CommandContext(ctx, mp.meshMgr.WgBinary(), "show", mp.meshMgr.InterfaceName(), "latest-handshakes")
 	out, err := cmd.Output()
 	if err != nil {
-		return false
+		return nil
 	}
-	now := time.Now().Unix()
+	res := make(map[string]int64)
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		parts := strings.Fields(line)
-		if len(parts) >= 2 && parts[0] == pubkey {
-			handshake, err := strconv.ParseInt(parts[1], 10, 64)
-			if err != nil || handshake == 0 {
-				return false
+		if len(parts) >= 2 {
+			if hs, err := strconv.ParseInt(parts[1], 10, 64); err == nil && hs > 0 {
+				res[parts[0]] = hs
 			}
-			return now-handshake < 120
+		}
+	}
+	return res
+}
+
+// checkPeerHealth checks if a WireGuard peer is alive by inspecting the latest
+// handshake timestamp. A peer is considered healthy if a handshake occurred
+// within the last 180 seconds (aligned with WireGuard protocol rekey intervals).
+func (mp *MeshProber) checkPeerHealth(ctx context.Context, pubkey string) bool {
+	handshakes := mp.fetchLatestHandshakes(ctx)
+	return mp.isPeerAlive(pubkey, "", handshakes)
+}
+
+// isPeerAlive checks health using handshake timestamp with fallback to recent
+// ICMP probe history if available, avoiding false positives on idle links.
+func (mp *MeshProber) isPeerAlive(pubkey, wgIP string, handshakes map[string]int64) bool {
+	now := time.Now().Unix()
+	if handshakes != nil {
+		if hs, ok := handshakes[pubkey]; ok && hs > 0 {
+			if now-hs < 180 {
+				return true
+			}
+		}
+	}
+	// 兜底：若握手超过 180 秒（或尚未记录），检查 prober 对该 WG IP 的近期探测历史。
+	// 若网络层仍在正常收到 ICMP 响应，说明连接通畅，避免空闲链路因未触发 Rekey 而被误判。
+	if wgIP != "" && mp.prober != nil {
+		if h := mp.prober.GetTargetHistory("icmpping:" + wgIP + ":0"); h != nil {
+			if h.TotalProbes > 0 && h.PacketLoss < 1.0 && now-h.LastProbeAt/1000 < 180 {
+				return true
+			}
 		}
 	}
 	return false
@@ -191,8 +219,8 @@ func (mp *MeshProber) checkPeerHealth(ctx context.Context, pubkey string) bool {
 
 // StartKeepalive starts the keepalive loop to monitor top N routes.
 // It checks WireGuard handshake timestamps every 5 seconds. After 3 consecutive
-// failures (no recent handshake), the route is removed (kernel auto-switches to
-// a lower metric route).
+// failures (no recent handshake and no successful probe), the route is removed
+// (kernel auto-switches to a lower metric route).
 func (mp *MeshProber) StartKeepalive(ctx context.Context, routes []struct {
 	PeerID    string
 	WGIP      string
@@ -220,8 +248,35 @@ func (mp *MeshProber) StartKeepalive(ctx context.Context, routes []struct {
 	mp.keepaliveWg.Wait()
 
 	maxRoutes := 3
-	if len(routes) < maxRoutes {
-		maxRoutes = len(routes)
+	// 严格按对端下一跳（WGIP / PublicKey）去重，避免相同对端占用多个 metric 导致重复震荡
+	peers := make([]KeepalivePeer, 0, maxRoutes)
+	seenPeer := make(map[string]struct{})
+	for _, r := range routes {
+		if len(peers) >= maxRoutes {
+			break
+		}
+		peerKey := r.WGIP
+		if peerKey == "" {
+			peerKey = r.PublicKey
+		}
+		if peerKey == "" {
+			continue
+		}
+		if _, ok := seenPeer[peerKey]; ok {
+			continue
+		}
+		seenPeer[peerKey] = struct{}{}
+		peers = append(peers, KeepalivePeer{
+			PeerID: r.PublicKey,
+			WGIP:   r.WGIP,
+			Port:   r.Port,
+			Metric: (len(peers) + 1) * 10,
+			Up:     true,
+		})
+	}
+
+	if len(peers) == 0 {
+		return
 	}
 
 	mp.keepaliveWg.Add(1)
@@ -236,24 +291,16 @@ func (mp *MeshProber) StartKeepalive(ctx context.Context, routes []struct {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
-		peers := make([]KeepalivePeer, 0, maxRoutes)
-		for i := 0; i < maxRoutes; i++ {
-			peers = append(peers, KeepalivePeer{
-				PeerID: routes[i].PublicKey,
-				WGIP:   routes[i].WGIP,
-				Port:   routes[i].Port,
-				Metric: (i + 1) * 10,
-				Up:     true,
-			})
-		}
-
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				// 每轮 tick 只执行一次外部命令获取所有握手时间戳
+				handshakes := mp.fetchLatestHandshakes(ctx)
+
 				for i, peer := range peers {
-					healthy := mp.checkPeerHealth(ctx, peer.PeerID)
+					healthy := mp.isPeerAlive(peer.PeerID, peer.WGIP, handshakes)
 
 					if !healthy {
 						peers[i].Failed++

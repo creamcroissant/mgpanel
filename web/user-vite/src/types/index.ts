@@ -10,6 +10,8 @@ export type {
 export type {
   AgentHost,
   AdminUser,
+  AdminServerGroup,
+  AdminServerNode,
   AdminNotice,
   AdminKnowledgeSummary,
   AdminKnowledgeDetail,

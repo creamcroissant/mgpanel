@@ -22,6 +22,7 @@
     "retry": "重试",
     "actions": "操作",
     "view": "查看",
+    "remove": "移除",
     "expand": "展开",
     "collapse": "收起",
     "breadcrumb": "面包屑",
@@ -554,7 +555,22 @@
       "createError": "创建失败",
       "updateSuccess": "用户更新成功",
       "deleteSuccess": "用户删除成功",
-      "loadError": "加载用户列表失败"
+      "loadError": "加载用户列表失败",
+      "self": "自己",
+      "editTitle": "编辑用户",
+      "trafficLimit": "流量限额",
+      "trafficLimitPlaceholder": "GB，0 表示不限",
+      "noGroup": "不分组",
+      "neverExpire": "永不过期",
+      "remarks": "备注",
+      "remarksPlaceholder": "选填备注信息",
+      "resetPasswordHint": "留空则不修改密码",
+      "emailPlaceholder": "user@example.com",
+      "passwordPlaceholder": "••••••••",
+      "bannedServers": "禁用节点",
+      "bannedServersPlaceholder": "搜索节点...",
+      "bannedServersHint": "勾选后该用户将无法使用这些节点",
+      "bannedServersEmpty": "没有匹配的节点"
     },
     "cores": {
       "title": "核心管理",
@@ -1610,7 +1626,8 @@
           "protocol_disabled": "协议已禁用",
           "group_denied": "分组不允许",
           "tag_mismatch": "标签不匹配",
-          "type_mismatch": "类型不匹配"
+          "type_mismatch": "类型不匹配",
+          "banned_by_admin": "管理员禁用"
         },
         "tooltips": {
           "mode": "选择流量重置的触发方式",

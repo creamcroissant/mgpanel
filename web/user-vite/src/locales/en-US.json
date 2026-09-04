@@ -22,6 +22,7 @@
     "retry": "Retry",
     "actions": "Actions",
     "view": "View",
+    "remove": "Remove",
     "expand": "Expand",
     "collapse": "Collapse",
     "breadcrumb": "Breadcrumb",
@@ -556,7 +557,20 @@
       "createError": "Failed to create",
       "updateSuccess": "User updated successfully",
       "deleteSuccess": "User deleted successfully",
-      "loadError": "Failed to load users"
+      "loadError": "Failed to load users",
+      "self": "Self",
+      "editTitle": "Edit User",
+      "trafficLimit": "Traffic Limit",
+      "trafficLimitPlaceholder": "GB, 0 means unlimited",
+      "noGroup": "No group",
+      "neverExpire": "Never expire",
+      "remarks": "Remarks",
+      "remarksPlaceholder": "Optional remarks",
+      "resetPasswordHint": "Leave empty to keep current password",
+      "bannedServers": "Banned Servers",
+      "bannedServersPlaceholder": "Search nodes...",
+      "bannedServersHint": "Checked nodes cannot be used by this user",
+      "bannedServersEmpty": "No matching nodes"
     },
     "cores": {
       "title": "Agent Cores",
@@ -1612,7 +1626,8 @@
           "protocol_disabled": "Protocol Disabled",
           "group_denied": "Group Denied",
           "tag_mismatch": "Tag Mismatch",
-          "type_mismatch": "Type Mismatch"
+          "type_mismatch": "Type Mismatch",
+          "banned_by_admin": "Banned by Admin"
         },
         "tooltips": {
           "mode": "Select when to reset traffic usage",

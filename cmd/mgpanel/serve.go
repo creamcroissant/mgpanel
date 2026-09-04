@@ -177,6 +177,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	serverTelemetryService := service.NewServerTelemetryServiceWithLogger(infra.Cache, store.Settings(), store.Servers(), store.StatServers(), logger)
+
+	// Multi-accumulator for multi-granularity statistics (hourly, daily, monthly)
+	multiAccumulator := job.NewMultiAccumulator(3) // 0=hourly, 1=daily, 2=monthly
+	serverTrafficService := service.NewServerTrafficService(store.Users(), multiAccumulator)
+	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), multiAccumulator, notificationQueue, store.Settings())
+	userServerSelectionService := service.NewUserServerSelectionService(store.UserTraffic())
+	userDenyService := service.NewUserServerDenyService(store.UserTraffic())
+	trafficQueue := async.NewTrafficQueue()
+
 	adminUserService := service.NewAdminUserService(
 		store.Users(),
 		store.ServerGroups(),
@@ -184,6 +193,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		serverTelemetryService,
 		infra.Hasher,
 		i18nManager,
+		userTrafficService,
+		userDenyService,
 	)
 	adminServerService := service.NewAdminServerService(store.ServerGroups(), store.ServerRoutes(), store.Servers(), i18nManager)
 	adminStatService := service.NewAdminStatService(store.StatUsers(), store.Users())
@@ -202,12 +213,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	serverAuthService := service.NewServerAuthService(store.Settings(), store.Servers())
 	serverNodeService := service.NewServerNodeService(store.Users(), store.ServerRoutes(), store.Settings())
 
-	// Multi-accumulator for multi-granularity statistics (hourly, daily, monthly)
-	multiAccumulator := job.NewMultiAccumulator(3) // 0=hourly, 1=daily, 2=monthly
-	serverTrafficService := service.NewServerTrafficService(store.Users(), multiAccumulator)
-	userTrafficService := service.NewUserTrafficServiceWithCollector(store.UserTraffic(), store.Users(), multiAccumulator, notificationQueue, store.Settings())
-	userServerSelectionService := service.NewUserServerSelectionService(store.UserTraffic())
-	trafficQueue := async.NewTrafficQueue()
 	subLogQueue := async.NewSubscriptionLogQueue(store.SubscriptionLogs(), logger)
 	installService := service.NewInstallService(store.Users(), infra.Hasher, i18nManager)
 
@@ -231,7 +236,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	nodeNamer := service.NewNodeNamer(adminSystemSettingsService)
 
 	agentHostService := service.NewAgentHostServiceWithOptions(store.AgentHosts(), store.Servers(), store.ServerClientConfigs(), store.ConfigTemplates(), store.Users(), store.Settings(), service.AgentHostServiceOptions{Cache: infra.Cache, Logger: logger, GeoIP: geoipReader, Namer: nodeNamer})
-	agentService := service.NewAgentService(store.Servers(), store.Users())
+	agentService := service.NewAgentService(store.Servers(), store.Users(), userDenyService)
 	forwardingService := service.NewForwardingServiceWithLogger(store.ForwardingRules(), store.ForwardingRuleLogs(), store.AgentHosts(), logger)
 	converterRegistry := template.NewConverterRegistry(&template.SingBoxConverter{}, &template.XrayConverter{})
 	agentOperationGuard := service.NewAgentOperationGuard(store.CoreOperations(), store.ApplyRuns(), infra.Audit, store.AgentLifecycleOperations())
@@ -324,7 +329,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	binaryVersionService := service.NewBinaryVersionServiceWithOptions(store.BinaryVersionStates(), store.AgentHosts(), buildBinaryVersionProvider(), service.BinaryVersionServiceOptions{CoreOperations: store.CoreOperations()})
 	shortLinkService := service.NewShortLinkService(store.ShortLinks(), store.Users(), store.Settings())
 	subscriptionSourceService := service.NewSubscriptionSourceService(store.SubscriptionSources(), service.SubscriptionSourceServiceOptions{})
-	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), userServerSelectionService, serverTelemetryService)
+	subscriptionFilterService := service.NewSubscriptionFilterService(store.Servers(), store.SubscriptionSources(), store.SubscriptionFilterReasons(), userServerSelectionService, serverTelemetryService, userDenyService)
 	// 订阅热路径不持久化过滤原因（写放大优化）；需要重建时手动开启。
 	subscriptionFilterService.SetPersistReasons(false)
 	coreOperationService := service.NewCoreOperationService(store.CoreOperations(), agentOperationGuard)
@@ -339,7 +344,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		exitNodeSetService, store.UnlockProbeResults(), store.AgentMeshPeers(), store.RelayPaths(), latencySource, logger)
 	relayPathService := service.NewRelayPathService(store.RelayPaths(), store.AgentHosts(), logger)
 	agentRelayRouteService := service.NewAgentRelayRouteService(store.AgentHosts(), store.RelayPaths(), store.AgentMeshPeers(), logger)
-	userSyncService := service.NewUserSyncService(store.InboundSpecs(), store.Users())
+	userSyncService := service.NewUserSyncService(store.InboundSpecs(), store.Users(), userDenyService, store.Servers())
 	agentUserSyncService := service.NewAgentUserSyncService(userSyncService, store.AgentHosts())
 
 	scheduler := job.NewScheduler(logger)
@@ -467,9 +472,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Register:            registrationService,
 		MailLink:            mailLinkService,
 		Comm:                commService,
-		Server:              service.NewServerService(store.Users(), store.Servers(), store.AgentHosts()),
+		Server:              service.NewServerService(store.Users(), store.Servers(), userDenyService, store.AgentHosts()),
 		Subscription: func() service.SubscriptionService {
-			svc := service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, subscriptionFilterService)
+			svc := service.NewSubscriptionService(store.Users(), store.Servers(), store.Settings(), store.SubscriptionTemplates(), subscriptionSourceService, protocolManager, serverTelemetryService, subLogQueue, cfg.Security.SubscribeObfuscation, userServerSelectionService, i18nManager, userDenyService, subscriptionFilterService)
 			svc.SetCache(infra.Cache)
 			return svc
 		}(),

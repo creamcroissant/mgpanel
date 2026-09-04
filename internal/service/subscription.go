@@ -104,6 +104,7 @@ type subscriptionService struct {
 	obfuscate bool
 	selection UserServerSelectionService
 	i18n      *i18n.Manager
+	deny      UserServerDenyService
 	cache     cache.Store
 }
 
@@ -122,12 +123,12 @@ type protocolSettings struct {
 }
 
 // NewSubscriptionService 组装订阅服务依赖。
-func NewSubscriptionService(users repository.UserRepository, servers repository.ServerRepository, settings repository.SettingRepository, templates repository.SubscriptionTemplateRepository, sources SubscriptionSourceService, manager *protocol.Manager, telemetry ServerTelemetryService, subLogs *async.SubscriptionLogQueue, obfuscate bool, selection UserServerSelectionService, i18nMgr *i18n.Manager, filters ...SubscriptionFilterService) SubscriptionService {
+func NewSubscriptionService(users repository.UserRepository, servers repository.ServerRepository, settings repository.SettingRepository, templates repository.SubscriptionTemplateRepository, sources SubscriptionSourceService, manager *protocol.Manager, telemetry ServerTelemetryService, subLogs *async.SubscriptionLogQueue, obfuscate bool, selection UserServerSelectionService, i18nMgr *i18n.Manager, deny UserServerDenyService, filters ...SubscriptionFilterService) SubscriptionService {
 	var filter SubscriptionFilterService
 	if len(filters) > 0 {
 		filter = filters[0]
 	}
-	return &subscriptionService{users: users, servers: servers, settings: settings, templates: templates, sources: sources, filter: filter, protocols: manager, telemetry: telemetry, subLogs: subLogs, obfuscate: obfuscate, selection: selection, i18n: i18nMgr}
+	return &subscriptionService{users: users, servers: servers, settings: settings, templates: templates, sources: sources, filter: filter, protocols: manager, telemetry: telemetry, subLogs: subLogs, obfuscate: obfuscate, selection: selection, i18n: i18nMgr, deny: deny}
 }
 
 // queryServers 根据用户显式选择与用户分组决定可用节点。
@@ -145,6 +146,9 @@ func (s *subscriptionService) queryServers(ctx context.Context, user *repository
 		groupIDs = append(groupIDs, user.GroupID)
 	}
 
+	// 0b. 收集用户节点黑名单（被禁节点在任何分支都不返回）
+	deniedIDs := s.userDeniedServerIDs(ctx, user)
+
 	// 1. 优先处理用户显式选中的节点
 	if s.selection != nil {
 		selectedIDs, err := s.selection.GetSelection(ctx, user.ID)
@@ -158,6 +162,9 @@ func (s *subscriptionService) queryServers(ctx context.Context, user *repository
 					if len(groupIDs) > 0 && !containsGroupID(groupIDs, server.GroupID) {
 						continue
 					}
+					if isServerDenied(deniedIDs, server.ID) {
+						continue
+					}
 					selectedServers = append(selectedServers, server)
 				}
 			}
@@ -167,12 +174,58 @@ func (s *subscriptionService) queryServers(ctx context.Context, user *repository
 
 	// 3. 若存在分组限制，则仅返回分组内节点
 	if len(groupIDs) > 0 {
-		return s.servers.FindByGroupIDs(ctx, groupIDs)
+		servers, err := s.servers.FindByGroupIDs(ctx, groupIDs)
+		if err != nil {
+			return nil, err
+		}
+		return filterDeniedServers(servers, deniedIDs), nil
 	}
 
 	// 4. 无分组限制时回退为所有可见节点
 	// NOTE: 旧逻辑在无用户分组时返回所有节点，这里继续保持一致
-	return s.servers.FindAllVisible(ctx)
+	servers, err := s.servers.FindAllVisible(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return filterDeniedServers(servers, deniedIDs), nil
+}
+
+func (s *subscriptionService) userDeniedServerIDs(ctx context.Context, user *repository.User) map[int64]struct{} {
+	if user == nil || s == nil || s.deny == nil {
+		return nil
+	}
+	ids, err := s.deny.GetUserDeniedServerIDs(ctx, user.ID)
+	if err != nil || len(ids) == 0 {
+		return nil
+	}
+	denied := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			denied[id] = struct{}{}
+		}
+	}
+	return denied
+}
+
+func isServerDenied(deniedIDs map[int64]struct{}, serverID int64) bool {
+	if deniedIDs == nil {
+		return false
+	}
+	_, ok := deniedIDs[serverID]
+	return ok
+}
+
+func filterDeniedServers(servers []*repository.Server, deniedIDs map[int64]struct{}) []*repository.Server {
+	if len(deniedIDs) == 0 {
+		return servers
+	}
+	out := make([]*repository.Server, 0, len(servers))
+	for _, server := range servers {
+		if server != nil && !isServerDenied(deniedIDs, server.ID) {
+			out = append(out, server)
+		}
+	}
+	return out
 }
 
 func (s *subscriptionService) filterForSubscription(ctx context.Context, user *repository.User, allowedTypes map[string]struct{}, keywords []string, tagsFilter []string, lang string) ([]*repository.Server, []protocol.Node, error) {

@@ -62,6 +62,8 @@ export interface PolicyPayload {
   match_type: string;
   match_value: string;
   priority: number;
+  /** 粘性路由：true=源地址哈希固定同一出口；false=多出口轮询分摊 */
+  sticky: boolean;
   enabled: boolean;
   /** 更新时可选改绑目标集（连线交互）；后端 Update 为 Partial 契约 */
   target_set_id?: number;
@@ -78,6 +80,7 @@ export function useCreatePolicy(coreType: string) {
         match_value: p.match_value,
         priority: p.priority,
         enabled: p.enabled,
+        sticky: p.sticky ?? true,
         action: "route_to_set",
         target_set_id: p.target_set_id,
         core_type: coreType,
@@ -98,6 +101,7 @@ export function useCreatePolicy(coreType: string) {
               priority: p.priority,
               match_type: p.match_type,
               match_value: p.match_value,
+              sticky: p.sticky ?? true,
               action: "route_to_set",
               target_set_id: p.target_set_id,
               enabled: p.enabled,
@@ -126,6 +130,7 @@ export function useUpdatePolicy(coreType: string) {
         match_value: v.match_value,
         priority: v.priority,
         enabled: v.enabled,
+        sticky: v.sticky ?? true,
         ...(v.target_set_id != null ? { target_set_id: v.target_set_id } : {}),
       });
       return updated;
@@ -144,6 +149,7 @@ export function useUpdatePolicy(coreType: string) {
                   match_type: v.match_type,
                   match_value: v.match_value,
                   priority: v.priority,
+                  sticky: v.sticky ?? true,
                   enabled: v.enabled,
                   ...(v.target_set_id != null ? { target_set_id: v.target_set_id } : {}),
                 }

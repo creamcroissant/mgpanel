@@ -41,6 +41,8 @@ export interface TopologyPolicy {
   match_value: string;
   action: string;
   target_set_id: number | null;
+  /** 粘性路由：true=源地址哈希固定同一出口；false=多出口轮询分摊 */
+  sticky: boolean;
   /** 作用域：null/缺省 = 全局；非空 = 仅对该入站 spec 生效（渲染时排在全局之前） */
   spec_id?: number | null;
   enabled: boolean;

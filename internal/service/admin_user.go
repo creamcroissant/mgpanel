@@ -61,6 +61,7 @@ type AdminUserUpdateInput struct {
 	Password       *string `json:"password,omitempty"`
 	Remarks        *string `json:"remarks,omitempty"`
 	Tags           []string `json:"tags,omitempty"`
+	BannedServerIDs *[]int64 `json:"banned_server_ids,omitempty"`
 }
 
 // AdminUserGenerateInput 用于创建新用户。
@@ -102,6 +103,7 @@ type AdminUserView struct {
 	T                 int64                   `json:"t"`
 	OnlineCount       int                     `json:"online_count"`
 	SubscribeURL      string                  `json:"subscribe_url"`
+	BannedServerIDs   []int64                 `json:"banned_server_ids,omitempty"`
 }
 
 // AdminUserGroupSummary 提供管理端所需的最小分组信息。
@@ -117,6 +119,8 @@ type adminUserService struct {
 	telemetry ServerTelemetryService
 	hasher    hash.Hasher
 	i18n      *i18n.Manager
+	traffic   UserTrafficService
+	deny      UserServerDenyService
 }
 
 // NewAdminUserService 组装管理员用户流程所需仓储。
@@ -127,6 +131,8 @@ func NewAdminUserService(
 	telemetry ServerTelemetryService,
 	hasher hash.Hasher,
 	i18n *i18n.Manager,
+	traffic UserTrafficService,
+	deny UserServerDenyService,
 ) AdminUserService {
 	return &adminUserService{
 		users:     users,
@@ -135,6 +141,8 @@ func NewAdminUserService(
 		telemetry: telemetry,
 		hasher:    hasher,
 		i18n:      i18n,
+		traffic:   traffic,
+		deny:      deny,
 	}
 }
 
@@ -173,7 +181,9 @@ func (s *adminUserService) Fetch(ctx context.Context, input AdminUserFetchInput)
 			onlineCount:   counts[user.ID],
 			subscribeBase: subscribeBase,
 		}
-		views = append(views, s.buildView(user, meta))
+		view := s.buildView(user, meta)
+		view.BannedServerIDs = s.deniedServerIDs(ctx, user.ID)
+		views = append(views, view)
 	}
 	return &AdminUserFetchResult{Users: views, Total: total}, nil
 }
@@ -196,7 +206,19 @@ func (s *adminUserService) GetByID(ctx context.Context, id int64) (*AdminUserVie
 		group:         s.groupByID(ctx, user.GroupID),
 		subscribeBase: s.subscribeBase(ctx),
 	})
+	view.BannedServerIDs = s.deniedServerIDs(ctx, user.ID)
 	return &view, nil
+}
+
+func (s *adminUserService) deniedServerIDs(ctx context.Context, userID int64) []int64 {
+	if s == nil || s.deny == nil {
+		return nil
+	}
+	ids, err := s.deny.GetUserDeniedServerIDs(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return ids
 }
 
 func (s *adminUserService) Delete(ctx context.Context, id int64) error {
@@ -273,10 +295,23 @@ func (s *adminUserService) Update(ctx context.Context, input AdminUserUpdateInpu
 	if err := s.users.Save(ctx, user); err != nil {
 		return nil, err
 	}
+	// 修改流量限额时同步到当期周期配额，使额度调整即时生效。
+	if input.TransferEnable != nil && s != nil && s.traffic != nil {
+		if err := s.traffic.SyncQuotaToCurrentPeriod(ctx, user.ID, user.TransferEnable); err != nil {
+			return nil, fmt.Errorf("sync quota to current period for user %d: %w", user.ID, err)
+		}
+	}
+	// 更新用户节点黑名单（nil=不修改，空切片=清空）。
+	if input.BannedServerIDs != nil && s != nil && s.deny != nil {
+		if err := s.deny.ReplaceUserDenies(ctx, user.ID, *input.BannedServerIDs); err != nil {
+			return nil, fmt.Errorf("replace denied servers for user %d: %w", user.ID, err)
+		}
+	}
 	view := s.buildView(user, adminUserViewMeta{
 		group:         s.groupByID(ctx, user.GroupID),
 		subscribeBase: s.subscribeBase(ctx),
 	})
+	view.BannedServerIDs = s.deniedServerIDs(ctx, user.ID)
 	return &view, nil
 }
 

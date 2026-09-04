@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	agentv1 "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1"
 )
@@ -42,6 +45,17 @@ func (s *agentMeshService) PushRoutingTables(ctx context.Context) error {
 			continue
 		}
 
+		// 拓扑结构防抖：只对实际决定路由行为的拓扑字段（优先级、对端公钥、网关IP/端口）计算哈希，
+		// 避免实时波动的浮点数延迟指标导致无脑重复下发与路由 Flapping。
+		var sig strings.Builder
+		for _, r := range pbRoutes {
+			sig.WriteString(fmt.Sprintf("%d:%s:%s:%d;", r.Priority, r.PeerId, r.PeerWgIp, r.PeerPort))
+		}
+		routeHash := fmt.Sprintf("%x", md5.Sum([]byte(sig.String())))
+		if s.isRouteTableUnchanged(p.AgentHostID, routeHash) {
+			continue
+		}
+
 		_, err = s.lifecycleOps.Create(ctx, CreateAgentLifecycleOperationRequest{
 			AgentHostID:    p.AgentHostID,
 			OperationType:  "set_routing_table",
@@ -52,6 +66,7 @@ func (s *agentMeshService) PushRoutingTables(ctx context.Context) error {
 			slog.Warn("route push: create operation failed", "agent_host_id", p.AgentHostID, "error", err)
 			continue
 		}
+		s.recordPushedRouteHash(p.AgentHostID, routeHash)
 		slog.Info("route push: created set_routing_table command",
 			"agent_host_id", p.AgentHostID, "routes", len(routes), "payload_bytes", len(data))
 	}

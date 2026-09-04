@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MatchValueSearch } from "../MatchValueSearch";
+import type { TopologyMatchType } from "../../../config-center/presets/matchValuePresets";
 import {
   Select,
   SelectContent,
@@ -118,6 +120,7 @@ export function CreatePolicyDialog({
     match_type: string;
     match_value: string;
     priority: number;
+    sticky: boolean;
     enabled: boolean;
     target_set_id: number;
   }) => void;
@@ -127,6 +130,7 @@ export function CreatePolicyDialog({
   const [matchType, setMatchType] = useState("geosite");
   const [matchValue, setMatchValue] = useState("");
   const [priority, setPriority] = useState(100);
+  const [sticky, setSticky] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [targetSetId, setTargetSetId] = useState<string>("");
 
@@ -136,6 +140,7 @@ export function CreatePolicyDialog({
       setMatchType("geosite");
       setMatchValue("");
       setPriority(100);
+      setSticky(true);
       setEnabled(true);
       setTargetSetId(sets[0] != null ? String(sets[0].id) : "");
     }
@@ -182,9 +187,10 @@ export function CreatePolicyDialog({
             <label className="mb-1 block text-xs text-muted-foreground">
               匹配值（多个用逗号分隔）
             </label>
-            <Input
+            <MatchValueSearch
+              matchType={matchType as TopologyMatchType}
               value={matchValue}
-              onChange={(e) => setMatchValue(e.target.value)}
+              onChange={setMatchValue}
               placeholder="例如 netflix 或 example.com,foo.bar"
             />
           </div>
@@ -207,6 +213,10 @@ export function CreatePolicyDialog({
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-4 w-4" />
             创建后立即启用
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={sticky} onChange={(e) => setSticky(e.target.checked)} className="h-4 w-4" />
+            粘性路由（固定同一出口，避免多出口 IP 漂移）
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onCancel} disabled={busy}>取消</Button>
@@ -218,6 +228,7 @@ export function CreatePolicyDialog({
                 match_type: matchType,
                 match_value: matchValue,
                 priority,
+                sticky,
                 enabled,
                 target_set_id: Number(targetSetId),
               })

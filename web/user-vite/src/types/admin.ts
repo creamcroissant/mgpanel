@@ -55,6 +55,8 @@ export interface AdminUser {
   uuid: string;
   token: string;
   group_id?: number;
+  group?: { id: number; name: string } | null;
+  remarks?: string;
   transfer_enable: number;
   transfer_used: number;
   u: number;
@@ -65,8 +67,33 @@ export interface AdminUser {
   status: number;
   banned: boolean;
   telegram_id?: number;
+  banned_server_ids?: number[];
   created_at: number;
   updated_at: number;
+}
+
+// Server node (as returned by admin GET /server/manage/fetch)
+export interface AdminServerNode {
+  id: number;
+  name: string;
+  group_id?: number;
+  route_id?: number;
+  parent_id?: number;
+  host?: string;
+  port?: number;
+  server_port?: number;
+  type?: string;
+  status?: number;
+  show?: number;
+  tags?: unknown;
+}
+
+// Server group (as returned by admin GET /server/group/fetch)
+export interface AdminServerGroup {
+  id: number;
+  name: string;
+  type?: string;
+  sort?: number;
 }
 
 // Admin notice interface
@@ -723,6 +750,7 @@ export interface UpdateUserRequest {
   banned?: boolean;
   expired_at?: number;
   transfer_enable?: number;
+  banned_server_ids?: number[];
 }
 
 // Create/Update notice request
@@ -906,6 +934,8 @@ export interface RoutingPolicy {
   match_value: string;
   action: string;
   target_set_id: number | null;
+  /** 粘性路由：true=源地址哈希固定同一出口；false=多出口轮询分摊 */
+  sticky: boolean;
   /** 作用域：null/缺省 = 全局；非空 = 仅对该入站 spec 的流量生效（优先于全局） */
   spec_id: number | null;
   enabled: boolean;
@@ -921,6 +951,8 @@ export interface CreateRoutingPolicyRequest {
   match_value: string;
   action?: string;
   target_set_id?: number;
+  /** 粘性路由：true=源地址哈希固定同一出口；false=多出口轮询分摊；缺省沿用/启用 */
+  sticky?: boolean;
   spec_id?: number | null;
   enabled?: boolean;
 }

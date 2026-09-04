@@ -6,32 +6,32 @@ import "encoding/json"
 
 // User represents a subset of the v2_user columns migrated to SQLite.
 type User struct {
-	ID                int64
-	UUID              string
-	Token             string
-	Username          string
-	Email             string
-	Password          string
-	PasswordAlgo      string
-	PasswordSalt      string
-	BalanceCents      int64
-	GroupID           int64
-	ExpiredAt         int64
-	U                 int64
-	D                 int64
-	TransferEnable    int64
-	SpeedLimit        *int64
-	DeviceLimit       *int64
-	IsAdmin           bool
-	Status            int
-	Banned            bool
-	TrafficExceeded   bool
-	TelegramID        int64
-	LastLoginAt       int64
-	Remarks           string
-	Tags              []string
-	CreatedAt         int64
-	UpdatedAt         int64
+	ID              int64
+	UUID            string
+	Token           string
+	Username        string
+	Email           string
+	Password        string
+	PasswordAlgo    string
+	PasswordSalt    string
+	BalanceCents    int64
+	GroupID         int64
+	ExpiredAt       int64
+	U               int64
+	D               int64
+	TransferEnable  int64
+	SpeedLimit      *int64
+	DeviceLimit     *int64
+	IsAdmin         bool
+	Status          int
+	Banned          bool
+	TrafficExceeded bool
+	TelegramID      int64
+	LastLoginAt     int64
+	Remarks         string
+	Tags            []string
+	CreatedAt       int64
+	UpdatedAt       int64
 }
 
 // NodeUser represents the limited subset of user columns shared with nodes.
@@ -621,7 +621,7 @@ type UnlockProbeResult struct {
 	ID          int64  `json:"id"`
 	AgentHostID int64  `json:"agent_host_id"`
 	Service     string `json:"service"`
-	Status      string `json:"status"`  // unlocked / locked / error / unknown
+	Status      string `json:"status"` // unlocked / locked / error / unknown
 	Region      string `json:"region"`
 	Detail      string `json:"detail"`
 	ProbedAt    int64  `json:"probed_at"`
@@ -661,6 +661,9 @@ type RoutingPolicy struct {
 	MatchValue  string `json:"match_value"`
 	Action      string `json:"action"`
 	TargetSetID *int64 `json:"target_set_id,omitempty"`
+	// Sticky 粘性路由开关：命中该规则的流量在出口池内按源地址哈希固定出口
+	// （true）还是轮询分摊（false）。仅 sing-box loadbalance source-hash/round-robin 生效。
+	Sticky bool `json:"sticky"`
 	// SpecID 非 nil 表示仅对绑定入站生效（入站规则，渲染时排在全局规则之前）；nil 为全局。
 	SpecID    *int64 `json:"spec_id,omitempty"`
 	Enabled   bool   `json:"enabled"`
@@ -671,20 +674,20 @@ type RoutingPolicy struct {
 // RelayPath 是受控服务器之间的多跳中继链路（如 s1→s2→s3），与入口协议配置正交。
 // sequence 0 = 入口，N-1 = 出口；每跳通过 mesh socks 隧道转发到下一跳。
 type RelayPath struct {
-	ID          int64            `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	CoreType    string           `json:"core_type"`
-	Enabled     bool             `json:"enabled"`
-	Nodes       []RelayPathNode  `json:"nodes"`
-	CreatedAt   int64            `json:"created_at"`
-	UpdatedAt   int64            `json:"updated_at"`
+	ID          int64           `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	CoreType    string          `json:"core_type"`
+	Enabled     bool            `json:"enabled"`
+	Nodes       []RelayPathNode `json:"nodes"`
+	CreatedAt   int64           `json:"created_at"`
+	UpdatedAt   int64           `json:"updated_at"`
 }
 
 // RelayPathNode 是中继链路中的一跳。
 type RelayPathNode struct {
-	Sequence    int    `json:"sequence"`
-	AgentHostID int64  `json:"agent_host_id"`
+	Sequence    int   `json:"sequence"`
+	AgentHostID int64 `json:"agent_host_id"`
 	// wg 隧道密钥（base64）。json:"-"：私钥绝不入 API 响应，
 	// 仅由 agent_relay_route 服务按 host_token 定向下发本机角色时携带。
 	PrivateKey string `json:"-"`
@@ -714,10 +717,10 @@ type AccessLogStats struct {
 // InboundSpec represents desired inbound configuration at tag granularity.
 type InboundSpec struct {
 	ID              int64           `json:"id"`
-	AgentHostID     *int64          `json:"agent_host_id"` // nil = template spec
+	AgentHostID     *int64          `json:"agent_host_id"`                // nil = template spec
 	ExitAgentHostID *int64          `json:"exit_agent_host_id,omitempty"` // nil = 直连出网；非 nil = 经 mesh 隧道到该 agent 出网
-	ExitNodeSetID   *int64          `json:"exit_node_set_id,omitempty"`  // nil = 固定出口；非 nil = 从出口集合中选（负载均衡+故障转移）
-	RelayPathID     *int64          `json:"relay_path_id,omitempty"`    // 非 nil = 走多跳中继链路（优先级高于 exit_*）
+	ExitNodeSetID   *int64          `json:"exit_node_set_id,omitempty"`   // nil = 固定出口；非 nil = 从出口集合中选（负载均衡+故障转移）
+	RelayPathID     *int64          `json:"relay_path_id,omitempty"`      // 非 nil = 走多跳中继链路（优先级高于 exit_*）
 	CoreType        string          `json:"core_type"`
 	Tag             string          `json:"tag"`
 	Enabled         bool            `json:"enabled"`
@@ -818,11 +821,11 @@ type InboundIndex struct {
 
 // CDNOriginLatency records a latency measurement for a CDN origin.
 type CDNOriginLatency struct {
-	ID         int64  `json:"id"`
-	SiteID     int64  `json:"site_id"`
-	Stack      string `json:"stack"`
-	LatencyMs  int    `json:"latency_ms"`
-	UpdatedAt  int64  `json:"updated_at"`
+	ID        int64  `json:"id"`
+	SiteID    int64  `json:"site_id"`
+	Stack     string `json:"stack"`
+	LatencyMs int    `json:"latency_ms"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 // CDNSiteFilter defines filter conditions for listing CDN sites.

@@ -24,6 +24,12 @@ export {
   resetUserPassword,
 } from "./user";
 
+// Server Group API
+export { getServerGroups } from "./group";
+
+// Server Node API
+export { getAdminServerNodes } from "./server";
+
 // Notice API
 export {
   getNotices,

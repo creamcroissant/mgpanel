@@ -25,6 +25,8 @@ func TestAdminUserServiceFetch(t *testing.T) {
 		&adminUserTelemetryStub{},
 		hash.MustBcryptHasher(4),
 		nil,
+		nil,
+		nil,
 	)
 
 	result, err := svc.Fetch(context.Background(), AdminUserFetchInput{Query: " demo ", Limit: 20, Offset: 5})
@@ -58,6 +60,8 @@ func TestAdminUserServiceUpdate(t *testing.T) {
 		&adminUserTelemetryStub{},
 		hash.MustBcryptHasher(4),
 		nil,
+		nil,
+		nil,
 	)
 	newEmail := "New@Example.com"
 	password := "Secret123"
@@ -81,6 +85,8 @@ func TestAdminUserServiceGenerate(t *testing.T) {
 		&adminUserSettingRepoStub{},
 		&adminUserTelemetryStub{},
 		hash.MustBcryptHasher(4),
+		nil,
+		nil,
 		nil,
 	)
 	transfer := int64(4096)
@@ -180,7 +186,6 @@ func (r *adminUserRepoStub) IncrementTraffic(context.Context, int64, int64, int6
 	return nil
 }
 
-
 func (r *adminUserRepoStub) ListActiveForGroups(context.Context, []int64, int64) ([]*repository.NodeUser, error) {
 	return nil, nil
 }
@@ -237,7 +242,6 @@ func (r *adminUserRepoStub) Delete(_ context.Context, id int64) error {
 	delete(r.users, id)
 	return nil
 }
-
 
 type adminUserGroupRepoStub struct{}
 

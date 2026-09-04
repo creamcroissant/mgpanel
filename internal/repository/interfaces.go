@@ -385,12 +385,21 @@ type UserTrafficRepository interface {
 	ClearUserSelections(ctx context.Context, userID int64) error
 	ReplaceUserSelections(ctx context.Context, userID int64, serverIDs []int64) error
 
+	// 节点黑名单相关操作（镜像节点自选）
+	GetUserDeniedServerIDs(ctx context.Context, userID int64) ([]int64, error)
+	ReplaceUserDenies(ctx context.Context, userID int64, serverIDs []int64) error
+	ClearUserDenies(ctx context.Context, userID int64) error
+
 	// 流量周期相关操作
 	GetCurrentPeriod(ctx context.Context, userID int64) (*UserTrafficPeriod, error)
 	CreatePeriod(ctx context.Context, period *UserTrafficPeriod) error
 	IncrementPeriodTraffic(ctx context.Context, userID int64, uploadDelta, downloadDelta int64) error
 	MarkPeriodExceeded(ctx context.Context, userID int64, periodStart int64) error
 	GetExpiredPeriodUserIDs(ctx context.Context, nowUnix int64) ([]int64, error)
+	// UpdateCurrentPeriodQuota 更新用户当期周期的配额（额度调整即时生效）。
+	// nowUnix 用于定位"当前"周期窗口并刷新 updated_at。返回该周期更新后的超限状态；
+	// 无当期周期时不报错并返回 exceeded=false（上层按"无需同步"处理）。
+	UpdateCurrentPeriodQuota(ctx context.Context, userID int64, quotaBytes int64, nowUnix int64) (exceeded bool, err error)
 	ApplyTrafficBatchAtomic(ctx context.Context, traffic []UserTrafficDelta, nowUnix int64) ([]UserTrafficDelta, []int64, error)
 
 	// 查询相关操作
