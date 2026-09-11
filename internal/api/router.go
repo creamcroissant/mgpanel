@@ -89,7 +89,6 @@ type Services struct {
 	Telemetry               service.ServerTelemetryService
 	Verify                  service.VerificationService
 	Password                service.PasswordService
-	Register                service.RegistrationService
 	MailLink                service.MailLinkService
 	Comm                    service.CommService
 	AdminUser               service.AdminUserService
@@ -171,7 +170,6 @@ func NewRouter(logger *slog.Logger, services Services, metricsCfg config.Metrics
 		"Mesh":                    services.Mesh,
 		"OperationLog":            services.OperationLog,
 		"Password":                services.Password,
-		"Register":                services.Register,
 		"Server":                  services.Server,
 		"ServerAuth":              services.ServerAuth,
 		"ServerNode":              services.ServerNode,
@@ -369,7 +367,7 @@ func registerV2Routes(api chi.Router, services Services) {
 		}
 		registerV2AdminRoutes(v2, services.Config, services.Auth, services.AdminPath, services.AdminUser, services.AdminServer, services.AdminStat, services.AdminNodeStat, services.AdminSystem, services.AdminSystemSettings, services.AdminNotice, services.AdminKnowledge, services.AgentHost, services.AgentCore, services.AgentLifecycleOperation, services.AgentTrafficLifecycle, services.BinaryVersion, services.Forwarding, services.CDN, services.AccessLog, services.UnlockProbe, services.ExitNodeSet, services.RoutingPolicy, services.AdminRelayPath, services.InboundSpec, services.CoreConfigItem, services.DriftAndDiff, services.ApplyOrchestrator, services.OperationLog, services.SubscriptionFilter, services.SubscriptionSource, services.MCPApiKeys, services.Mesh, services.I18n, topologyHandler)
 		registerV2UserRoutes(v2, services.User, services.Auth, services.I18n)
-		registerV2PassportRoutes(v2, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
+		registerV2PassportRoutes(v2, services.Auth, services.Verify, services.Password, services.MailLink, services.Comm, services.I18n)
 		registerV2ServerRoutes(v2, services.ServerAuth, services.ServerNode, services.Telemetry, services.Traffic, services.TrafficQueue, services.I18n)
 		registerV2GuestRoutes(v2, services.I18n)
 	})
@@ -678,8 +676,8 @@ const (
 	passportLoginWindow    = time.Minute
 )
 
-func registerV2PassportRoutes(v2 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
-	passportHandler := handler.NewPassportHandler(auth, verify, password, register, mailLink, comm, i18nMgr)
+func registerV2PassportRoutes(v2 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
+	passportHandler := handler.NewPassportHandler(auth, verify, password, mailLink, comm, i18nMgr)
 	// 登录端点专用限流（IP 维度，KeyFunc 留空即按 IP）。
 	loginLimiter := middleware.RateLimit(middleware.RateLimitConfig{
 		Limit:  passportLoginRateLimit,
@@ -718,7 +716,7 @@ func registerV1Routes(api chi.Router, services Services) {
 	api.Route("/v1", func(v1 chi.Router) {
 		registerV1ClientRoutes(v1, services.User, services.Auth, services.Subscription, services.I18n)
 		registerV1GuestRoutes(v1, services.Comm, services.I18n)
-		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.Register, services.MailLink, services.Comm, services.I18n)
+		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.MailLink, services.Comm, services.I18n)
 		registerV1UserRoutes(v1, services.User, services.UserKnowledge, services.UserNotice, services.UserStat, services.Auth, services.Server, services.UserSelection, services.ShortLink, services.Subscription, services.I18n)
 		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.AgentUserSync, services.I18n)
 	})
@@ -748,8 +746,8 @@ func registerV1GuestRoutes(v1 chi.Router, comm service.CommService, i18nManager 
 	})
 }
 
-func registerV1PassportRoutes(v1 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
-	passportHandler := handler.NewPassportHandler(auth, verify, password, register, mailLink, comm, i18nMgr)
+func registerV1PassportRoutes(v1 chi.Router, auth service.AuthService, verify service.VerificationService, password service.PasswordService, mailLink service.MailLinkService, comm service.CommService, i18nMgr *i18n.Manager) {
+	passportHandler := handler.NewPassportHandler(auth, verify, password, mailLink, comm, i18nMgr)
 	v1.Route("/passport", func(passport chi.Router) {
 		mountHandler(passport, "/auth", passportHandler)
 		mountHandler(passport, "/comm", passportHandler)

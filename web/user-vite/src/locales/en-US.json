@@ -64,7 +64,6 @@
   },
   "auth": {
     "login": "Login",
-    "register": "Register",
     "logout": "Logout",
     "email": "Email",
     "username": "Username",
@@ -83,11 +82,8 @@
     "forgotPasswordEmailRequired": "Email is required",
     "forgotPasswordCodeRequired": "Verification code is required",
     "forgotPasswordPasswordRequired": "Password is required",
-    "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?",
     "rememberMe": "Remember me",
     "loginSuccess": "Login successful",
-    "registerSuccess": "Registration successful",
     "emailOrUsername": "Email or Username",
     "loggingIn": "Logging in...",
     "welcomeBack": "Welcome back to MGPanel"
@@ -319,7 +315,6 @@
     "loadTraffic": "Failed to load traffic data",
     "loadKnowledge": "Failed to load articles",
     "loginFailed": "Login failed",
-    "registerFailed": "Registration failed",
     "networkError": "Network error",
     "unknown": "An unknown error occurred"
   },

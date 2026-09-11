@@ -13,19 +13,8 @@ export interface LoginResponse {
   };
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  email_code?: string;
-}
-
 export async function login(data: LoginRequest): Promise<LoginResponse["data"]> {
   const response = await passportApi.post<LoginResponse>("/passport/auth/login", data);
-  return response.data.data;
-}
-
-export async function register(data: RegisterRequest): Promise<LoginResponse["data"]> {
-  const response = await passportApi.post<LoginResponse>("/passport/auth/register", data);
   return response.data.data;
 }
 

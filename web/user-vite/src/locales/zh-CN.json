@@ -64,7 +64,6 @@
   },
   "auth": {
     "login": "登录",
-    "register": "注册",
     "logout": "退出",
     "email": "邮箱",
     "username": "用户名",
@@ -83,11 +82,8 @@
     "forgotPasswordEmailRequired": "请输入邮箱",
     "forgotPasswordCodeRequired": "请输入验证码",
     "forgotPasswordPasswordRequired": "请输入密码",
-    "noAccount": "还没有账号?",
-    "hasAccount": "已有账号?",
     "rememberMe": "记住我",
     "loginSuccess": "登录成功",
-    "registerSuccess": "注册成功",
     "emailOrUsername": "邮箱或用户名",
     "loggingIn": "登录中...",
     "welcomeBack": "欢迎回到 MGPanel"
@@ -319,7 +315,6 @@
     "loadTraffic": "加载流量数据失败",
     "loadKnowledge": "加载文章失败",
     "loginFailed": "登录失败",
-    "registerFailed": "注册失败",
     "networkError": "网络错误",
     "unknown": "发生未知错误"
   },

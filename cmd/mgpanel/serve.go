@@ -165,7 +165,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	queuedNotifier := async.NewQueueNotifier(notificationQueue)
 	verifyService := service.NewVerificationService(infra.Cache, queuedNotifier, store.Settings(), store.Users(), captchaService)
 	passwordService := service.NewPasswordService(store.Users(), infra.Hasher, verifyService, infra.Cache)
-	registrationService := service.NewRegistrationService(store.Users(), store.Settings(), infra.Hasher, verifyService, infra.Cache)
 	mailLinkService := service.NewMailLinkService(store.Users(), store.Settings(), queuedNotifier, infra.Cache)
 	commService := service.NewCommService(store.Settings(), store.Plugins())
 	i18nManager, err := i18n.NewManager(
@@ -469,7 +468,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Telemetry:           serverTelemetryService,
 		Verify:              verifyService,
 		Password:            passwordService,
-		Register:            registrationService,
 		MailLink:            mailLinkService,
 		Comm:                commService,
 		Server:              service.NewServerService(store.Users(), store.Servers(), userDenyService, store.AgentHosts()),

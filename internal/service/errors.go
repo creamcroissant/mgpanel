@@ -39,8 +39,6 @@ var (
 	ErrInvalidUsername = errors.New("service: invalid username / 用户名无效")
 	// ErrIdentifierRequired indicates email or username must be provided.
 	ErrIdentifierRequired = errors.New("service: email or username required / 需要邮箱或用户名")
-	// ErrRegistrationClosed indicates registering is disabled.
-	ErrRegistrationClosed = errors.New("service: registration closed / 注册已关闭")
 	// ErrEmailExists indicates email already registered.
 	ErrEmailExists = errors.New("service: email already exists / 邮箱已存在")
 	// ErrUsernameExists indicates username already registered.

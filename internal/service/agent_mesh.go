@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -176,25 +177,49 @@ func (s *agentMeshService) ListNetworkPeers(ctx context.Context, networkID strin
 	return s.peers.ListByNetworkID(ctx, networkID)
 }
 
+// meshLatencyReportValid 判定一次延迟上报是否为有效探测值。
+// 探测失败(raw ICMP 超时)会以 LatencyMs=0 + PacketLoss=1 上报——
+// 这类值若直接覆盖缓存,会让路由计算把失败链路当成零代价"免费边"
+// (weight = latency×(1+loss×5) = 0),Dijkstra 全图瞬间翻转,产生
+// 每 60s 一轮的整表路由抖动(见 2026-09-10 排查)。因此无效值
+// 不得覆盖已有有效值(迟滞),只允许占位/推进时间戳。
+func meshLatencyReportValid(latencyMs, packetLoss float64) bool {
+	if math.IsNaN(latencyMs) || math.IsInf(latencyMs, 0) {
+		return false
+	}
+	if latencyMs <= 0 {
+		return false
+	}
+	if math.IsNaN(packetLoss) || packetLoss < 0 || packetLoss >= 1 {
+		return false
+	}
+	return true
+}
+
 func (s *agentMeshService) ReportPeerLatency(ctx context.Context, srcAgentID int64, peerID string, latencyMs, packetLoss float64, totalProbes int) error {
 	s.peerLatMu.Lock()
 	defer s.peerLatMu.Unlock()
 	key := fmt.Sprintf("%d:%s", srcAgentID, peerID)
-	existing, ok := s.peerLatencies[key]
-	if ok {
-		existing.LatencyMs = latencyMs
-		existing.PacketLoss = packetLoss
-		existing.TotalProbes = totalProbes
-		existing.UpdatedAt = time.Now().Unix()
-		s.peerLatencies[key] = existing
-	} else {
-		s.peerLatencies[key] = MeshPeerLatencyView{
-			PeerID:      peerID,
-			LatencyMs:   latencyMs,
-			PacketLoss:  packetLoss,
-			TotalProbes: totalProbes,
-			UpdatedAt:   time.Now().Unix(),
+	now := time.Now().Unix()
+	valid := meshLatencyReportValid(latencyMs, packetLoss)
+	if existing, ok := s.peerLatencies[key]; ok {
+		// 迟滞:新上报无效但旧值有效 → 保留旧探测值(间歇失败不抹掉好边)。
+		// 时间戳仍推进,使持续失效的条目可被路由计算按新鲜度剔除。
+		existing.UpdatedAt = now
+		if valid {
+			existing.LatencyMs = latencyMs
+			existing.PacketLoss = packetLoss
+			existing.TotalProbes = totalProbes
 		}
+		s.peerLatencies[key] = existing
+		return nil
+	}
+	s.peerLatencies[key] = MeshPeerLatencyView{
+		PeerID:      peerID,
+		LatencyMs:   latencyMs,
+		PacketLoss:  packetLoss,
+		TotalProbes: totalProbes,
+		UpdatedAt:   now,
 	}
 	return nil
 }

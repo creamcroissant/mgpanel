@@ -7,7 +7,6 @@ import { ROUTES, ADMIN_ROUTES, ADMIN_AUTH_ROUTES } from "@/lib/constants";
 
 // Lazy load pages
 const Login = lazy(() => import("@/pages/auth/Login"));
-const Register = lazy(() => import("@/pages/auth/Register"));
 const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
 const Install = lazy(() => import("@/pages/install"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -36,7 +35,6 @@ const AdminMCPKeys = lazy(() => import("@/pages/admin/mcp-keys"));
 
 const adminAuthAliases = [
   { adminPath: ADMIN_AUTH_ROUTES.LOGIN, defaultPath: ROUTES.LOGIN, component: Login },
-  { adminPath: ADMIN_AUTH_ROUTES.REGISTER, defaultPath: ROUTES.REGISTER, component: Register },
   {
     adminPath: ADMIN_AUTH_ROUTES.FORGOT_PASSWORD,
     defaultPath: ROUTES.FORGOT_PASSWORD,

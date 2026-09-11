@@ -169,7 +169,6 @@
   "error.identifier_required": "账号不能为空",
   "error.email_exists": "邮箱已存在",
   "error.username_exists": "用户名已存在",
-  "error.registration_closed": "注册已关闭",
   "error.user_not_found": "用户不存在",
   "error.service_unavailable": "服务不可用",
   "success.created": "创建成功",

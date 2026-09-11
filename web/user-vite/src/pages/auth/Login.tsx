@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui";
+import { Card, CardContent, CardHeader } from "@/components/ui";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { login } from "@/api/auth";
@@ -161,13 +161,6 @@ export default function Login() {
             </Button>
           </form>
         </CardContent>
-
-        <CardFooter className="flex justify-center pb-8 pt-2 text-sm text-muted-foreground">
-          {t("auth.noAccount")} {" "}
-          <Link to={ROUTES.REGISTER} className="text-primary hover:underline">
-            {t("auth.register")}
-          </Link>
-        </CardFooter>
       </Card>
     </AuthShell>
   );

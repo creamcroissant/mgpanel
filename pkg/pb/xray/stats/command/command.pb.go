@@ -535,7 +535,7 @@ const file_xray_stats_command_command_proto_rawDesc = "" +
 	"\n" +
 	"QueryStats\x12).xray.app.stats.command.QueryStatsRequest\x1a*.xray.app.stats.command.QueryStatsResponse\x12`\n" +
 	"\vGetSysStats\x12'.xray.app.stats.command.SysStatsRequest\x1a(.xray.app.stats.command.SysStatsResponse\x12u\n" +
-	"\x14GetStatsOnlineIpList\x12'.xray.app.stats.command.GetStatsRequest\x1a4.xray.app.stats.command.GetStatsOnlineIpListResponseBIZGgithub.com/creamcroissant/mgpanel/pkg/pb/xray/stats/command;statscommandb\x06proto3"
+	"\x14GetStatsOnlineIpList\x12'.xray.app.stats.command.GetStatsRequest\x1a4.xray.app.stats.command.GetStatsOnlineIpListResponseBIZGgithub.com/creamcroissant/xboard/pkg/pb/xray/stats/command;statscommandb\x06proto3"
 
 var (
 	file_xray_stats_command_command_proto_rawDescOnce sync.Once

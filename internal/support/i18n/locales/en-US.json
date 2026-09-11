@@ -150,7 +150,6 @@
   "error.identifier_required": "Account required",
   "error.email_exists": "Email already exists",
   "error.username_exists": "Username already exists",
-  "error.registration_closed": "Registration closed",
   "error.user_not_found": "User not found",
   "error.service_unavailable": "Service unavailable",
   "success.created": "Created successfully",

@@ -15,19 +15,18 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/support/i18n"
 )
 
-// PassportHandler handles auth/registration endpoints.
+// PassportHandler handles auth endpoints.
 type PassportHandler struct {
 	auth     service.AuthService
 	verify   service.VerificationService
 	passwd   service.PasswordService
-	register service.RegistrationService
 	mailLink service.MailLinkService
 	comm     service.CommService
 	i18n     *i18n.Manager
 }
 
-func NewPassportHandler(auth service.AuthService, verify service.VerificationService, passwd service.PasswordService, register service.RegistrationService, mailLink service.MailLinkService, comm service.CommService, i18n *i18n.Manager) *PassportHandler {
-	return &PassportHandler{auth: auth, verify: verify, passwd: passwd, register: register, mailLink: mailLink, comm: comm, i18n: i18n}
+func NewPassportHandler(auth service.AuthService, verify service.VerificationService, passwd service.PasswordService, mailLink service.MailLinkService, comm service.CommService, i18n *i18n.Manager) *PassportHandler {
+	return &PassportHandler{auth: auth, verify: verify, passwd: passwd, mailLink: mailLink, comm: comm, i18n: i18n}
 }
 
 func (h *PassportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -37,8 +36,6 @@ func (h *PassportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleLogin(w, r)
 	case strings.HasPrefix(path, "/auth/token2Login") && r.Method == http.MethodGet:
 		h.handleToken2Login(w, r)
-	case strings.HasPrefix(path, "/auth/register") && r.Method == http.MethodPost:
-		h.handleRegister(w, r)
 	case strings.HasPrefix(path, "/auth/refresh") && r.Method == http.MethodPost:
 		h.handleRefresh(w, r)
 	case strings.HasPrefix(path, "/auth/logout") && r.Method == http.MethodPost:
@@ -75,13 +72,6 @@ type forgetRequest struct {
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	EmailCode string `json:"email_code"`
-}
-
-type registerRequest struct {
-	Email      string `json:"email"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	EmailCode  string `json:"email_code"`
 }
 
 type mailLinkRequest struct {
@@ -134,64 +124,6 @@ func (h *PassportHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 			slog.Error("login failed with unexpected error", "error", err, "identifier", identifier)
 			RespondErrorI18n(r.Context(), w, http.StatusInternalServerError, "error.internal_server_error", h.i18n)
 		}
-		return
-	}
-	respondJSON(w, http.StatusOK, map[string]any{"data": formatAuthResponse(result)})
-}
-
-func (h *PassportHandler) handleRegister(w http.ResponseWriter, r *http.Request) {
-	if h.register == nil || h.auth == nil {
-		RespondErrorI18n(r.Context(), w, http.StatusServiceUnavailable, "error.service_unavailable", h.i18n)
-		return
-	}
-	var payload registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.bad_request", h.i18n)
-		return
-	}
-	email := strings.TrimSpace(payload.Email)
-	username := strings.TrimSpace(payload.Username)
-	if (email == "" && username == "") || strings.TrimSpace(payload.Password) == "" {
-		RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.missing_credentials", h.i18n)
-		return
-	}
-	user, err := h.register.Register(r.Context(), service.RegistrationInput{
-		Email:      payload.Email,
-		Username:   payload.Username,
-		Password:   payload.Password,
-		EmailCode:  payload.EmailCode,
-		IP:         clientIP(r),
-	})
-	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrInvalidEmail):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_email", h.i18n)
-		case errors.Is(err, service.ErrInvalidUsername):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_username", h.i18n)
-		case errors.Is(err, service.ErrInvalidPassword):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_password", h.i18n)
-		case errors.Is(err, service.ErrInvalidVerificationCode):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.invalid_verification_code", h.i18n)
-		case errors.Is(err, service.ErrEmailDomainNotAllowed):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.email_domain_not_allowed", h.i18n)
-		case errors.Is(err, service.ErrIdentifierRequired):
-			RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.identifier_required", h.i18n)
-		case errors.Is(err, service.ErrEmailExists):
-			RespondErrorI18n(r.Context(), w, http.StatusConflict, "error.email_exists", h.i18n)
-		case errors.Is(err, service.ErrUsernameExists):
-			RespondErrorI18n(r.Context(), w, http.StatusConflict, "error.username_exists", h.i18n)
-		case errors.Is(err, service.ErrRegistrationClosed):
-			RespondErrorI18n(r.Context(), w, http.StatusForbidden, "error.registration_closed", h.i18n)
-		case errors.Is(err, service.ErrRateLimited):
-			RespondErrorI18n(r.Context(), w, http.StatusTooManyRequests, "error.rate_limited", h.i18n)
-		default:
-			RespondErrorI18n(r.Context(), w, http.StatusInternalServerError, "error.internal_server_error", h.i18n)
-		}
-		return
-	}
-	result, err := h.auth.IssueForUser(r.Context(), user.ID)
-	if err != nil {
-		RespondErrorI18n(r.Context(), w, http.StatusInternalServerError, "error.internal_server_error", h.i18n)
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{"data": formatAuthResponse(result)})

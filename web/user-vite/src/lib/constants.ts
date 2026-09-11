@@ -94,7 +94,6 @@ export const QUERY_KEYS = {
 export const ROUTES = {
   INSTALL: normalizeRoute("/install"),
   LOGIN: normalizeRoute("/login"),
-  REGISTER: normalizeRoute("/register"),
   FORGOT_PASSWORD: normalizeRoute("/forgot-password"),
   DASHBOARD: normalizeRoute("/dashboard"),
   SUBSCRIPTION: normalizeRoute("/subscription"),
@@ -128,7 +127,6 @@ export const ADMIN_HOME_ROUTE = ADMIN_ROUTES.USERS;
 
 export const ADMIN_AUTH_ROUTES = {
   LOGIN: adminRoute("/login"),
-  REGISTER: adminRoute("/register"),
   FORGOT_PASSWORD: adminRoute("/forgot-password"),
 } as const;
 
