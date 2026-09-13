@@ -21,7 +21,6 @@ type ConfigService interface {
 	I18n() *i18n.Manager
 }
 
-
 type repoBackedConfigService struct {
 	settings repository.SettingRepository
 	i18n     *i18n.Manager
@@ -80,11 +79,12 @@ func (s *repoBackedConfigService) Save(ctx context.Context, payload map[string]a
 
 func defaultConfigSnapshot() map[string]any {
 	return map[string]any{
-		"site_name":        "MGPanel",
-		"support_email":    "support@example.com",
-		"default_theme":    "v2board",
-		"telegram_enabled": false,
-		"updated_at":       "",
+		"site_name":               "MGPanel",
+		"support_email":           "support@example.com",
+		"default_theme":           "v2board",
+		"telegram_enabled":        false,
+		"route_rule_set_base_url": DefaultRouteRuleSetBaseURL,
+		"updated_at":              "",
 	}
 }
 

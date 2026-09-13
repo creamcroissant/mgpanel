@@ -17,8 +17,8 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/async"
 	"github.com/creamcroissant/mgpanel/internal/bootstrap"
 	"github.com/creamcroissant/mgpanel/internal/config"
-	internalgrpc "github.com/creamcroissant/mgpanel/internal/grpc"
 	"github.com/creamcroissant/mgpanel/internal/geoip"
+	internalgrpc "github.com/creamcroissant/mgpanel/internal/grpc"
 	"github.com/creamcroissant/mgpanel/internal/grpc/handler"
 	"github.com/creamcroissant/mgpanel/internal/grpc/interceptor"
 	"github.com/creamcroissant/mgpanel/internal/job"
@@ -230,6 +230,16 @@ func runServe(cmd *cobra.Command, args []string) error {
 		Settings:          store.Settings(),
 		NotificationQueue: notificationQueue,
 		Audit:             infra.Audit,
+	})
+
+	// 规则集下载基址：从管理端设置 route_rule_set_base_url 读取（支持镜像站），
+	// 注入编译器供 geosite rule_set URL 拼接使用。
+	service.SetRuleSetBaseURLProvider(func(ctx context.Context) string {
+		raw, err := adminSystemSettingsService.Get(ctx, "route_rule_set_base_url")
+		if err != nil {
+			return service.DefaultRouteRuleSetBaseURL
+		}
+		return service.ResolveRouteRuleSetBaseURL(raw)
 	})
 
 	nodeNamer := service.NewNodeNamer(adminSystemSettingsService)

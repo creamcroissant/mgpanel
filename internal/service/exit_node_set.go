@@ -1,8 +1,8 @@
 package service
 
 import (
-	"errors"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -102,17 +102,50 @@ func NewExitNodeSetService(
 	return &exitNodeSetService{sets: sets, agentHosts: agentHosts, unlockProbe: unlockProbe, logger: logger}
 }
 
+// 出口集合负载均衡策略：与核心真实能力对齐（sing-box fork loadbalance）。
+// xray 无源地址哈希/一致性哈希能力，编译器对 xray 回退 roundRobbin 并告警。
+const (
+	ExitSetStrategyRoundRobin       = "round_robin"
+	ExitSetStrategyLeastConnections = "least_connections"
+	ExitSetStrategySourceHash       = "source_hash"
+	ExitSetStrategyConsistentHash   = "consistent_hash"
+)
+
+// legacyExitSetStrategyAliases 历史词表 → 现词表。
+// 旧值由核心不支持（无加权/延迟探测/纯随机），统一降级到最接近的可用策略；
+// 迁移 SQL（20260914_exit_set_strategy_rebrand.sql）同步改写库内历史值。
+var legacyExitSetStrategyAliases = map[string]string{
+	"weighted_random": ExitSetStrategyRoundRobin,
+	"least_ping":      ExitSetStrategyLeastConnections,
+	"random":          ExitSetStrategyRoundRobin,
+}
+
 func normalizeExitSetStrategy(s string) string {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "least_ping":
-		return "least_ping"
-	case "random":
-		return "random"
-	case "weighted_random":
-		return "weighted_random"
-	default:
-		return "round_robin"
+	// 容忍 source-hash / least-connections 连字符写法
+	normalized := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), "-", "_")
+	if mapped, ok := legacyExitSetStrategyAliases[normalized]; ok {
+		normalized = mapped
 	}
+	switch normalized {
+	case ExitSetStrategyLeastConnections, ExitSetStrategySourceHash, ExitSetStrategyConsistentHash:
+		return normalized
+	default:
+		return ExitSetStrategyRoundRobin
+	}
+}
+
+// isHashBasedExitSetStrategy 判断是否为「同一来源固定出口」类策略（仅 sing-box 支持）。
+func isHashBasedExitSetStrategy(strategy string) bool {
+	return strategy == ExitSetStrategySourceHash || strategy == ExitSetStrategyConsistentHash
+}
+
+// warnXrayUnsupportedStrategy 记录 xray 侧降级告警（xray balancer 只能 roundRobin/leastLoad）。
+func (s *exitNodeSetService) warnXrayUnsupportedStrategy(setID int64, strategy string) {
+	if s == nil || s.logger == nil || !isHashBasedExitSetStrategy(strategy) {
+		return
+	}
+	s.logger.Warn("exit set hash strategy is sing-box only; xray falls back to roundRobin",
+		"set_id", setID, "strategy", strategy)
 }
 
 func (s *exitNodeSetService) Create(ctx context.Context, req ExitNodeSetCreateRequest) (*repository.ExitNodeSet, error) {
@@ -155,6 +188,7 @@ func (s *exitNodeSetService) Create(ctx context.Context, req ExitNodeSetCreateRe
 		}
 	}
 	s.logger.Info("exit node set created", "set_id", set.ID, "name", set.Name, "strategy", set.Strategy, "members", len(req.Members))
+	s.warnXrayUnsupportedStrategy(set.ID, set.Strategy)
 	s.notifyChange(ctx)
 	return set, nil
 }
@@ -183,7 +217,8 @@ func (s *exitNodeSetService) Update(ctx context.Context, req ExitNodeSetUpdateRe
 	if err := s.sets.Update(ctx, set); err != nil {
 		return nil, err
 	}
-	s.logger.Info("exit node set updated", "set_id", set.ID, "name", set.Name)
+	s.logger.Info("exit node set updated", "set_id", set.ID, "name", set.Name, "strategy", set.Strategy)
+	s.warnXrayUnsupportedStrategy(set.ID, set.Strategy)
 	s.notifyChange(ctx)
 	return set, nil
 }

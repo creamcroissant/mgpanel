@@ -91,7 +91,15 @@ const communicationKeyResetImpact = "Reset affects only future first registratio
 
 const nodeSettingsCategory = "node"
 const namingSettingsCategory = "naming"
+const generalSettingsCategory = "general"
 const nodeAgentGRPCAddressCanonicalKey = "agent_grpc_address"
+
+// routeRuleSetBaseURLKey 是节点侧远程规则集（sing-geosite）下载基址设置键。
+// 编译器按 {base}/sing-geosite/rule-set/geosite-<name>.srs 拼接下载地址。
+const routeRuleSetBaseURLKey = "route_rule_set_base_url"
+
+// DefaultRouteRuleSetBaseURL 规则集下载默认基址（官方 sing-geosite 仓库）。
+const DefaultRouteRuleSetBaseURL = "https://raw.githubusercontent.com/SagerNet"
 
 var nodeAgentGRPCAddressLegacyKeys = []string{
 	"grpc_address",
@@ -389,6 +397,17 @@ func generateCommunicationKey() (string, error) {
 
 func normalizeCategorySettingsForResponse(category string, settings map[string]string) map[string]string {
 	switch strings.TrimSpace(category) {
+	case generalSettingsCategory:
+		// 规则集下载基址始终回显有效值（未配置时回显默认），保证 UI 与下发一致。
+		if strings.TrimSpace(settings[routeRuleSetBaseURLKey]) == "" {
+			result := make(map[string]string, len(settings)+1)
+			for key, value := range settings {
+				result[key] = value
+			}
+			result[routeRuleSetBaseURLKey] = DefaultRouteRuleSetBaseURL
+			return result
+		}
+		return settings
 	case nodeSettingsCategory:
 		// node category has special key masking and canonical address handling.
 	case namingSettingsCategory:
@@ -499,6 +518,8 @@ func firstNonEmptySettingValue(settings map[string]string, keys []string) string
 
 func validateCategorySettings(category string, settings map[string]string) error {
 	switch strings.TrimSpace(category) {
+	case generalSettingsCategory:
+		return validateGeneralSettings(settings)
 	case namingSettingsCategory:
 		return validateNamingSettings(settings)
 	case nodeSettingsCategory:
@@ -506,6 +527,54 @@ func validateCategorySettings(category string, settings map[string]string) error
 	default:
 		return nil
 	}
+}
+
+// validateGeneralSettings 校验通用设置（目前仅规则集下载基址）。
+func validateGeneralSettings(settings map[string]string) error {
+	raw, ok := settings[routeRuleSetBaseURLKey]
+	if !ok {
+		return nil
+	}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil // 允许清空：渲染侧回退 DefaultRouteRuleSetBaseURL
+	}
+	validationErr := &SystemSettingsValidationError{}
+	if err := validateRuleSetBaseURL(trimmed); err != nil {
+		validationErr.add(routeRuleSetBaseURLKey, err.Error())
+	}
+	if validationErr.hasViolations() {
+		return validationErr
+	}
+	return nil
+}
+
+// validateRuleSetBaseURL 校验规则集下载基址：必须 http(s)、含主机名、不带查询/锚点。
+func validateRuleSetBaseURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("must be a valid URL / 必须是合法 URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https / 必须以 http:// 或 https:// 开头")
+	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return fmt.Errorf("host is required / 必须包含主机名")
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("query and fragment are not allowed / 不允许带查询参数或锚点")
+	}
+	return nil
+}
+
+// ResolveRouteRuleSetBaseURL 归一化规则集基址：空值回退默认值，去掉尾部斜杠。
+// 供渲染侧（编译器）与响应侧共用，保证 UI 展示与实际下发一致。
+func ResolveRouteRuleSetBaseURL(raw string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return DefaultRouteRuleSetBaseURL
+	}
+	return trimmed
 }
 
 func validateNodeSettings(settings map[string]string) error {

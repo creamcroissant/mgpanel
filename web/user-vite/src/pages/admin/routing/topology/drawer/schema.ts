@@ -15,11 +15,12 @@ export const MATCH_TYPE_OPTIONS = [
   { value: "ip_cidr", labelKey: "admin.topology.matchType.ipCidr", fallback: "IP-CIDR 网段" },
 ] as const;
 
+// 与核心出口集策略词表一致（sing-box fork loadbalance）；旧值由服务端归一，故不再作为可选项。
 export const SET_STRATEGY_OPTIONS = [
   { value: "round_robin", labelKey: "admin.topology.strategy.roundRobin", fallback: "轮询" },
-  { value: "weighted_random", labelKey: "admin.topology.strategy.weightedRandom", fallback: "加权随机" },
-  { value: "least_ping", labelKey: "admin.topology.strategy.leastPing", fallback: "最低延迟优先" },
-  { value: "random", labelKey: "admin.topology.strategy.random", fallback: "随机" },
+  { value: "least_connections", labelKey: "admin.topology.strategy.leastConnections", fallback: "最少连接" },
+  { value: "source_hash", labelKey: "admin.topology.strategy.sourceHash", fallback: "源地址粘性" },
+  { value: "consistent_hash", labelKey: "admin.topology.strategy.consistentHash", fallback: "一致性哈希" },
 ] as const;
 
 export type MatchTypeValue = (typeof MATCH_TYPE_OPTIONS)[number]["value"];
@@ -62,7 +63,7 @@ export const setFormSchema = z
   .object({
     name: z.string().trim().min(1, "集合名称不能为空").max(64, "名称最长 64 字符"),
     description: z.string().trim().max(255, "描述最长 255 字符"),
-    strategy: z.enum(["round_robin", "weighted_random", "least_ping", "random"]),
+    strategy: z.enum(["round_robin", "least_connections", "source_hash", "consistent_hash"]),
     enabled: z.boolean(),
     members: z.array(memberRowSchema).min(1, "出口集至少需要一个成员（否则流量无处可去）"),
   })

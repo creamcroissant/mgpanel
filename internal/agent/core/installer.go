@@ -9,13 +9,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,14 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 			if provisionErr := i.ensurePlainServiceUnit(ctx, coreType, stablePath); provisionErr != nil {
 				i.logger.Warn("failed to provision systemd unit during ensure", "error", provisionErr)
 			}
+			// ensure 不改写已存在的版本目录（幂等/可回滚），仅提示缺失的规则数据资产：
+			// 2026-09 之前安装的 xray 只有二进制，需要 install/upgrade 才会补 geosite.dat/geoip.dat。
+			if names := coreAssetFileNames[coreType]; len(names) > 0 {
+				if missing := missingCoreAssets(versionDir, names); len(missing) > 0 {
+					i.logger.Warn("core asset files missing next to binary; run install/upgrade to install them",
+						"type", coreType, "dir", versionDir, "missing", strings.Join(missing, ","))
+				}
+			}
 			cv, detectErr := i.detectVersion(ctx, coreType)
 			if detectErr != nil {
 				i.logger.Warn("failed to detect version after ensure", "error", detectErr)
@@ -202,7 +211,7 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 		}
 	}
 
-	binaryPath, err := i.extractBinary(archivePath, workdir, binaryName)
+	binaryPath, extractRoot, err := i.extractBinary(archivePath, workdir, binaryName)
 	if err != nil {
 		return nil, fmt.Errorf("extract: %w", err)
 	}
@@ -211,6 +220,23 @@ func (i *Installer) InstallCore(ctx context.Context, req *agentv1.InstallCoreReq
 	}
 	if err := copyFile(binaryPath, targetPath, 0o755); err != nil {
 		return nil, fmt.Errorf("copy: %w", err)
+	}
+	// 规则数据资产（xray 的 geosite.dat/geoip.dat）必须与二进制同目录：
+	// Xray 的 platform.GetAssetLocation 默认在可执行文件目录查找（/proc/self/exe
+	// 解析后即本版本目录），缺失时 geosite/geoip 规则静默不命中。
+	// 放在软链建立之前，避免核心被激活时资产还没到位。
+	if names := coreAssetFileNames[coreType]; len(names) > 0 {
+		copied, assetErr := copyExtractedCoreAssets(extractRoot, versionDir)
+		if assetErr != nil {
+			return nil, assetErr
+		}
+		if len(copied) > 0 {
+			i.logger.Info("installed core asset files", "type", coreType, "dir", versionDir, "files", strings.Join(copied, ","))
+		}
+		if missing := missingCoreAssets(versionDir, names); len(missing) > 0 {
+			i.logger.Warn("core asset files not found in release archive",
+				"type", coreType, "dir", versionDir, "missing", strings.Join(missing, ","))
+		}
 	}
 	if err := i.ensureSymlink(targetPath, stablePath); err != nil {
 		return nil, fmt.Errorf("create symlink: %w", err)
@@ -363,20 +389,28 @@ func findAssetURL(assets []GitHubReleaseAsset, assetName string) (string, string
 
 func (i *Installer) verifyChecksum(path, expectedHex string) error {
 	expectedHex = strings.TrimPrefix(strings.TrimSpace(expectedHex), "sha256:")
-	f, err := os.Open(path)
+	actual, err := fileSHA256(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return fmt.Errorf("checksum read: %w", err)
-	}
-	actual := hex.EncodeToString(h.Sum(nil))
 	if actual != expectedHex {
 		return fmt.Errorf("expected %s, got %s", expectedHex, actual)
 	}
 	return nil
+}
+
+// fileSHA256 返回文件内容的 sha256 十六进制摘要。
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("checksum read: %w", err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (i *Installer) downloadFile(ctx context.Context, url, path string) error {
@@ -435,25 +469,108 @@ func (i *Installer) downloadOnce(ctx context.Context, url, path string) error {
 	return nil
 }
 
-func (i *Installer) extractBinary(archivePath, workdir, binaryName string) (string, error) {
+// coreAssetFileNames 列出必须与核心二进制同目录安装的规则数据资产。
+//
+// Xray 的 geosite/geoip matcher 通过 common/platform.GetAssetLocation 定位数据文件，
+// 查找顺序为：环境变量 xray.location.asset（XRAY_LOCATION_ASSET）→ 可执行文件目录
+// （/proc/self/exe 解析后即版本目录）→ /usr/local/share/xray、/usr/share/xray、
+// /opt/share/xray。安装版本目录内与二进制同级放置即可命中默认分支，无需环境变量。
+var coreAssetFileNames = map[CoreType][]string{
+	CoreTypeXray: {"geosite.dat", "geoip.dat"},
+}
+
+// copyExtractedCoreAssets 把解压目录顶层的规则数据资产（*.dat）复制到版本目录。
+// 发布包（Xray-linux-*.zip）自带 geosite.dat/geoip.dat；只安装二进制的旧实现会丢弃它们。
+// 幂等：目标文件已是同内容同权限（0644）时跳过，不重写；升级/内容变化时覆盖。
+// 返回本次实际写入的文件名（已排序）；解压目录为空、或资产都已是最新时返回空切片。
+func copyExtractedCoreAssets(extractRoot, versionDir string) ([]string, error) {
+	if strings.TrimSpace(extractRoot) == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(extractRoot)
+	if err != nil {
+		return nil, fmt.Errorf("read extracted dir: %w", err)
+	}
+	copied := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".dat") {
+			continue
+		}
+		src := filepath.Join(extractRoot, entry.Name())
+		dst := filepath.Join(versionDir, entry.Name())
+		upToDate, err := coreAssetUpToDate(src, dst, 0o644)
+		if err != nil {
+			return nil, fmt.Errorf("compare core asset %s: %w", entry.Name(), err)
+		}
+		if upToDate {
+			continue
+		}
+		if err := copyFile(src, dst, 0o644); err != nil {
+			return nil, fmt.Errorf("copy core asset %s: %w", entry.Name(), err)
+		}
+		copied = append(copied, entry.Name())
+	}
+	sort.Strings(copied)
+	return copied, nil
+}
+
+// coreAssetUpToDate 判断 dst 是否已是内容与 src 相同、权限为 mode 的常规文件。
+// 用于安装幂等：命中时跳过写入，避免重复 IO 与 mtime 抖动；dst 不存在（或不是
+// 常规文件、权限不符）时返回 false, nil，交由调用方覆盖写入。
+func coreAssetUpToDate(src, dst string, mode os.FileMode) (bool, error) {
+	info, err := os.Stat(dst)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm() != mode.Perm() {
+		return false, nil
+	}
+	srcSum, err := fileSHA256(src)
+	if err != nil {
+		return false, err
+	}
+	dstSum, err := fileSHA256(dst)
+	if err != nil {
+		return false, err
+	}
+	return srcSum == dstSum, nil
+}
+
+// missingCoreAssets 返回版本目录中缺失的规则数据资产名（保序）。
+func missingCoreAssets(versionDir string, names []string) []string {
+	missing := make([]string, 0, len(names))
+	for _, name := range names {
+		if _, err := os.Stat(filepath.Join(versionDir, name)); err != nil {
+			missing = append(missing, name)
+		}
+	}
+	return missing
+}
+
+func (i *Installer) extractBinary(archivePath, workdir, binaryName string) (string, string, error) {
 	switch {
 	case strings.HasSuffix(archivePath, ".tar.gz"), strings.HasSuffix(archivePath, ".tgz"):
 		ed := filepath.Join(workdir, "extracted")
 		os.MkdirAll(ed, 0o755)
 		if err := untarGz(archivePath, ed); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return walkBinary(ed, binaryName)
+		binaryPath, err := walkBinary(ed, binaryName)
+		return binaryPath, ed, err
 	case strings.HasSuffix(archivePath, ".zip"):
 		ed := filepath.Join(workdir, "extracted")
 		os.MkdirAll(ed, 0o755)
 		if err := unzip(archivePath, ed); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return walkBinary(ed, binaryName)
+		binaryPath, err := walkBinary(ed, binaryName)
+		return binaryPath, ed, err
 	default:
 		dest := filepath.Join(workdir, binaryName)
-		return dest, copyFile(archivePath, dest, 0o755)
+		return dest, "", copyFile(archivePath, dest, 0o755)
 	}
 }
 

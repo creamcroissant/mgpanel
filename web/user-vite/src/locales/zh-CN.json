@@ -1893,6 +1893,15 @@
     },
     "topology": {
       "tab": "拓扑",
+      "strategy": {
+        "roundRobin": "轮询",
+        "leastConnections": "最少连接",
+        "sourceHash": "源地址粘性",
+        "consistentHash": "一致性哈希"
+      },
+      "rule": {
+        "matchValueHint": "逗号分隔多值，保存后按顺序生成匹配项"
+      },
       "switch_to_topology": "切换到拓扑视图",
       "switch_to_list": "切换到列表视图",
       "toolbar": {

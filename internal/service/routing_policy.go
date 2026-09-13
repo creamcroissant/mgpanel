@@ -92,6 +92,56 @@ func normalizeRoutingMatchType(s string) string {
 	}
 }
 
+// RoutingMatchValueMaxItems 单条策略的匹配值上限（逗号分隔计数）。
+// 上限同时受前端 schema 与 UI 提示约束，避免生成超长 rule_set/domain 列表。
+const RoutingMatchValueMaxItems = 64
+
+// SplitRoutingMatchValues 将逗号分隔的匹配值拆为有序去重数组（空段与重复项直接跳过）。
+// 渲染侧（编译器）与校验侧共用，保证“输入顺序即求值顺序”。
+func SplitRoutingMatchValues(value string) []string {
+	parts := strings.Split(strings.TrimSpace(value), ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			continue
+		}
+		if _, dup := seen[item]; dup {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
+// validateRoutingMatchValue 校验多值匹配串：非空、无空段（多余逗号）、无重复项、不超过上限。
+// 存储保持原样（仅裁剪首尾空白），使 UI 输入顺序即渲染顺序。
+func validateRoutingMatchValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", fmt.Errorf("routing policy match value is required / 匹配值不能为空")
+	}
+	parts := strings.Split(trimmed, ",")
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			return "", fmt.Errorf("routing policy match value contains an empty item / 匹配值存在空段（请检查逗号）")
+		}
+		if _, dup := seen[item]; dup {
+			return "", fmt.Errorf("routing policy match value contains duplicate item %q / 匹配值存在重复项: %s", item, item)
+		}
+		seen[item] = struct{}{}
+	}
+	if len(parts) > RoutingMatchValueMaxItems {
+		return "", fmt.Errorf("routing policy match value supports at most %d items / 匹配值最多 %d 项（逗号分隔）",
+			RoutingMatchValueMaxItems, RoutingMatchValueMaxItems)
+	}
+	return trimmed, nil
+}
+
 func (s *routingPolicyService) Create(ctx context.Context, req RoutingPolicyUpsertRequest) (*repository.RoutingPolicy, error) {
 	policy := s.buildPolicy(req)
 	if policy.Name == "" {
@@ -100,6 +150,11 @@ func (s *routingPolicyService) Create(ctx context.Context, req RoutingPolicyUpse
 	if policy.MatchValue == "" {
 		return nil, fmt.Errorf("routing policy match value is required / 匹配值不能为空")
 	}
+	matchValue, err := validateRoutingMatchValue(policy.MatchValue)
+	if err != nil {
+		return nil, err
+	}
+	policy.MatchValue = matchValue
 	if req.TargetSetID == nil {
 		return nil, fmt.Errorf("routing policy needs target set / 策略必须指定出口集合")
 	}
@@ -145,6 +200,14 @@ func (s *routingPolicyService) Update(ctx context.Context, req RoutingPolicyUpse
 	}
 	if policy.SpecID == nil {
 		policy.SpecID = existing.SpecID
+	}
+	// 仅在请求显式提供匹配值时校验，避免历史数据（未变更）阻断其它字段更新。
+	if strings.TrimSpace(req.MatchValue) != "" {
+		matchValue, err := validateRoutingMatchValue(req.MatchValue)
+		if err != nil {
+			return nil, err
+		}
+		policy.MatchValue = matchValue
 	}
 	if err := s.validateSpecRef(ctx, policy.SpecID); err != nil {
 		return nil, err

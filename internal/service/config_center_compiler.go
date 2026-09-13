@@ -277,11 +277,13 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 	}
 
 	// — 生成 mesh 出口相关的额外 artifacts（socks inbound/outbound + routing rules）—
-	meshExitArtifacts, err := s.buildMeshExitArtifacts(ctx, req, renderer, enabledSpecs)
+	// 含 route.rules 的产物统一收集后按 I1 命名（文件名字典序 == 求值序）。
+	meshExitArtifacts, meshRules, err := s.buildMeshExitArtifacts(ctx, req, renderer, enabledSpecs)
 	if err != nil {
 		return nil, err
 	}
 	artifacts = append(artifacts, meshExitArtifacts...)
+	artifacts = append(artifacts, ruleArtifactsFrom(meshRules, req.AgentHostID, coreType, req.DesiredRevision)...)
 
 	// v2ray_api 实验段：spec.core_specific.sing-box.v2ray_api.enabled=true 时生成
 	// experimental-v2ray-api.json 独立 fragment（与 mesh-*.json 同级）。
@@ -526,24 +528,24 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	req RenderArtifactsRequest,
 	renderer artifactRenderer,
 	enabledSpecs []*repository.InboundSpec,
-) ([]*repository.DesiredArtifact, error) {
+) ([]*repository.DesiredArtifact, []ruleArtifact, error) {
 	if s.meshPeers == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// 查询本 agent 的 mesh peer 信息（用于本机 WG IP）
 	ownPeer, err := s.meshPeers.FindByAgentHostID(ctx, req.AgentHostID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, nil // 本 agent 不在 mesh 中，跳过
+			return nil, nil, nil // 本 agent 不在 mesh 中，跳过
 		}
-		return nil, fmt.Errorf("mesh peer lookup: %w", err)
+		return nil, nil, fmt.Errorf("mesh peer lookup: %w", err)
 	}
 
 	// 查询所有 mesh peer，构建 agentHostID → WG IP 映射
 	allPeers, err := s.meshPeers.ListByNetworkID(ctx, "default")
 	if err != nil {
-		return nil, fmt.Errorf("list mesh peers: %w", err)
+		return nil, nil, fmt.Errorf("list mesh peers: %w", err)
 	}
 	peerWGIP := make(map[int64]string, len(allPeers))
 	for _, p := range allPeers {
@@ -552,6 +554,7 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 
 	coreType := normalizeCoreType(req.CoreType)
 	var artifacts []*repository.DesiredArtifact
+	var rules []ruleArtifact
 
 	// direct outbound：供 selector 兜底 + remote rule_set 下载直连使用，统一生成一次
 	directContent := renderMeshDirectOutbound(coreType)
@@ -560,6 +563,17 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 		Filename: "mesh-direct.json", SourceTag: "direct",
 		Content: directContent, ContentHash: artifactHash(directContent),
 	})
+
+	// 核心缓存：sing-box 的 remote rule_set 需要 cache_file 才能跨重启复用，
+	// 否则每次启动都会联网拉取（GitHub 不可达时规则集为空）。
+	if coreType == "sing-box" {
+		cacheContent := renderCoreCacheFragment()
+		artifacts = append(artifacts, &repository.DesiredArtifact{
+			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
+			Filename: "mesh-core-cache.json", SourceTag: "core-cache",
+			Content: cacheContent, ContentHash: artifactHash(cacheContent),
+		})
+	}
 
 	// 1. socks inbound：本 agent 监听 WG IP:1080，作为 mesh 出口服务
 	//    所有 mesh agent 都生成，确保能作为出口。
@@ -578,6 +592,8 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	// 2. 对每个 spec 生成出口 outbound + routing rule
 	//    优先 exit_node_set_id（出口集合），其次 exit_agent_host_id（固定出口）
 	setMemberOutboundGen := map[int64]struct{}{} // 避免重复生成成员 socks outbound
+	specRuleOrdinal := 0                         // spec 兜底规则序号（dict 序 → route-9xxx）
+	relayRuleOrdinal := 0                        // 中继规则序号（route-0xxx）
 
 	for _, spec := range enabledSpecs {
 		specTag := normalizeTag(spec.Tag)
@@ -586,11 +602,14 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 		if spec.RelayPathID != nil && *spec.RelayPathID > 0 {
 			var handled bool
 			var err error
-			artifacts, handled, err = s.buildRelaySpecRouting(ctx, req, coreType, specTag, *spec.RelayPathID, artifacts)
+			var relayRules []ruleArtifact
+			artifacts, relayRules, handled, err = s.buildRelaySpecRouting(ctx, req, coreType, specTag, *spec.RelayPathID, artifacts, relayRuleOrdinal)
 			if err != nil {
-				return nil, fmt.Errorf("build relay routing for spec %s: %w", specTag, err)
+				return nil, nil, fmt.Errorf("build relay routing for spec %s: %w", specTag, err)
 			}
 			if handled {
+				rules = append(rules, relayRules...)
+				relayRuleOrdinal += len(relayRules)
 				continue
 			}
 			// 链路不可用（不存在/禁用/节点不足/下一跳无 mesh IP）→ 回落旧出口逻辑并告警
@@ -601,9 +620,14 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 		// 2a. exit_node_set_id：出口集合（负载均衡+故障转移）
 		if spec.ExitNodeSetID != nil && *spec.ExitNodeSetID > 0 {
 			var err error
-			artifacts, err = s.buildMeshExitSetArtifacts(ctx, req, coreType, specTag, *spec.ExitNodeSetID, peerWGIP, setMemberOutboundGen, artifacts)
+			var setRules []ruleArtifact
+			artifacts, setRules, err = s.buildMeshExitSetArtifacts(ctx, req, coreType, specTag, *spec.ExitNodeSetID, peerWGIP, setMemberOutboundGen, artifacts, specRoutingOrder())
 			if err != nil {
-				return nil, fmt.Errorf("build exit set artifacts for spec %s: %w", specTag, err)
+				return nil, nil, fmt.Errorf("build exit set artifacts for spec %s: %w", specTag, err)
+			}
+			rules = append(rules, setRules...)
+			if len(setRules) > 0 {
+				specRuleOrdinal++
 			}
 			continue
 		}
@@ -632,61 +656,86 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 			Content: outboundContent, ContentHash: artifactHash(outboundContent),
 		})
 
-		// routing rule：该 inbound 的流量 → 出口 outbound
+		// routing rule：该 inbound 的流量 → 出口 outbound（兜底段）
 		routingContent := renderMeshRoutingRule(coreType, specTag, exitTag)
-		routingFilename := fmt.Sprintf("mesh-%s-routing.json", specTag)
-		artifacts = append(artifacts, &repository.DesiredArtifact{
-			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
-			Filename: routingFilename, SourceTag: specTag + "-routing",
-			Content: routingContent, ContentHash: artifactHash(routingContent),
+		rules = append(rules, ruleArtifact{
+			order:     specRoutingOrder(),
+			slug:      specTag + "-routing",
+			sourceTag: specTag + "-routing",
+			content:   routingContent,
 		})
+		specRuleOrdinal++
 	}
 
 	// 3. 应用 routing policies（geosite/domain → 出口集合的自动分流）
-	//    求值顺序 = [绑定本 agent 所宿入站的 scoped 策略按 priority] ++ [全局策略按 priority]，
-	//    双核均为规则数组序首中即停，天然实现“入站规则优先、全局兜底”。
+	//    求值顺序 = [scoped 策略按 priority] ++ [全局策略按 priority] ++ [spec 兜底]，
+	//    由 route-<order>-<slug>.json 文件名字典序固化（见 I1 注释）。
 	//    绑定到其他 agent 入站的 scoped 策略在编译其它 agent 时才生效，此处排除。
 	if s.routingPolicies != nil {
 		policies, err := s.routingPolicies.ListEnabledByCore(ctx, coreType)
 		if err != nil {
-			return nil, fmt.Errorf("list routing policies: %w", err)
+			return nil, nil, fmt.Errorf("list routing policies: %w", err)
 		}
 		orderedPolicies := orderScopedFirst(policies, enabledSpecs)
 		// 为 geosite 策略生成 rule_set 定义（sing-box）
-		if ruleSetContent := buildMeshRoutingPolicyRuleSet(coreType, orderedPolicies); len(ruleSetContent) > 0 {
+		if ruleSetContent := buildMeshRoutingPolicyRuleSet(ctx, coreType, orderedPolicies); len(ruleSetContent) > 0 {
 			artifacts = append(artifacts, &repository.DesiredArtifact{
 				AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 				Filename: "mesh-rule-sets.json", SourceTag: "rule-sets",
 				Content: ruleSetContent, ContentHash: artifactHash(ruleSetContent),
 			})
 		}
+		scopedOrdinal, globalOrdinal := 0, 0
 		for _, p := range orderedPolicies {
 			if p.TargetSetID == nil || *p.TargetSetID <= 0 {
 				continue
 			}
-			// 规则级出口池（loadbalance）：该规则命中流量在目标出口集成员间
+			// 规则级出口池（loadbalance/balancer）：该规则命中流量在目标出口集成员间
 			// 按粘性开关分摊 —— sticky=source-hash(固定出口) / 非sticky=round-robin(轮询)。
 			// 池成员复用 spec/set 阶段已生成的成员 socks；若该集未被任何 spec 绑定
 			// （成员 socks 未生成），此处惰性补生成。池产物独立命名避免多规则共享冲突。
 			poolArtifacts, err := s.buildRoutingPolicyPool(ctx, req, coreType, p, peerWGIP, setMemberOutboundGen)
 			if err != nil {
-				return nil, fmt.Errorf("build routing policy pool for policy %d: %w", p.ID, err)
+				return nil, nil, fmt.Errorf("build routing policy pool for policy %d: %w", p.ID, err)
 			}
 			artifacts = append(artifacts, poolArtifacts...)
 			ruleContent := renderRoutingPolicyRule(coreType, p)
 			if len(ruleContent) == 0 {
 				continue
 			}
-			filename := fmt.Sprintf("mesh-policy-%d.json", p.ID)
-			artifacts = append(artifacts, &repository.DesiredArtifact{
-				AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
-				Filename: filename, SourceTag: fmt.Sprintf("policy-%d", p.ID),
-				Content: ruleContent, ContentHash: artifactHash(ruleContent),
+			scoped := p.SpecID != nil
+			order := policyRuleOrder(scoped, globalOrdinal)
+			if scoped {
+				order = policyRuleOrder(true, scopedOrdinal)
+				scopedOrdinal++
+			} else {
+				globalOrdinal++
+			}
+			rules = append(rules, ruleArtifact{
+				order:     order,
+				slug:      fmt.Sprintf("policy-%d", p.ID),
+				sourceTag: fmt.Sprintf("policy-%d", p.ID),
+				content:   ruleContent,
 			})
 		}
 	}
 
-	return artifacts, nil
+	return artifacts, rules, nil
+}
+
+// renderCoreCacheFragment 生成 sing-box 的 cache_file 片段，
+// 使 remote rule_set 的下载结果跨重启复用。
+func renderCoreCacheFragment() []byte {
+	data := map[string]any{
+		"experimental": map[string]any{
+			"cache_file": map[string]any{
+				"enabled": true,
+				"path":    "/opt/mgpanel/agent/sing-box-cache.db",
+			},
+		},
+	}
+	b, _ := json.Marshal(data)
+	return b
 }
 
 // buildRoutingPolicyPool 为一条路由规则生成独立 loadbalance 出口池（粘性分摊）。
@@ -709,7 +758,7 @@ func (s *artifactCompilerService) buildRoutingPolicyPool(
 	if p == nil || p.TargetSetID == nil || *p.TargetSetID <= 0 {
 		return nil, nil
 	}
-	if coreType == "xray" || s.exitNodeSets == nil || s.meshPeers == nil {
+	if (coreType != "xray" && coreType != "sing-box") || s.exitNodeSets == nil || s.meshPeers == nil {
 		return nil, nil
 	}
 
@@ -751,15 +800,24 @@ func (s *artifactCompilerService) buildRoutingPolicyPool(
 		return nil, nil
 	}
 
-	// 本地 direct 兑底
-	poolMembers := append([]string{}, memberOutboundTags...)
-	poolMembers = append(poolMembers, "direct")
-
 	strategy := "round-robin"
 	if p.Sticky {
 		strategy = "source-hash"
 	}
-	poolContent := renderMeshLoadBalanceOutbound(coreType, fmt.Sprintf("mesh-policy-%d-pool", p.ID), poolMembers, strategy)
+
+	if coreType == "xray" {
+		// xray 无 loadbalance → 规则级 balancer（tag 与策略规则目标一致）
+		balancerContent := renderXrayBalancer(policyBalancerTag(p.ID), memberOutboundTags, strategy)
+		out = append(out, &repository.DesiredArtifact{
+			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
+			Filename: fmt.Sprintf("mesh-policy-%d-balancer.json", p.ID), SourceTag: fmt.Sprintf("policy-%d-balancer", p.ID),
+			Content: balancerContent, ContentHash: artifactHash(balancerContent),
+		})
+		return out, nil
+	}
+
+	// sing-box：direct 只作为 fallback（不参与分摊，避免流量直连泄漏）
+	poolContent := renderMeshLoadBalanceOutbound(coreType, policyPoolTag(p.ID), memberOutboundTags, strategy)
 	out = append(out, &repository.DesiredArtifact{
 		AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 		Filename: fmt.Sprintf("mesh-policy-%d-pool.json", p.ID), SourceTag: fmt.Sprintf("policy-%d-pool", p.ID),
@@ -768,7 +826,27 @@ func (s *artifactCompilerService) buildRoutingPolicyPool(
 	return out, nil
 }
 
+// renderXrayBalancer 生成 xray balancer（规则级出口池）。
+func renderXrayBalancer(tag string, memberOutboundTags []string, setStrategy string) []byte {
+	strategy, _ := xrayBalancerStrategy(setStrategy)
+	data := map[string]any{
+		"routing": map[string]any{
+			"balancers": []any{
+				map[string]any{
+					"tag":         tag,
+					"selector":    memberOutboundTags,
+					"strategy":    map[string]any{"type": strategy},
+					"fallbackTag": "direct",
+				},
+			},
+		},
+	}
+	b, _ := json.Marshal(data)
+	return b
+}
+
 // renderMeshLoadBalanceOutbound 生成 sing-box loadbalance outbound（粘性/分摊池）。
+// direct 通过 fallback 提供可达性兑底，不进入分摊成员，否则轮询/哈希会把部分流量直连。
 func renderMeshLoadBalanceOutbound(coreType, tag string, memberOutboundTags []string, strategy string) []byte {
 	if coreType != "sing-box" {
 		return nil
@@ -780,6 +858,9 @@ func renderMeshLoadBalanceOutbound(coreType, tag string, memberOutboundTags []st
 				"tag":       tag,
 				"outbounds": memberOutboundTags,
 				"strategy":  strategy,
+				"fallback":  "direct",
+				"url":       loadBalanceHealthCheckURL,
+				"interval":  loadBalanceHealthInterval,
 			},
 		},
 	}
@@ -797,16 +878,23 @@ func (s *artifactCompilerService) buildMeshExitSetArtifacts(
 	peerWGIP map[int64]string,
 	setMemberOutboundGen map[int64]struct{},
 	artifacts []*repository.DesiredArtifact,
-) ([]*repository.DesiredArtifact, error) {
+	specRuleOrder int,
+) ([]*repository.DesiredArtifact, []ruleArtifact, error) {
 	if s.exitNodeSets == nil {
-		return artifacts, nil
+		return artifacts, nil, nil
 	}
 	members, err := s.exitNodeSets.ListMembers(ctx, setID)
 	if err != nil {
-		return artifacts, err
+		return artifacts, nil, err
 	}
 	if len(members) == 0 {
-		return artifacts, nil
+		return artifacts, nil, nil
+	}
+
+	// 出口集自身策略（I2）：决定 sing-box loadbalance / xray balancer 的选路方式
+	setStrategy := "round_robin"
+	if set, err := s.exitNodeSets.FindByID(ctx, setID); err == nil && set != nil {
+		setStrategy = set.Strategy
 	}
 
 	var memberOutboundTags []string
@@ -839,31 +927,39 @@ func (s *artifactCompilerService) buildMeshExitSetArtifacts(
 	}
 
 	if len(memberOutboundTags) == 0 {
-		return artifacts, nil
+		return artifacts, nil, nil
 	}
 
-	// 将本地 direct 作为最后兜底（mesh 出口全部不可达时自动回落本机直连）
-	selectorMembers := append([]string{}, memberOutboundTags...)
-	selectorMembers = append(selectorMembers, "direct")
-
-	// 生成 selector outbound（sing-box 的 selector 类型）
 	setTag := fmt.Sprintf("mesh-exit-set-%d", setID)
-	selectorContent := renderMeshSelectorOutbound(coreType, setTag, selectorMembers)
+	var setContent []byte
+	switch {
+	case coreType == "xray":
+		// xray balancer：策略映射（least_connections→leastLoad；哈希策略降级为 roundRobin）
+		setContent = renderXrayBalancer(setTag, memberOutboundTags, setStrategy)
+	case len(memberOutboundTags) > 1:
+		// sing-box 多成员：按出口集策略做负载均衡，direct 仅作 fallback
+		setContent = renderMeshLoadBalanceOutbound(coreType, setTag, memberOutboundTags, singBoxLoadBalanceStrategy(setStrategy))
+	default:
+		// sing-box 单成员：保留 selector（URLTest 式故障转移，direct 作兑底）
+		selectorMembers := append([]string{}, memberOutboundTags...)
+		selectorMembers = append(selectorMembers, "direct")
+		setContent = renderMeshSelectorOutbound(coreType, setTag, selectorMembers)
+	}
 	artifacts = append(artifacts, &repository.DesiredArtifact{
 		AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 		Filename: fmt.Sprintf("mesh-%s-set.json", specTag), SourceTag: specTag + "-set",
-		Content: selectorContent, ContentHash: artifactHash(selectorContent),
+		Content: setContent, ContentHash: artifactHash(setContent),
 	})
 
-	// 生成 routing rule → selector outbound
+	// 生成 routing rule → 集合出口（兜底段，位于所有策略规则之后）
 	routingContent := renderMeshRoutingRule(coreType, specTag, setTag)
-	artifacts = append(artifacts, &repository.DesiredArtifact{
-		AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
-		Filename: fmt.Sprintf("mesh-%s-routing.json", specTag), SourceTag: specTag + "-routing",
-		Content: routingContent, ContentHash: artifactHash(routingContent),
-	})
-
-	return artifacts, nil
+	rules := []ruleArtifact{{
+		order:     specRuleOrder,
+		slug:      specTag + "-routing",
+		sourceTag: specTag + "-routing",
+		content:   routingContent,
+	}}
+	return artifacts, rules, nil
 }
 
 // orderScopedFirst 将策略按求值顺序排列：
@@ -925,19 +1021,20 @@ func (s *artifactCompilerService) buildRelaySpecRouting(
 	coreType, specTag string,
 	pathID int64,
 	artifacts []*repository.DesiredArtifact,
-) ([]*repository.DesiredArtifact, bool, error) {
+	relayOrdinal int,
+) ([]*repository.DesiredArtifact, []ruleArtifact, bool, error) {
 	if s.relayPaths == nil || s.meshPeers == nil {
-		return artifacts, false, nil
+		return artifacts, nil, false, nil
 	}
 	path, err := s.relayPaths.GetByID(ctx, pathID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return artifacts, false, nil
+			return artifacts, nil, false, nil
 		}
-		return artifacts, false, err
+		return artifacts, nil, false, err
 	}
 	if !path.Enabled || len(path.Nodes) < 2 {
-		return artifacts, false, nil
+		return artifacts, nil, false, nil
 	}
 	nodes := append([]repository.RelayPathNode(nil), path.Nodes...)
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Sequence < nodes[j].Sequence })
@@ -945,7 +1042,7 @@ func (s *artifactCompilerService) buildRelaySpecRouting(
 	// 全链路下一跳可达性预检：任一跳缺 mesh IP 则整体回落，避免半成品链路吞流量
 	allPeers, err := s.meshPeers.ListByNetworkID(ctx, "default")
 	if err != nil {
-		return artifacts, false, fmt.Errorf("list mesh peers: %w", err)
+		return artifacts, nil, false, fmt.Errorf("list mesh peers: %w", err)
 	}
 	peerWGIP := make(map[int64]string, len(allPeers))
 	for _, p := range allPeers {
@@ -958,21 +1055,18 @@ func (s *artifactCompilerService) buildRelaySpecRouting(
 			slog.Warn("relay path hop unreachable, falling back to legacy exit",
 				"path_id", pathID, "path_name", path.Name,
 				"next_agent", dst.AgentHostID, "spec", specTag)
-			return artifacts, false, nil
+			return artifacts, nil, false, nil
 		}
 	}
 
 	entryOutboundTag := fmt.Sprintf("relay-mk-%d", pathID)
 	ruleContent := renderMeshRoutingRule(coreType, specTag, entryOutboundTag)
-	artifacts = append(artifacts, &repository.DesiredArtifact{
-		AgentHostID:     req.AgentHostID,
-		CoreType:        coreType,
-		DesiredRevision: req.DesiredRevision,
-		Filename:        fmt.Sprintf("mesh-%s-relay-%d.json", specTag, pathID),
-		SourceTag:       fmt.Sprintf("%s-relay-%d", specTag, pathID),
-		Content:         ruleContent,
-		ContentHash:     artifactHash(ruleContent),
-	})
+	rules := []ruleArtifact{{
+		order:     relayRuleOrder() + relayOrdinal*ruleOrderStep,
+		slug:      fmt.Sprintf("%s-relay-%d", specTag, pathID),
+		sourceTag: fmt.Sprintf("%s-relay-%d", specTag, pathID),
+		content:   ruleContent,
+	}}
 
 	outContent := renderRelayMarkOutbound(coreType, entryOutboundTag, pathID)
 	artifacts = append(artifacts, &repository.DesiredArtifact{
@@ -984,7 +1078,7 @@ func (s *artifactCompilerService) buildRelaySpecRouting(
 		Content:         outContent,
 		ContentHash:     artifactHash(outContent),
 	})
-	return artifacts, true, nil
+	return artifacts, rules, true, nil
 }
 
 // renderMeshSocksInbound 生成 sing-box / Xray 的 socks inbound 配置（监听 WG IP:port）。
@@ -1097,53 +1191,63 @@ func renderRoutingPolicyRule(coreType string, p *repository.RoutingPolicy) []byt
 	if p == nil || p.TargetSetID == nil {
 		return nil
 	}
+	values := splitMatchValues(p.MatchValue)
+	if len(values) == 0 {
+		return nil
+	}
 	// sing-box 规则指向规则级 loadbalance 池（粘性/分摊在池内执行）；
-	// xray 无 loadbalance/source-hash，保持指向出口集 balancer。
-	var outboundTag string
+	// xray 指向规则级 balancer（策略级故障转移 + 轮询/最低负载）。
+	outboundTag := policyPoolTag(p.ID)
 	if coreType == "xray" {
-		outboundTag = fmt.Sprintf("mesh-exit-set-%d", *p.TargetSetID)
-	} else {
-		outboundTag = fmt.Sprintf("mesh-policy-%d-pool", p.ID)
+		outboundTag = policyBalancerTag(p.ID)
 	}
 
 	if coreType == "xray" {
-		// Xray routing rule: type=field + domain 匹配
-		var matchField []string
+		// Xray field rule：domain 用 domain:/geosite: 前缀，网段必须落 ip 字段
+		var field string
+		var list []string
 		switch p.MatchType {
 		case "domain":
-			matchField = []string{"domain:" + p.MatchValue}
+			field = "domain"
+			for _, v := range values {
+				list = append(list, "domain:"+v)
+			}
 		case "ip_cidr":
-			matchField = []string{"ip:" + p.MatchValue}
+			field = "ip"
+			list = append(list, values...)
 		default: // geosite
-			matchField = []string{"geosite:" + p.MatchValue}
+			field = "domain"
+			for _, v := range values {
+				list = append(list, "geosite:"+v)
+			}
 		}
+		rule := map[string]any{
+			"type":        "field",
+			"outboundTag": outboundTag,
+		}
+		rule[field] = list
 		data := map[string]any{
 			"routing": map[string]any{
-				"rules": []any{
-					map[string]any{
-						"type":        "field",
-						"domain":      matchField,
-						"outboundTag": outboundTag,
-					},
-				},
+				"rules": []any{rule},
 			},
 		}
 		b, _ := json.Marshal(data)
 		return b
 	}
 
-	// sing-box route rule
+	// sing-box route rule（多值 → 数组）
 	var rule map[string]any
 	switch p.MatchType {
 	case "domain":
-		rule = map[string]any{"domain_suffix": []string{p.MatchValue}, "outbound": outboundTag}
+		rule = map[string]any{"domain_suffix": values, "outbound": outboundTag}
 	case "ip_cidr":
-		rule = map[string]any{"ip_cidr": []string{p.MatchValue}, "outbound": outboundTag}
-	default: // geosite
-		// sing-box 的 geosite 需要通过 rule_set 引用。
-		// 生成一条 rule_set 引用规则 + 自动注入 rule_set 定义。
-		// rule_set 定义在调用方通过 buildMeshRoutingPolicyRuleSet 生成。
-		rule = map[string]any{"rule_set": []string{fmt.Sprintf("geosite-%s", p.MatchValue)}, "outbound": outboundTag}
+		rule = map[string]any{"ip_cidr": values, "outbound": outboundTag}
+	default: // geosite：rule_set 引用，定义由 buildMeshRoutingPolicyRuleSet 注入
+		tags := make([]string, 0, len(values))
+		for _, v := range values {
+			tags = append(tags, routingRuleSetTag(v))
+		}
+		rule = map[string]any{"rule_set": tags, "outbound": outboundTag}
 	}
 	data := map[string]any{
 		"route": map[string]any{
@@ -1154,23 +1258,36 @@ func renderRoutingPolicyRule(coreType string, p *repository.RoutingPolicy) []byt
 	return b
 }
 
-// buildMeshRoutingPolicyRuleSet 为所有 geosite 类型的 routing policy 生成 rule_set 定义。
-// 每个 rule_set 指向社区维护的 sing-box 规则集 URL。
-func buildMeshRoutingPolicyRuleSet(coreType string, policies []*repository.RoutingPolicy) []byte {
+// routingRuleSetTag geosite 规则集 tag。
+func routingRuleSetTag(value string) string { return "geosite-" + value }
+
+// buildMeshRoutingPolicyRuleSet 为所有 geosite 类型策略生成 rule_set 定义（sing-box）。
+// 每个值独立成集；来源基址由设置 route_rule_set_base_url 提供（可换镜像）。
+func buildMeshRoutingPolicyRuleSet(ctx context.Context, coreType string, policies []*repository.RoutingPolicy) []byte {
 	if coreType == "xray" {
-		return nil // Xray 不需要 rule_set
+		return nil // Xray 不使用 rule_set（走 geosite.dat）
 	}
+	base := resolveRuleSetBaseURL(ctx)
 	ruleSets := make([]map[string]any, 0)
+	seen := map[string]struct{}{}
 	for _, p := range policies {
-		if p.MatchType != "geosite" || p.TargetSetID == nil {
+		if p == nil || p.MatchType != "geosite" || p.TargetSetID == nil {
 			continue
 		}
-		ruleSets = append(ruleSets, map[string]any{
-			"type":            "remote",
-			"tag":             fmt.Sprintf("geosite-%s", p.MatchValue),
-			"url":             fmt.Sprintf("https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-%s.srs", p.MatchValue),
-			"download_detour": "direct",
-		})
+		for _, v := range splitMatchValues(p.MatchValue) {
+			tag := routingRuleSetTag(v)
+			if _, ok := seen[tag]; ok {
+				continue
+			}
+			seen[tag] = struct{}{}
+			ruleSets = append(ruleSets, map[string]any{
+				"type":            "remote",
+				"tag":             tag,
+				"url":             fmt.Sprintf("%s/sing-geosite/rule-set/geosite-%s.srs", base, v),
+				"download_detour": "direct",
+				"update_interval": "24h",
+			})
+		}
 	}
 	if len(ruleSets) == 0 {
 		return nil
