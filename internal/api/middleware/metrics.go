@@ -12,7 +12,7 @@ import (
 
 // MetricsConfig holds configuration for the metrics middleware.
 type MetricsConfig struct {
-	// Namespace is the prefix for all metrics (default: "xboard")
+	// Namespace is the prefix for all metrics (default: "mgpanel")
 	Namespace string
 	// Subsystem is an optional subsystem name
 	Subsystem string
@@ -25,7 +25,7 @@ type MetricsConfig struct {
 // DefaultMetricsConfig returns the default metrics configuration.
 func DefaultMetricsConfig() MetricsConfig {
 	return MetricsConfig{
-		Namespace: "xboard",
+		Namespace: "mgpanel",
 		Subsystem: "http",
 		SkipPaths: []string{"/health", "/healthz", "/_internal/ready", "/metrics"},
 		Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
@@ -43,7 +43,7 @@ type Metrics struct {
 // NewMetrics creates a new Metrics instance with the given configuration.
 func NewMetrics(cfg MetricsConfig) *Metrics {
 	if cfg.Namespace == "" {
-		cfg.Namespace = "xboard"
+		cfg.Namespace = "mgpanel"
 	}
 	if cfg.Subsystem == "" {
 		cfg.Subsystem = "http"

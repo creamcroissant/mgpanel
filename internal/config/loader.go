@@ -31,7 +31,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	if err := configureConfigFile(v, opts); err != nil {
 		return nil, err
 	}
-	v.SetEnvPrefix("XBOARD")
+	v.SetEnvPrefix("MGPANEL")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 	if err := bindEnv(v); err != nil {
@@ -91,7 +91,7 @@ func writeDefaultConfigFile(configPath string) error {
 		},
 		"database": map[string]any{
 			"driver": "sqlite",
-			"path":   "data/xboard.db",
+			"path":   "data/mgpanel.db",
 		},
 		"auth": map[string]any{
 			"signing_key": "change-me",
@@ -105,15 +105,15 @@ func writeDefaultConfigFile(configPath string) error {
 			"admin": map[string]any{
 				"enabled":        true,
 				"dir":            "web/user-vite/dist",
-				"title":          "XBoard Admin",
+				"title":          "MGPanel Admin",
 				"version":        "1.0.0",
-				"logo":           "https://xboard.io/images/logo.png",
+				"logo":           "",
 				"hidden_modules": []string{"ticket", "gift-card", "plugin", "theme"},
 			},
 			"user": map[string]any{
 				"enabled": true,
 				"dir":     "web/user-vite/dist",
-				"title":   "XBoard",
+				"title":   "MGPanel",
 			},
 			"install": map[string]any{
 				"enabled": true,
@@ -161,31 +161,31 @@ func configureConfigFile(v *viper.Viper, opts LoadOptions) error {
 		v.AddConfigPath(workingDir)
 		v.AddConfigPath(filepath.Join(workingDir, "etc"))
 	}
-	v.AddConfigPath("/etc/xboard/")
+	v.AddConfigPath("/etc/mgpanel/")
 	return nil
 }
 
 func bindEnv(v *viper.Viper) error {
 	bindings := map[string][]string{
-		"grpc.enabled":               {"XBOARD_GRPC_ENABLED"},
-		"grpc.addr":                  {"XBOARD_GRPC_ADDR"},
-		"grpc.reuse_http_port":       {"XBOARD_GRPC_REUSE_HTTP_PORT"},
-		"grpc.tls.enabled":           {"XBOARD_GRPC_TLS_ENABLED"},
-		"grpc.tls.cert_file":         {"XBOARD_GRPC_TLS_CERT_FILE"},
-		"grpc.tls.key_file":          {"XBOARD_GRPC_TLS_KEY_FILE"},
-		"ui.install.enabled":         {"XBOARD_UI_INSTALL_ENABLED", "XBOARD_INSTALL_UI_ENABLED", "INSTALL_UI_ENABLED"},
-		"ui.install.dir":             {"XBOARD_UI_INSTALL_DIR", "XBOARD_INSTALL_UI_DIR", "INSTALL_UI_DIR"},
-		"ui.admin.logo":              {"XBOARD_UI_ADMIN_LOGO", "XBOARD_ADMIN_UI_LOGO", "ADMIN_UI_LOGO"},
-		"ui.admin.deploy_script_url": {"XBOARD_UI_ADMIN_DEPLOY_SCRIPT_URL"},
-		"scheduler.stat_user_hourly": {"XBOARD_SCHEDULER_STAT_USER_HOURLY"},
-		"scheduler.traffic_fetch":    {"XBOARD_SCHEDULER_TRAFFIC_FETCH"},
-		"scheduler.email_notify":     {"XBOARD_SCHEDULER_EMAIL_NOTIFY"},
-		"scheduler.telegram_notify":  {"XBOARD_SCHEDULER_TELEGRAM_NOTIFY"},
-	"mcp.enabled":                      {"XBOARD_MCP_ENABLED"},
-	"mcp.api_key":                      {"XBOARD_MCP_API_KEY"},
-	"mcp.max_agent_log_lines":          {"XBOARD_MCP_MAX_AGENT_LOG_LINES"},
-	"mcp.agent_log_upload_interval_seconds": {"XBOARD_MCP_AGENT_LOG_UPLOAD_INTERVAL"},
-	"mcp.server_log_max_lines":         {"XBOARD_MCP_SERVER_LOG_MAX_LINES"},
+		"grpc.enabled":               {"MGPANEL_GRPC_ENABLED"},
+		"grpc.addr":                  {"MGPANEL_GRPC_ADDR"},
+		"grpc.reuse_http_port":       {"MGPANEL_GRPC_REUSE_HTTP_PORT"},
+		"grpc.tls.enabled":           {"MGPANEL_GRPC_TLS_ENABLED"},
+		"grpc.tls.cert_file":         {"MGPANEL_GRPC_TLS_CERT_FILE"},
+		"grpc.tls.key_file":          {"MGPANEL_GRPC_TLS_KEY_FILE"},
+		"ui.install.enabled":         {"MGPANEL_UI_INSTALL_ENABLED", "MGPANEL_INSTALL_UI_ENABLED", "INSTALL_UI_ENABLED"},
+		"ui.install.dir":             {"MGPANEL_UI_INSTALL_DIR", "MGPANEL_INSTALL_UI_DIR", "INSTALL_UI_DIR"},
+		"ui.admin.logo":              {"MGPANEL_UI_ADMIN_LOGO", "MGPANEL_ADMIN_UI_LOGO", "ADMIN_UI_LOGO"},
+		"ui.admin.deploy_script_url": {"MGPANEL_UI_ADMIN_DEPLOY_SCRIPT_URL"},
+		"scheduler.stat_user_hourly": {"MGPANEL_SCHEDULER_STAT_USER_HOURLY"},
+		"scheduler.traffic_fetch":    {"MGPANEL_SCHEDULER_TRAFFIC_FETCH"},
+		"scheduler.email_notify":     {"MGPANEL_SCHEDULER_EMAIL_NOTIFY"},
+		"scheduler.telegram_notify":  {"MGPANEL_SCHEDULER_TELEGRAM_NOTIFY"},
+	"mcp.enabled":                      {"MGPANEL_MCP_ENABLED"},
+	"mcp.api_key":                      {"MGPANEL_MCP_API_KEY"},
+	"mcp.max_agent_log_lines":          {"MGPANEL_MCP_MAX_AGENT_LOG_LINES"},
+	"mcp.agent_log_upload_interval_seconds": {"MGPANEL_MCP_AGENT_LOG_UPLOAD_INTERVAL"},
+	"mcp.server_log_max_lines":         {"MGPANEL_MCP_SERVER_LOG_MAX_LINES"},
 	}
 	for key, envs := range bindings {
 		args := append([]string{key}, envs...)
@@ -205,23 +205,23 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log.log_dir", "logs")
 	v.SetDefault("log.max_days", 7)
 	v.SetDefault("database.driver", "sqlite")
-	v.SetDefault("database.path", "data/xboard.db")
+	v.SetDefault("database.path", "data/mgpanel.db")
 	v.SetDefault("auth.signing_key", "change-me")
 	v.SetDefault("auth.token_ttl", "24h")
-	v.SetDefault("auth.issuer", "xboard")
-	v.SetDefault("auth.audience", "xboard-client")
+	v.SetDefault("auth.issuer", "mgpanel")
+	v.SetDefault("auth.audience", "mgpanel-client")
 	v.SetDefault("auth.leeway", "30s")
 	v.SetDefault("auth.bcrypt_cost", 12)
 	v.SetDefault("ui.admin.enabled", true)
 	v.SetDefault("ui.admin.dir", "web/user-vite/dist")
-	v.SetDefault("ui.admin.title", "XBoard Admin")
+	v.SetDefault("ui.admin.title", "MGPanel Admin")
 	v.SetDefault("ui.admin.version", "1.0.0")
-	v.SetDefault("ui.admin.logo", "https://xboard.io/images/logo.png")
+	v.SetDefault("ui.admin.logo", "")
 	v.SetDefault("ui.admin.hidden_modules", []string{"ticket", "gift-card", "plugin", "theme"})
 	v.SetDefault("ui.admin.deploy_script_url", "https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh")
 	v.SetDefault("ui.user.enabled", true)
 	v.SetDefault("ui.user.dir", "web/user-vite/dist")
-	v.SetDefault("ui.user.title", "XBoard")
+	v.SetDefault("ui.user.title", "MGPanel")
 	v.SetDefault("ui.install.enabled", true)
 	v.SetDefault("ui.install.dir", "web/install")
 	v.SetDefault("grpc.reuse_http_port", true)

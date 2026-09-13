@@ -21,7 +21,7 @@ i18n
     },
     detection: {
       order: ["localStorage", "navigator", "htmlTag"],
-      lookupLocalStorage: "xboard-lang",
+      lookupLocalStorage: "mgpanel-lang",
       caches: ["localStorage"],
     },
   });

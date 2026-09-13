@@ -252,7 +252,7 @@ func newAdminSPAHandler(logger *slog.Logger, paths service.AdminPathService, opt
 		baseURL:         strings.TrimRight(opts.BaseURL, "/"),
 		title:           fallback(opts.Title, "MGPanel"),
 		version:         fallback(opts.Version, "go-dev"),
-		logo:            fallback(opts.Logo, "https://mgpanel.io/images/logo.png"),
+		logo:            fallback(opts.Logo, ""),
 		deployScriptURL: strings.TrimSpace(opts.DeployScriptURL),
 	}
 	return &adminSPAHandler{

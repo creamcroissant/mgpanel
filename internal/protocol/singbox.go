@@ -430,7 +430,7 @@ func enrichSingboxHeaders(headers map[string]string, appName string) map[string]
 	}
 	title := strings.TrimSpace(appName)
 	if title == "" {
-		title = "XBoard"
+		title = "MGPanel"
 	}
 	encoded := url.PathEscape(title)
 	headers["content-disposition"] = fmt.Sprintf("attachment;filename*=UTF-8''%s.json", encoded)

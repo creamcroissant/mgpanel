@@ -202,16 +202,16 @@ export default function Sidebar({
                     aria-label={t("common.expand")}
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary">
-                      <span className="text-sm font-bold text-primary-foreground">X</span>
+                      <span className="text-sm font-bold text-primary-foreground">M</span>
                     </div>
                   </Button>
                 ) : (
                   <div className="flex items-center rounded-md px-2 py-2 transition-colors duration-200">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary">
-                      <span className="text-sm font-bold text-primary-foreground">X</span>
+                      <span className="text-sm font-bold text-primary-foreground">M</span>
                     </div>
                     <span className="ml-3 max-w-[120px] overflow-hidden whitespace-nowrap text-lg font-semibold tracking-tight opacity-100 transition-all duration-300 ease-in-out">
-                      XBoard
+                      MGPanel
                     </span>
                   </div>
                 )}
@@ -321,7 +321,7 @@ export default function Sidebar({
                 isCollapsed ? "flex h-6 w-10 items-center justify-center" : "max-w-full"
               )}
             >
-              {isCollapsed ? "©" : `© ${new Date().getFullYear()} XBoard`}
+              {isCollapsed ? "©" : `© ${new Date().getFullYear()} MGPanel`}
             </p>
           </div>
         </div>
