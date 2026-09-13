@@ -1,13 +1,13 @@
 [Unit]
-Description=XBoard Agent Service
+Description=MGPanel Agent Service
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/xboard/agent
-EnvironmentFile=-/etc/default/xboard-agent
-ExecStart=/opt/xboard/agent/agent --config /opt/xboard/agent/config.yml
+WorkingDirectory=/opt/mgpanel/agent
+EnvironmentFile=-/etc/default/mgpanel-agent
+ExecStart=/opt/mgpanel/agent/agent --config /opt/mgpanel/agent/config.yml
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5s

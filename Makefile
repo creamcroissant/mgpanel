@@ -1,8 +1,8 @@
-# XBoard Go Edition Makefile
+# MGPanel Go Edition Makefile
 # 项目定位: 非商业化、轻量自托管面板
 
 # Build Variables
-BINARY_NAME := xboard
+BINARY_NAME := mgpanel
 AGENT_BINARY_NAME := agent
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -24,7 +24,7 @@ all: build
 
 # Help
 help:
-	@echo "XBoard Go Edition Build Targets:"
+	@echo "MGPanel Go Edition Build Targets:"
 	@echo ""
 	@echo "  make build           Build for current platform (with embedded frontend)"
 	@echo "  make build-frontend  Build frontend assets only"
@@ -51,7 +51,7 @@ help:
 	@echo "  make regression      Run full regression (e2e + smoke + latest gates)"
 	@echo "  make lint            Run linters"
 	@echo "  make gen-types        Generate TypeScript types from Go structs (config center)"
-	@echo "  make sync-check      Check managed xboard2p sync diff"
+	@echo "  make sync-check      Check managed mgpanel sync diff"
 	@echo "  make clean           Clean build artifacts"
 	@echo "  make install         Install panel and print agent install guidance"
 	@echo "  make install-panel   Install panel only"
@@ -76,7 +76,7 @@ build: build-frontend
 		echo "==> Error: $(DIST_DIR)/$(BINARY_NAME) is a directory, cannot overwrite"; \
 		exit 1; \
 	fi
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) ./cmd/xboard
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) ./cmd/mgpanel
 	@echo "==> Build complete: ./$(DIST_DIR)/$(BINARY_NAME)"
 
 # Build without frontend (for development)
@@ -87,46 +87,46 @@ build-backend:
 		echo "==> Error: $(DIST_DIR)/$(BINARY_NAME) is a directory, cannot overwrite"; \
 		exit 1; \
 	fi
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) ./cmd/xboard
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME) ./cmd/mgpanel
 	@echo "==> Build complete: ./$(DIST_DIR)/$(BINARY_NAME)"
 
 # Build for Linux
 build-linux: build-frontend
 	@mkdir -p $(DIST_DIR)
 	@echo "==> Building for linux/amd64..."
-	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/xboard
+	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/mgpanel
 	@echo "==> Building for linux/arm64..."
-	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/xboard
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/mgpanel
 	@echo "==> Linux builds complete"
 
 # Build for Linux (arm64 only)
 build-linux-arm64: build-frontend
 	@mkdir -p $(DIST_DIR)
 	@echo "==> Building for linux/arm64..."
-	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/xboard
+	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/mgpanel
 	@echo "==> Linux arm64 build complete"
 
 # Build for macOS
 build-darwin: build-frontend
 	@mkdir -p $(DIST_DIR)
 	@echo "==> Building for darwin/amd64..."
-	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/xboard
+	GOOS=darwin GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/mgpanel
 	@echo "==> Building for darwin/arm64..."
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/xboard
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/mgpanel
 	@echo "==> macOS builds complete"
 
 # Build for macOS (arm64 only)
 build-darwin-arm64: build-frontend
 	@mkdir -p $(DIST_DIR)
 	@echo "==> Building for darwin/arm64..."
-	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/xboard
+	GOOS=darwin GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/mgpanel
 	@echo "==> macOS arm64 build complete"
 
 # Build for Windows
 build-windows: build-frontend
 	@mkdir -p $(DIST_DIR)
 	@echo "==> Building for windows/amd64..."
-	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/xboard
+	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/mgpanel
 	@echo "==> Windows build complete"
 
 # Build for all platforms
@@ -146,22 +146,22 @@ install: install-panel
 	@echo "==> Panel installed. Install agents with: sudo ./deploy/agent.sh -k <communication-key> -g <panel-host:port>"
 
 install-panel:
-	@echo "==> Installing XBoard panel..."
+	@echo "==> Installing MGPanel panel..."
 	sudo ./deploy/panel.sh
 
 install-agent:
-	@echo "==> Installing XBoard agent..."
+	@echo "==> Installing MGPanel agent..."
 	sudo ./deploy/agent.sh
 
 # Build Docker image
 docker:
 	@echo "==> Building Docker image..."
-	docker build -t xboard .
+	docker build -t mgpanel .
 
 # Development mode
 dev:
 	@echo "==> Starting development server..."
-	$(GO) run ./cmd/xboard serve --config config.yml
+	$(GO) run ./cmd/mgpanel serve --config config.yml
 
 # Run tests
 test:
@@ -200,9 +200,9 @@ lint:
 	@echo "==> Running frontend lint..."
 	cd $(USER_FRONTEND_DIR) && npm run lint || true
 
-# Check managed sync diff against xboard2p
+# Check managed sync diff against mgpanel
 sync-check:
-	@echo "==> Checking managed xboard2p sync diff..."
+	@echo "==> Checking managed mgpanel sync diff..."
 	./scripts/repo-diff.sh --check-managed
 
 # Clean build artifacts
@@ -230,11 +230,11 @@ clean:
 
 # Database migration
 migrate:
-	$(GO) run ./cmd/xboard migrate
+	$(GO) run ./cmd/mgpanel migrate
 
 # Database backup
 backup:
-	$(GO) run ./cmd/xboard backup
+	$(GO) run ./cmd/mgpanel backup
 
 # Install dependencies
 deps:

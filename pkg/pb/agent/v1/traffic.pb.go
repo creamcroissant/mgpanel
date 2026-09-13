@@ -304,26 +304,7 @@ func (x *AliveResponse) GetSuccess() bool {
 
 var File_agent_v1_traffic_proto protoreflect.FileDescriptor
 
-const file_agent_v1_traffic_proto_rawDesc = "" +
-	"\n" +
-	"\x16agent/v1/traffic.proto\x12\bagent.v1\"\x84\x01\n" +
-	"\rTrafficReport\x12\x1c\n" +
-	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x128\n" +
-	"\fuser_traffic\x18\x02 \x03(\v2\x15.agent.v1.UserTrafficR\vuserTraffic\x12\x1b\n" +
-	"\treport_id\x18\x03 \x01(\tR\breportId\"p\n" +
-	"\vUserTraffic\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12!\n" +
-	"\fupload_bytes\x18\x02 \x01(\x03R\vuploadBytes\x12%\n" +
-	"\x0edownload_bytes\x18\x03 \x01(\x03R\rdownloadBytes\"l\n" +
-	"\x0fTrafficResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
-	"\x0eaccepted_count\x18\x02 \x01(\x05R\racceptedCount\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"F\n" +
-	"\vAliveReport\x12\x1c\n" +
-	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x19\n" +
-	"\buser_ids\x18\x02 \x03(\x03R\auserIds\")\n" +
-	"\rAliveResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccessB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_traffic_proto_rawDesc = "\n\x16agent/v1/traffic.proto\x12\bagent.v1\"\x84\x01\n\rTrafficReport\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x128\n\fuser_traffic\x18\x02 \x03(\v2\x15.agent.v1.UserTrafficR\vuserTraffic\x12\x1b\n\treport_id\x18\x03 \x01(\tR\breportId\"p\n\vUserTraffic\x12\x17\n\auser_id\x18\x01 \x01(\x03R\x06userId\x12!\n\fupload_bytes\x18\x02 \x01(\x03R\vuploadBytes\x12%\n\x0edownload_bytes\x18\x03 \x01(\x03R\rdownloadBytes\"l\n\x0fTrafficResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n\x0eaccepted_count\x18\x02 \x01(\x05R\racceptedCount\x12\x18\n\amessage\x18\x03 \x01(\tR\amessage\"F\n\vAliveReport\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x19\n\buser_ids\x18\x02 \x03(\x03R\auserIds\")\n\rAliveResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccessB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_traffic_proto_rawDescOnce sync.Once

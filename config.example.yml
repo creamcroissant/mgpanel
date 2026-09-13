@@ -1,6 +1,6 @@
-# XBoard Configuration File
-# This file is used to configure the XBoard server and node behavior.
-# Environment variables can override these settings (e.g. XBOARD_DB_PATH overrides database.path).
+# MGPanel Configuration File
+# This file is used to configure the MGPanel server and node behavior.
+# Environment variables can override these settings (e.g. MGPANEL_DB_PATH overrides database.path).
 
 # ------------------------------------------------------------------------------
 # System Configuration (Panel)
@@ -23,14 +23,14 @@ log:
 # Database Configuration
 database:
   driver: "sqlite"                # Currently only sqlite is supported
-  path: "data/xboard.db"          # Path to SQLite database file
+  path: "data/mgpanel.db"          # Path to SQLite database file
 
 # Authentication & Security
 auth:
   signing_key: "change-me"        # JWT signing key (Keep secret!)
   token_ttl: "24h"                # Access token time-to-live
-  issuer: "xboard"                # JWT issuer
-  audience: "xboard-client"       # JWT audience
+  issuer: "mgpanel"                # JWT issuer
+  audience: "mgpanel-client"       # JWT audience
   leeway: "30s"                   # Time skew allowance
   bcrypt_cost: 12                 # Password hashing cost
 
@@ -41,7 +41,7 @@ security:
 # Prometheus Metrics Configuration
 metrics:
   enabled: false                  # Enable Prometheus metrics endpoint
-  namespace: "xboard"             # Metrics namespace prefix
+  namespace: "mgpanel"             # Metrics namespace prefix
   subsystem: "http"               # Metrics subsystem name
   token: ""                       # Bearer token for /metrics endpoint (optional)
 
@@ -51,14 +51,14 @@ ui:
     enabled: true
     dir: "web/user-vite/dist"     # Path to Admin UI static files
     base_url: ""                  # Base URL path (optional)
-    title: "XBoard Admin"
+    title: "MGPanel Admin"
     version: "1.0.0"
-    logo: "https://xboard.io/images/logo.png"
+    logo: ""
   user:
     enabled: true
     dir: "web/user-vite/dist"     # Path to User UI static files
     base_url: ""                  # Base URL path (optional)
-    title: "XBoard"
+    title: "MGPanel"
   install:
     enabled: true
     dir: "web/install"            # Path to Install UI static files
@@ -82,12 +82,12 @@ traffic:
 
 # Agent core configuration (template rendering)
 core:
-  template_path: "/etc/xboard/templates/singbox.tmpl"  # Go template file
+  template_path: "/etc/mgpanel/templates/singbox.tmpl"  # Go template file
   output_path: "/etc/sing-box/config.json"            # Rendered config path
   reload_cmd: "systemctl reload sing-box"             # Command to reload core
-  install_script_path: "/opt/xboard/deploy/agent.sh" # Trusted installer used by InstallCore RPC
-  singbox_binary_path: "/opt/xboard/bin/sing-box"    # Standard stable binary path used by runtime detection
-  xray_binary_path: "/opt/xboard/bin/xray"           # Standard stable binary path used by runtime detection
+  install_script_path: "/opt/mgpanel/deploy/agent.sh" # Trusted installer used by InstallCore RPC
+  singbox_binary_path: "/opt/mgpanel/bin/sing-box"    # Standard stable binary path used by runtime detection
+  xray_binary_path: "/opt/mgpanel/bin/xray"           # Standard stable binary path used by runtime detection
 
 # Agent multi-core configuration (optional)
 # - Use this when you want to manage multiple core instances (sing-box / xray, etc.)
@@ -97,11 +97,11 @@ multi_core:
   enabled: false
   cores:
     sing-box:
-      template_path: "/etc/xboard/templates/singbox.tmpl"
+      template_path: "/etc/mgpanel/templates/singbox.tmpl"
       output_path: "/etc/sing-box/config.json"
       reload_cmd: "systemctl reload sing-box"
     xray:
-      template_path: "/etc/xboard/templates/xray.tmpl"
+      template_path: "/etc/mgpanel/templates/xray.tmpl"
       output_path: "/etc/xray/config.json"
       reload_cmd: "systemctl reload xray"
   instances:

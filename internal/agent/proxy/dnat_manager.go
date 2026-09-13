@@ -29,7 +29,7 @@ func NewDNATManager(nftBin, tableName string, logger *slog.Logger) *DNATManager 
 		nftBin = "/usr/sbin/nft"
 	}
 	if strings.TrimSpace(tableName) == "" {
-		tableName = "xboard_proxy"
+		tableName = "mgpanel_proxy"
 	}
 	if logger == nil {
 		logger = slog.Default()

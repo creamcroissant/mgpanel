@@ -7,8 +7,8 @@
 package xrayvmess
 
 import (
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,10 +23,10 @@ const (
 
 // Account is the account proto for VMess.
 type Account struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Account) Reset() {
@@ -68,17 +68,7 @@ func (x *Account) GetId() string {
 
 var File_proxy_vmess_account_proto protoreflect.FileDescriptor
 
-const file_proxy_vmess_account_proto_rawDesc = "" +
-	"\n\x19proxy/vmess/" +
-	"account.proto\x12" +
-	"\x10xray.proxy.vm" +
-	"ess\"\x19\n\x07Account" +
-	"\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02" +
-	"idB:Z8github.c" +
-	"om/creamcroiss" +
-	"ant/xboard/pkg" +
-	"/pb/xray/proxy" +
-	"/vmessb\x06proto3"
+const file_proxy_vmess_account_proto_rawDesc = "\n\x19proxy/vmess/account.proto\x12\x10xray.proxy.vmess\"\x19\n\aAccount\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02idB;Z9github.com/creamcroissant/mgpanel/pkg/pb/xray/proxy/vmessb\x06proto3"
 
 var (
 	file_proxy_vmess_account_proto_rawDescOnce sync.Once
@@ -92,9 +82,7 @@ func file_proxy_vmess_account_proto_rawDescGZIP() []byte {
 	return file_proxy_vmess_account_proto_rawDescData
 }
 
-
 var file_proxy_vmess_account_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-
 
 var file_proxy_vmess_account_proto_goTypes = []any{
 	(*Account)(nil), // 0: xrayvmess.Account
@@ -106,7 +94,6 @@ var file_proxy_vmess_account_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
-
 
 func init() { file_proxy_vmess_account_proto_init() }
 func file_proxy_vmess_account_proto_init() {
@@ -131,4 +118,3 @@ func file_proxy_vmess_account_proto_init() {
 	file_proxy_vmess_account_proto_goTypes = nil
 	file_proxy_vmess_account_proto_depIdxs = nil
 }
-

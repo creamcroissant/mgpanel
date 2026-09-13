@@ -400,40 +400,7 @@ func (x *ApplyRunResponse) GetMessage() string {
 
 var File_agent_v1_config_center_proto protoreflect.FileDescriptor
 
-const file_agent_v1_config_center_proto_rawDesc = "" +
-	"\n" +
-	"\x1cagent/v1/config_center.proto\x12\bagent.v1\"[\n" +
-	"\x11ApplyBatchRequest\x12\x1b\n" +
-	"\tcore_type\x18\x01 \x01(\tR\bcoreType\x12)\n" +
-	"\x10current_revision\x18\x02 \x01(\x03R\x0fcurrentRevision\"\x87\x01\n" +
-	"\rApplyArtifact\x12\x1a\n" +
-	"\bfilename\x18\x01 \x01(\tR\bfilename\x12\x1d\n" +
-	"\n" +
-	"source_tag\x18\x02 \x01(\tR\tsourceTag\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\fR\acontent\x12!\n" +
-	"\fcontent_hash\x18\x04 \x01(\tR\vcontentHash\"\xb7\x02\n" +
-	"\x12ApplyBatchResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n" +
-	"\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12\x15\n" +
-	"\x06run_id\x18\x03 \x01(\tR\x05runId\x12\x1b\n" +
-	"\tcore_type\x18\x04 \x01(\tR\bcoreType\x12'\n" +
-	"\x0ftarget_revision\x18\x05 \x01(\x03R\x0etargetRevision\x12+\n" +
-	"\x11previous_revision\x18\x06 \x01(\x03R\x10previousRevision\x125\n" +
-	"\tartifacts\x18\a \x03(\v2\x17.agent.v1.ApplyArtifactR\tartifacts\x12#\n" +
-	"\rerror_message\x18\b \x01(\tR\ferrorMessage\"\x92\x02\n" +
-	"\x0eApplyRunReport\x12\x15\n" +
-	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1b\n" +
-	"\tcore_type\x18\x02 \x01(\tR\bcoreType\x12'\n" +
-	"\x0ftarget_revision\x18\x03 \x01(\x03R\x0etargetRevision\x12\x18\n" +
-	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\x12#\n" +
-	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage\x12+\n" +
-	"\x11rollback_revision\x18\a \x01(\x03R\x10rollbackRevision\x12\x1f\n" +
-	"\vfinished_at\x18\b \x01(\x03R\n" +
-	"finishedAt\"F\n" +
-	"\x10ApplyRunResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessageB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_config_center_proto_rawDesc = "\n\x1cagent/v1/config_center.proto\x12\bagent.v1\"[\n\x11ApplyBatchRequest\x12\x1b\n\tcore_type\x18\x01 \x01(\tR\bcoreType\x12)\n\x10current_revision\x18\x02 \x01(\x03R\x0fcurrentRevision\"\x87\x01\n\rApplyArtifact\x12\x1a\n\bfilename\x18\x01 \x01(\tR\bfilename\x12\x1d\n\nsource_tag\x18\x02 \x01(\tR\tsourceTag\x12\x18\n\acontent\x18\x03 \x01(\fR\acontent\x12!\n\fcontent_hash\x18\x04 \x01(\tR\vcontentHash\"\xb7\x02\n\x12ApplyBatchResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12\x15\n\x06run_id\x18\x03 \x01(\tR\x05runId\x12\x1b\n\tcore_type\x18\x04 \x01(\tR\bcoreType\x12'\n\x0ftarget_revision\x18\x05 \x01(\x03R\x0etargetRevision\x12+\n\x11previous_revision\x18\x06 \x01(\x03R\x10previousRevision\x125\n\tartifacts\x18\a \x03(\v2\x17.agent.v1.ApplyArtifactR\tartifacts\x12#\n\rerror_message\x18\b \x01(\tR\ferrorMessage\"\x92\x02\n\x0eApplyRunReport\x12\x15\n\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1b\n\tcore_type\x18\x02 \x01(\tR\bcoreType\x12'\n\x0ftarget_revision\x18\x03 \x01(\x03R\x0etargetRevision\x12\x18\n\asuccess\x18\x04 \x01(\bR\asuccess\x12\x16\n\x06status\x18\x05 \x01(\tR\x06status\x12#\n\rerror_message\x18\x06 \x01(\tR\ferrorMessage\x12+\n\x11rollback_revision\x18\a \x01(\x03R\x10rollbackRevision\x12\x1f\n\vfinished_at\x18\b \x01(\x03R\nfinishedAt\"F\n\x10ApplyRunResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n\amessage\x18\x02 \x01(\tR\amessageB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_config_center_proto_rawDescOnce sync.Once

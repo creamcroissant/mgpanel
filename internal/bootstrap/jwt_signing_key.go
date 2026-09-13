@@ -46,7 +46,7 @@ func resolveJWTSigningKey(ctx context.Context, db *sql.DB, configuredKey string,
 	}
 
 	if db == nil {
-		return "", "", fmt.Errorf("resolve jwt signing key: db is required when auth.signing_key uses default value; you can set XBOARD_AUTH_SIGNING_KEY")
+		return "", "", fmt.Errorf("resolve jwt signing key: db is required when auth.signing_key uses default value; you can set MGPANEL_AUTH_SIGNING_KEY")
 	}
 	if deps.now == nil {
 		deps.now = time.Now
@@ -57,7 +57,7 @@ func resolveJWTSigningKey(ctx context.Context, db *sql.DB, configuredKey string,
 
 	existingKey, err := readJWTSigningKeyFromSettings(ctx, db)
 	if err != nil {
-		return "", "", fmt.Errorf("read jwt signing key from settings: %w; you can set XBOARD_AUTH_SIGNING_KEY", err)
+		return "", "", fmt.Errorf("read jwt signing key from settings: %w; you can set MGPANEL_AUTH_SIGNING_KEY", err)
 	}
 	if existingKey != "" {
 		return existingKey, JWTSigningKeySourceSettings, nil
@@ -65,19 +65,19 @@ func resolveJWTSigningKey(ctx context.Context, db *sql.DB, configuredKey string,
 
 	generatedKey, err := generateJWTSigningKey(deps.randReader)
 	if err != nil {
-		return "", "", fmt.Errorf("generate jwt signing key: %w; you can set XBOARD_AUTH_SIGNING_KEY", err)
+		return "", "", fmt.Errorf("generate jwt signing key: %w; you can set MGPANEL_AUTH_SIGNING_KEY", err)
 	}
 
 	if err := insertJWTSigningKeyIfMissing(ctx, db, generatedKey, deps.now().Unix()); err != nil {
-		return "", "", fmt.Errorf("persist jwt signing key to settings: %w; you can set XBOARD_AUTH_SIGNING_KEY", err)
+		return "", "", fmt.Errorf("persist jwt signing key to settings: %w; you can set MGPANEL_AUTH_SIGNING_KEY", err)
 	}
 
 	resolvedKey, err := readJWTSigningKeyFromSettings(ctx, db)
 	if err != nil {
-		return "", "", fmt.Errorf("read jwt signing key after persistence: %w; you can set XBOARD_AUTH_SIGNING_KEY", err)
+		return "", "", fmt.Errorf("read jwt signing key after persistence: %w; you can set MGPANEL_AUTH_SIGNING_KEY", err)
 	}
 	if resolvedKey == "" {
-		return "", "", fmt.Errorf("jwt signing key not found after persistence; you can set XBOARD_AUTH_SIGNING_KEY")
+		return "", "", fmt.Errorf("jwt signing key not found after persistence; you can set MGPANEL_AUTH_SIGNING_KEY")
 	}
 
 	if resolvedKey == generatedKey {

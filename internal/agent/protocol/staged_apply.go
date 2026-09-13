@@ -95,7 +95,7 @@ func (m *Manager) ExecuteStagedApply(ctx context.Context, req StagedApplyRequest
 		ActiveDir: activeDir,
 	}
 
-	stageDir, err := os.MkdirTemp(filepath.Dir(activeDir), ".xboard_apply_stage_*")
+	stageDir, err := os.MkdirTemp(filepath.Dir(activeDir), ".mgpanel_apply_stage_*")
 	if err != nil {
 		return result, fmt.Errorf("create stage dir: %w", err)
 	}
@@ -342,7 +342,7 @@ func switchManagedDir(activeDir, runID, stageDir string) (backupDir string, swit
 	if runID == "" {
 		runID = "unknown"
 	}
-	backupDir = filepath.Join(filepath.Dir(activeDir), fmt.Sprintf(".xboard_apply_backup_%s_%d", runID, time.Now().UnixNano()))
+	backupDir = filepath.Join(filepath.Dir(activeDir), fmt.Sprintf(".mgpanel_apply_backup_%s_%d", runID, time.Now().UnixNano()))
 	if _, statErr := os.Stat(activeDir); statErr == nil {
 		if err := os.Rename(activeDir, backupDir); err != nil {
 			return "", false, fmt.Errorf("move current dir to backup: %w", err)

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package agent.v1;
 
-option go_package = "github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1";
+option go_package = "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1";
 
 // ApplyBatchRequest asks panel for target revision artifacts.
 message ApplyBatchRequest {

@@ -494,48 +494,7 @@ func (x *GetStatsOnlineIpListResponse) GetIps() []string {
 
 var File_xray_stats_command_command_proto protoreflect.FileDescriptor
 
-const file_xray_stats_command_command_proto_rawDesc = "" +
-	"\n" +
-	" xray/stats/command/command.proto\x12\x16xray.app.stats.command\";\n" +
-	"\x0fGetStatsRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05reset\x18\x02 \x01(\bR\x05reset\"0\n" +
-	"\x04Stat\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x03R\x05value\"D\n" +
-	"\x10GetStatsResponse\x120\n" +
-	"\x04stat\x18\x01 \x01(\v2\x1c.xray.app.stats.command.StatR\x04stat\"w\n" +
-	"\x11QueryStatsRequest\x12\x18\n" +
-	"\apattern\x18\x01 \x01(\tR\apattern\x12\x14\n" +
-	"\x05reset\x18\x02 \x01(\bR\x05reset\x12\x1a\n" +
-	"\bpatterns\x18\x03 \x03(\tR\bpatterns\x12\x16\n" +
-	"\x06regexp\x18\x04 \x01(\bR\x06regexp\"F\n" +
-	"\x12QueryStatsResponse\x120\n" +
-	"\x04stat\x18\x01 \x03(\v2\x1c.xray.app.stats.command.StatR\x04stat\"\x11\n" +
-	"\x0fSysStatsRequest\"\xa2\x02\n" +
-	"\x10SysStatsResponse\x12\"\n" +
-	"\fNumGoroutine\x18\x01 \x01(\rR\fNumGoroutine\x12\x14\n" +
-	"\x05NumGC\x18\x02 \x01(\rR\x05NumGC\x12\x14\n" +
-	"\x05Alloc\x18\x03 \x01(\x04R\x05Alloc\x12\x1e\n" +
-	"\n" +
-	"TotalAlloc\x18\x04 \x01(\x04R\n" +
-	"TotalAlloc\x12\x10\n" +
-	"\x03Sys\x18\x05 \x01(\x04R\x03Sys\x12\x18\n" +
-	"\aMallocs\x18\x06 \x01(\x04R\aMallocs\x12\x14\n" +
-	"\x05Frees\x18\a \x01(\x04R\x05Frees\x12 \n" +
-	"\vLiveObjects\x18\b \x01(\x04R\vLiveObjects\x12\"\n" +
-	"\fPauseTotalNs\x18\t \x01(\x04R\fPauseTotalNs\x12\x16\n" +
-	"\x06Uptime\x18\n" +
-	" \x01(\rR\x06Uptime\"0\n" +
-	"\x1cGetStatsOnlineIpListResponse\x12\x10\n" +
-	"\x03ips\x18\x01 \x03(\tR\x03ips2\x90\x04\n" +
-	"\fStatsService\x12]\n" +
-	"\bGetStats\x12'.xray.app.stats.command.GetStatsRequest\x1a(.xray.app.stats.command.GetStatsResponse\x12c\n" +
-	"\x0eGetStatsOnline\x12'.xray.app.stats.command.GetStatsRequest\x1a(.xray.app.stats.command.GetStatsResponse\x12c\n" +
-	"\n" +
-	"QueryStats\x12).xray.app.stats.command.QueryStatsRequest\x1a*.xray.app.stats.command.QueryStatsResponse\x12`\n" +
-	"\vGetSysStats\x12'.xray.app.stats.command.SysStatsRequest\x1a(.xray.app.stats.command.SysStatsResponse\x12u\n" +
-	"\x14GetStatsOnlineIpList\x12'.xray.app.stats.command.GetStatsRequest\x1a4.xray.app.stats.command.GetStatsOnlineIpListResponseBIZGgithub.com/creamcroissant/xboard/pkg/pb/xray/stats/command;statscommandb\x06proto3"
+const file_xray_stats_command_command_proto_rawDesc = "\n xray/stats/command/command.proto\x12\x16xray.app.stats.command\";\n\x0fGetStatsRequest\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n\x05reset\x18\x02 \x01(\bR\x05reset\"0\n\x04Stat\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n\x05value\x18\x02 \x01(\x03R\x05value\"D\n\x10GetStatsResponse\x120\n\x04stat\x18\x01 \x01(\v2\x1c.xray.app.stats.command.StatR\x04stat\"w\n\x11QueryStatsRequest\x12\x18\n\apattern\x18\x01 \x01(\tR\apattern\x12\x14\n\x05reset\x18\x02 \x01(\bR\x05reset\x12\x1a\n\bpatterns\x18\x03 \x03(\tR\bpatterns\x12\x16\n\x06regexp\x18\x04 \x01(\bR\x06regexp\"F\n\x12QueryStatsResponse\x120\n\x04stat\x18\x01 \x03(\v2\x1c.xray.app.stats.command.StatR\x04stat\"\x11\n\x0fSysStatsRequest\"\xa2\x02\n\x10SysStatsResponse\x12\"\n\fNumGoroutine\x18\x01 \x01(\rR\fNumGoroutine\x12\x14\n\x05NumGC\x18\x02 \x01(\rR\x05NumGC\x12\x14\n\x05Alloc\x18\x03 \x01(\x04R\x05Alloc\x12\x1e\n\nTotalAlloc\x18\x04 \x01(\x04R\nTotalAlloc\x12\x10\n\x03Sys\x18\x05 \x01(\x04R\x03Sys\x12\x18\n\aMallocs\x18\x06 \x01(\x04R\aMallocs\x12\x14\n\x05Frees\x18\a \x01(\x04R\x05Frees\x12 \n\vLiveObjects\x18\b \x01(\x04R\vLiveObjects\x12\"\n\fPauseTotalNs\x18\t \x01(\x04R\fPauseTotalNs\x12\x16\n\x06Uptime\x18\n \x01(\rR\x06Uptime\"0\n\x1cGetStatsOnlineIpListResponse\x12\x10\n\x03ips\x18\x01 \x03(\tR\x03ips2\x90\x04\n\fStatsService\x12]\n\bGetStats\x12'.xray.app.stats.command.GetStatsRequest\x1a(.xray.app.stats.command.GetStatsResponse\x12c\n\x0eGetStatsOnline\x12'.xray.app.stats.command.GetStatsRequest\x1a(.xray.app.stats.command.GetStatsResponse\x12c\n\nQueryStats\x12).xray.app.stats.command.QueryStatsRequest\x1a*.xray.app.stats.command.QueryStatsResponse\x12`\n\vGetSysStats\x12'.xray.app.stats.command.SysStatsRequest\x1a(.xray.app.stats.command.SysStatsResponse\x12u\n\x14GetStatsOnlineIpList\x12'.xray.app.stats.command.GetStatsRequest\x1a4.xray.app.stats.command.GetStatsOnlineIpListResponseBJZHgithub.com/creamcroissant/mgpanel/pkg/pb/xray/stats/command;statscommandb\x06proto3"
 
 var (
 	file_xray_stats_command_command_proto_rawDescOnce sync.Once

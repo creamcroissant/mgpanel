@@ -57,7 +57,7 @@ func normalizeSwitcherConfig(cfg SwitcherConfig) SwitcherConfig {
 		cfg.ConntrackBin = "conntrack"
 	}
 	if strings.TrimSpace(cfg.NftTableName) == "" {
-		cfg.NftTableName = "xboard_proxy"
+		cfg.NftTableName = "mgpanel_proxy"
 	}
 	if strings.TrimSpace(cfg.PIDDir) == "" {
 		cfg.PIDDir = defaultPIDDir

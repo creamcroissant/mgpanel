@@ -36,7 +36,7 @@ type gitHubVersionProvider struct {
 // the latest release tag from GitHub Releases API for each component.
 func NewGitHubVersionProvider() BinaryVersionRemoteProvider {
 	return NewGitHubVersionProviderWithRepos(map[string]string{
-		BinaryVersionComponentAgent:   "creamcroissant/xboard2p",
+		BinaryVersionComponentAgent:   "creamcroissant/mgpanel",
 		BinaryVersionComponentSingBox: "SagerNet/sing-box",
 		BinaryVersionComponentXray:    "XTLS/Xray-core",
 	})
@@ -81,7 +81,7 @@ func (p *gitHubVersionProvider) LatestVersion(ctx context.Context, component str
 		return "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "xboard/1.0")
+	req.Header.Set("User-Agent", "mgpanel/1.0")
 
 	resp, err := p.client.Do(req)
 	if err != nil {

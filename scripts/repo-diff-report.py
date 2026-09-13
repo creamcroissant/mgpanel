@@ -277,7 +277,7 @@ def main() -> None:
     full_state = compute_state(all_source, all_target, source_repo, target_repo)
     write_report(
         full_report,
-        "xboard vs xboard2p（全量已追踪文件差异）",
+        "mgpanel vs mgpanel（全量已追踪文件差异）",
         full_state,
         source_repo,
         target_repo,
@@ -290,7 +290,7 @@ def main() -> None:
     managed_state = compute_state(managed_source, managed_target, source_repo, target_repo)
     write_report(
         managed_report,
-        "xboard vs xboard2p（.syncignore 过滤后差异）",
+        "mgpanel vs mgpanel（.syncignore 过滤后差异）",
         managed_state,
         source_repo,
         target_repo,

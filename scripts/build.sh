@@ -1,5 +1,5 @@
 #!/bin/bash
-# XBoard Build Script
+# MGPanel Build Script
 # Builds frontend and backend with version info embedded
 
 set -e
@@ -15,7 +15,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Build variables
-BINARY_NAME="xboard"
+BINARY_NAME="mgpanel"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
 COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 BUILD_TIME="${BUILD_TIME:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
@@ -51,7 +51,7 @@ error() {
 
 # Show usage
 usage() {
-    echo "XBoard Build Script"
+    echo "MGPanel Build Script"
     echo ""
     echo "Usage: $0 [command] [options]"
     echo ""
@@ -104,7 +104,7 @@ build_backend() {
         fi
     fi
 
-    GOOS="$os" GOARCH="$arch" $GO_CMD build $GOFLAGS -ldflags "$LDFLAGS" -o "$output" ./cmd/xboard
+    GOOS="$os" GOARCH="$arch" $GO_CMD build $GOFLAGS -ldflags "$LDFLAGS" -o "$output" ./cmd/mgpanel
 }
 
 # Build for current platform
@@ -130,7 +130,7 @@ build_current() {
         fi
     fi
 
-    $GO_CMD build $GOFLAGS -ldflags "$LDFLAGS" -o "$output" ./cmd/xboard
+    $GO_CMD build $GOFLAGS -ldflags "$LDFLAGS" -o "$output" ./cmd/mgpanel
     info "Build complete: ./${output}"
 }
 
@@ -201,7 +201,7 @@ main() {
                 skip_frontend=true
                 ;;
             --version)
-                echo "XBoard Build Script"
+                echo "MGPanel Build Script"
                 echo "Version: ${VERSION}"
                 echo "Commit: ${COMMIT}"
                 exit 0

@@ -206,22 +206,7 @@ func (x *ReportAgentLogsResponse) GetMessage() string {
 
 var File_agent_v1_log_proto protoreflect.FileDescriptor
 
-const file_agent_v1_log_proto_rawDesc = "" +
-	"\n" +
-	"\x12agent/v1/log.proto\x12\bagent.v1\"u\n" +
-	"\rAgentLogEntry\x12\x1c\n" +
-	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x14\n" +
-	"\x05level\x18\x02 \x01(\tR\x05level\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\x12\x16\n" +
-	"\x06source\x18\x04 \x01(\tR\x06source\"l\n" +
-	"\x16ReportAgentLogsRequest\x121\n" +
-	"\aentries\x18\x01 \x03(\v2\x17.agent.v1.AgentLogEntryR\aentries\x12\x1f\n" +
-	"\vreported_at\x18\x02 \x01(\x03R\n" +
-	"reportedAt\"i\n" +
-	"\x17ReportAgentLogsResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1a\n" +
-	"\baccepted\x18\x02 \x01(\x05R\baccepted\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessageB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_log_proto_rawDesc = "\n\x12agent/v1/log.proto\x12\bagent.v1\"u\n\rAgentLogEntry\x12\x1c\n\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x14\n\x05level\x18\x02 \x01(\tR\x05level\x12\x18\n\amessage\x18\x03 \x01(\tR\amessage\x12\x16\n\x06source\x18\x04 \x01(\tR\x06source\"l\n\x16ReportAgentLogsRequest\x121\n\aentries\x18\x01 \x03(\v2\x17.agent.v1.AgentLogEntryR\aentries\x12\x1f\n\vreported_at\x18\x02 \x01(\x03R\nreportedAt\"i\n\x17ReportAgentLogsResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1a\n\baccepted\x18\x02 \x01(\x05R\baccepted\x12\x18\n\amessage\x18\x03 \x01(\tR\amessageB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_log_proto_rawDescOnce sync.Once

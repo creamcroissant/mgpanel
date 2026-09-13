@@ -1,4 +1,4 @@
-# XBoard
+# MGPanel
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 
 </div>
 
-XBoard 是基于 Go 的面板 + Agent 管理系统，集成了订阅管理、流量统计、节点通信和自动化运维能力。单个二进制内嵌了管理端/用户端前端、SQLite 数据库、后台任务调度器以及面板/Agent 部署脚本。
+MGPanel 是基于 Go 的面板 + Agent 管理系统，集成了订阅管理、流量统计、节点通信和自动化运维能力。单个二进制内嵌了管理端/用户端前端、SQLite 数据库、后台任务调度器以及面板/Agent 部署脚本。
 
 ## ✨ 特性
 
@@ -24,7 +24,7 @@ XBoard 是基于 Go 的面板 + Agent 管理系统，集成了订阅管理、流
 
 ```
 cmd/
-├── xboard/           # 面板主程序（serve, tui, user, config 等）
+├── mgpanel/           # 面板主程序（serve, tui, user, config 等）
 └── agent/            # Agent 程序
 internal/             # API、Service、Repository、后台任务、异步、Bootstrap……
 pkg/, test/           # 共享库与契约/集成测试
@@ -49,29 +49,29 @@ mkdir -p data
 cp config.example.yml config.yml
 
 # 3. 启动服务
-go run ./cmd/xboard serve
+go run ./cmd/mgpanel serve
 ```
 
-默认监听 `0.0.0.0:8080`，首次启动会自动在 `data/xboard.db` 执行 SQLite 迁移。
+默认监听 `0.0.0.0:8080`，首次启动会自动在 `data/mgpanel.db` 执行 SQLite 迁移。
 
 ### CLI 命令
 
-`xboard` 二进制提供多个子命令：
+`mgpanel` 二进制提供多个子命令：
 
-- `xboard serve`：启动 HTTP 服务（默认）
-- `xboard user`：用户管理（创建、列出、重置密码等）
-- `xboard config`：查看或更新系统配置
-- `xboard migrate`：数据库迁移管理
-- `xboard backup`：备份数据库
-- `xboard restore`：从备份恢复数据库
-- `xboard job`：管理后台任务
-- `xboard version`：显示版本信息
+- `mgpanel serve`：启动 HTTP 服务（默认）
+- `mgpanel user`：用户管理（创建、列出、重置密码等）
+- `mgpanel config`：查看或更新系统配置
+- `mgpanel migrate`：数据库迁移管理
+- `mgpanel backup`：备份数据库
+- `mgpanel restore`：从备份恢复数据库
+- `mgpanel job`：管理后台任务
+- `mgpanel version`：显示版本信息
 
 ### 初始化向导
 
 - 如果数据库中不存在管理员账号，HTTP 服务会自动跳转到 `/install` 显示初始化界面。
 - 向导支持通过"用户名（可选）/ 邮箱（可选）+ 密码"创建首个管理员账号。
-- 也可使用 CLI：`go run ./cmd/xboard user create --email admin@example.com --password secret --admin`。
+- 也可使用 CLI：`go run ./cmd/mgpanel user create --email admin@example.com --password secret --admin`。
 
 ### 管理端前端
 
@@ -89,12 +89,12 @@ go run ./cmd/xboard serve
 ### Docker
 
 ```bash
-docker build -t xboard .
+docker build -t mgpanel .
 docker run --rm -it \
   -p 8080:8080 \
   -v $(pwd)/data:/data \
-  --name xboard \
-  xboard serve
+  --name mgpanel \
+  mgpanel serve
 ```
 
 ### Linux 服务管理（systemd/OpenRC）
@@ -103,26 +103,26 @@ docker run --rm -it \
 
 ```bash
 # 安装面板（需要 root）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/panel.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/panel.sh | sudo bash
 
 # 安装 Agent（需要 root）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # 卸载面板
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/panel.sh | sudo bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/panel.sh | sudo bash -s -- --uninstall
 
 # 卸载 Agent
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- --uninstall
 
 # 或用 wget 下载后执行
-wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh
+wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh
 sudo bash /tmp/agent.sh -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 ```
 
 服务管理器说明：
 - 优先使用 systemd；如果 systemd 不可用且 OpenRC 可用，则回退 OpenRC（`/etc/init.d/*` + `rc-update add`）。
-- 设置 `XBOARD_INSTALL_SKIP_SYSTEMD=1` 跳过自动服务注册。
+- 设置 `MGPANEL_INSTALL_SKIP_SYSTEMD=1` 跳过自动服务注册。
 - 自定义 `INSTALL_DIR` 后，生成的 systemd unit 会将 `WorkingDirectory` 和 `ExecStart` 渲染到对应路径。
 - `--uninstall` 对 systemd 和 OpenRC 都做尽力清理（`systemctl` / `rc-service` + `rc-update`），幂等执行。
 
@@ -130,15 +130,15 @@ sudo bash /tmp/agent.sh -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 ```bash
 # systemd 主机
-sudo systemctl start xboard
-sudo systemctl status xboard
+sudo systemctl start mgpanel
+sudo systemctl status mgpanel
 
 # OpenRC 主机
-sudo rc-service xboard start
-sudo rc-service xboard status
+sudo rc-service mgpanel start
+sudo rc-service mgpanel status
 ```
 
-默认安装目录为 `/opt/xboard/panel`（面板）和 `/opt/xboard/agent`（Agent）。
+默认安装目录为 `/opt/mgpanel/panel`（面板）和 `/opt/mgpanel/agent`（Agent）。
 
 下载依赖（`curl` + CA 证书）由 `deploy/panel.sh` 和 `deploy/agent.sh` 在下载二进制前自动处理。
 
@@ -150,11 +150,11 @@ Agent 安装参数：
 
 | 参数 | 环境变量 | 说明 |
 |------|---------|------|
-| `-k` | `XBOARD_AGENT_COMMUNICATION_KEY` | Agent 注册通信密钥（必填） |
-| `-g` | `XBOARD_AGENT_GRPC_ADDRESS` | Panel gRPC 地址，例如 `10.0.0.2:9090`（必填） |
-| `-t` | `XBOARD_AGENT_GRPC_TLS_ENABLED` | gRPC TLS 开关，默认 `false` |
-| `--traffic-type` | `XBOARD_AGENT_TRAFFIC_TYPE` | 流量统计方式，默认 `netio` |
-| `-f` | `XBOARD_AGENT_CONFIG_OVERWRITE=1` | 强制覆盖已有 config.yml |
+| `-k` | `MGPANEL_AGENT_COMMUNICATION_KEY` | Agent 注册通信密钥（必填） |
+| `-g` | `MGPANEL_AGENT_GRPC_ADDRESS` | Panel gRPC 地址，例如 `10.0.0.2:9090`（必填） |
+| `-t` | `MGPANEL_AGENT_GRPC_TLS_ENABLED` | gRPC TLS 开关，默认 `false` |
+| `--traffic-type` | `MGPANEL_AGENT_TRAFFIC_TYPE` | 流量统计方式，默认 `netio` |
+| `-f` | `MGPANEL_AGENT_CONFIG_OVERWRITE=1` | 强制覆盖已有 config.yml |
 | `--uninstall` | — | 卸载 Agent |
 
 配置生成行为：
@@ -172,9 +172,9 @@ Agent 安装参数：
 非交互式安装示例：
 
 ```bash
-sudo INSTALL_DIR=/opt/xboard/agent \
-  XBOARD_AGENT_COMMUNICATION_KEY='your-agent-communication-key' \
-  XBOARD_AGENT_GRPC_ADDRESS='10.0.0.2:9090' \
+sudo INSTALL_DIR=/opt/mgpanel/agent \
+  MGPANEL_AGENT_COMMUNICATION_KEY='your-agent-communication-key' \
+  MGPANEL_AGENT_GRPC_ADDRESS='10.0.0.2:9090' \
   sh ./deploy/agent.sh
 ```
 
@@ -230,7 +230,7 @@ sudo INSTALL_DIR=/opt/xboard/agent \
 | 安装依赖 | `go mod tidy` |
 | 格式化代码 | `gofmt -w ./cmd ./internal ./pkg ./test` |
 | 单元测试 | `go test ./...` |
-| 启动服务 | `go run ./cmd/xboard serve` |
+| 启动服务 | `go run ./cmd/mgpanel serve` |
 | 构建全部 | `make build` |
 | 仅构建前端 | `make build-frontend` |
 | 仅构建后端 | `make build-backend` |

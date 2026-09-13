@@ -450,45 +450,7 @@ func (x *SetRoutingTablesPayload) GetRoutes() []*RouteEntry {
 
 var File_agent_v1_mesh_proto protoreflect.FileDescriptor
 
-const file_agent_v1_mesh_proto_rawDesc = "" +
-	"\n" +
-	"\x13agent/v1/mesh.proto\x12\bagent.v1\"0\n" +
-	"\x0fJoinMeshRequest\x12\x1d\n" +
-	"\n" +
-	"network_id\x18\x01 \x01(\tR\tnetworkId\"\xb1\x01\n" +
-	"\x10JoinMeshResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12$\n" +
-	"\x0ewg_private_key\x18\x02 \x01(\tR\fwgPrivateKey\x12\"\n" +
-	"\rwg_public_key\x18\x03 \x01(\tR\vwgPublicKey\x12\x13\n" +
-	"\x05wg_ip\x18\x04 \x01(\tR\x04wgIp\x12$\n" +
-	"\x0ewg_listen_port\x18\x05 \x01(\x05R\fwgListenPort\"4\n" +
-	"\x13GetMeshPeersRequest\x12\x1d\n" +
-	"\n" +
-	"network_id\x18\x01 \x01(\tR\tnetworkId\"\x99\x01\n" +
-	"\rMeshPeerEntry\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
-	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\x12\x1a\n" +
-	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x1f\n" +
-	"\vallowed_ips\x18\x04 \x03(\tR\n" +
-	"allowedIps\x12\x1c\n" +
-	"\tkeepalive\x18\x05 \x01(\x05R\tkeepalive\"_\n" +
-	"\x14GetMeshPeersResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12-\n" +
-	"\x05peers\x18\x02 \x03(\v2\x17.agent.v1.MeshPeerEntryR\x05peers\"\xbc\x01\n" +
-	"\n" +
-	"RouteEntry\x12\x17\n" +
-	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1a\n" +
-	"\bpriority\x18\x02 \x01(\x05R\bpriority\x12\x1c\n" +
-	"\n" +
-	"peer_wg_ip\x18\x03 \x01(\tR\bpeerWgIp\x12\x1b\n" +
-	"\tpeer_port\x18\x04 \x01(\x05R\bpeerPort\x12\x1d\n" +
-	"\n" +
-	"latency_ms\x18\x05 \x01(\x01R\tlatencyMs\x12\x1f\n" +
-	"\vpacket_loss\x18\x06 \x01(\x01R\n" +
-	"packetLoss\"G\n" +
-	"\x17SetRoutingTablesPayload\x12,\n" +
-	"\x06routes\x18\x01 \x03(\v2\x14.agent.v1.RouteEntryR\x06routesB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_mesh_proto_rawDesc = "\n\x13agent/v1/mesh.proto\x12\bagent.v1\"0\n\x0fJoinMeshRequest\x12\x1d\n\nnetwork_id\x18\x01 \x01(\tR\tnetworkId\"\xb1\x01\n\x10JoinMeshResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12$\n\x0ewg_private_key\x18\x02 \x01(\tR\fwgPrivateKey\x12\"\n\rwg_public_key\x18\x03 \x01(\tR\vwgPublicKey\x12\x13\n\x05wg_ip\x18\x04 \x01(\tR\x04wgIp\x12$\n\x0ewg_listen_port\x18\x05 \x01(\x05R\fwgListenPort\"4\n\x13GetMeshPeersRequest\x12\x1d\n\nnetwork_id\x18\x01 \x01(\tR\tnetworkId\"\x99\x01\n\rMeshPeerEntry\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n\npublic_key\x18\x02 \x01(\tR\tpublicKey\x12\x1a\n\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x1f\n\vallowed_ips\x18\x04 \x03(\tR\nallowedIps\x12\x1c\n\tkeepalive\x18\x05 \x01(\x05R\tkeepalive\"_\n\x14GetMeshPeersResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12-\n\x05peers\x18\x02 \x03(\v2\x17.agent.v1.MeshPeerEntryR\x05peers\"\xbc\x01\n\nRouteEntry\x12\x17\n\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1a\n\bpriority\x18\x02 \x01(\x05R\bpriority\x12\x1c\n\npeer_wg_ip\x18\x03 \x01(\tR\bpeerWgIp\x12\x1b\n\tpeer_port\x18\x04 \x01(\x05R\bpeerPort\x12\x1d\n\nlatency_ms\x18\x05 \x01(\x01R\tlatencyMs\x12\x1f\n\vpacket_loss\x18\x06 \x01(\x01R\npacketLoss\"G\n\x17SetRoutingTablesPayload\x12,\n\x06routes\x18\x01 \x03(\v2\x14.agent.v1.RouteEntryR\x06routesB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_mesh_proto_rawDescOnce sync.Once

@@ -7,8 +7,8 @@
 package xrayserial
 
 import (
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,11 +23,11 @@ const (
 
 // TypedMessage is a serialized proto message along with its type name.
 type TypedMessage struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Value         []byte                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TypedMessage) Reset() {
@@ -76,21 +76,7 @@ func (x *TypedMessage) GetValue() []byte {
 
 var File_common_serial_typed_message_proto protoreflect.FileDescriptor
 
-const file_common_serial_typed_message_proto_rawDesc = "" +
-	"\n!common/seria" +
-	"l/typed_messag" +
-	"e.proto\x12\x12xray." +
-	"common.serial\"" +
-	"8\n\x0cTypedMessag" +
-	"e\x12\x12\n\x04type\x18\x01 \x01(" +
-	"\tR\x04type\x12\x14\n\x05val" +
-	"ue\x18\x02 \x01(\x0cR\x05valu" +
-	"eB<Z:github.co" +
-	"m/creamcroissa" +
-	"nt/xboard/pkg/" +
-	"pb/xray/common" +
-	"/serialb\x06proto" +
-	"3"
+const file_common_serial_typed_message_proto_rawDesc = "\n!common/serial/typed_message.proto\x12\x12xray.common.serial\"8\n\fTypedMessage\x12\x12\n\x04type\x18\x01 \x01(\tR\x04type\x12\x14\n\x05value\x18\x02 \x01(\fR\x05valueB=Z;github.com/creamcroissant/mgpanel/pkg/pb/xray/common/serialb\x06proto3"
 
 var (
 	file_common_serial_typed_message_proto_rawDescOnce sync.Once
@@ -104,9 +90,7 @@ func file_common_serial_typed_message_proto_rawDescGZIP() []byte {
 	return file_common_serial_typed_message_proto_rawDescData
 }
 
-
 var file_common_serial_typed_message_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-
 
 var file_common_serial_typed_message_proto_goTypes = []any{
 	(*TypedMessage)(nil), // 0: xrayserial.TypedMessage
@@ -118,7 +102,6 @@ var file_common_serial_typed_message_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
-
 
 func init() { file_common_serial_typed_message_proto_init() }
 func file_common_serial_typed_message_proto_init() {
@@ -143,4 +126,3 @@ func file_common_serial_typed_message_proto_init() {
 	file_common_serial_typed_message_proto_goTypes = nil
 	file_common_serial_typed_message_proto_depIdxs = nil
 }
-

@@ -7,10 +7,10 @@
 package proxymancommand
 
 import (
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	xrayprotocol "github.com/creamcroissant/mgpanel/pkg/pb/xray/common/protocol"
 	xrayserial "github.com/creamcroissant/mgpanel/pkg/pb/xray/common/serial"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -25,10 +25,10 @@ const (
 
 // AddUserOperation adds a user to an inbound via AlterInbound.
 type AddUserOperation struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	User *xrayprotocol.User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *xrayprotocol.User     `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddUserOperation) Reset() {
@@ -70,10 +70,10 @@ func (x *AddUserOperation) GetUser() *xrayprotocol.User {
 
 // RemoveUserOperation removes a user from an inbound via AlterInbound.
 type RemoveUserOperation struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Email string `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RemoveUserOperation) Reset() {
@@ -115,11 +115,11 @@ func (x *RemoveUserOperation) GetEmail() string {
 
 // AlterInboundRequest alters an inbound by tag with a TypedMessage operation.
 type AlterInboundRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Tag string `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
-	Operation *xrayserial.TypedMessage `protobuf:"bytes,2,opt,name=operation,proto3" json:"operation,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Tag           string                   `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	Operation     *xrayserial.TypedMessage `protobuf:"bytes,2,opt,name=operation,proto3" json:"operation,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AlterInboundRequest) Reset() {
@@ -169,7 +169,7 @@ func (x *AlterInboundRequest) GetOperation() *xrayserial.TypedMessage {
 // AlterInboundResponse is the response to AlterInbound.
 type AlterInboundResponse struct {
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AlterInboundResponse) Reset() {
@@ -204,11 +204,11 @@ func (*AlterInboundResponse) Descriptor() ([]byte, []int) {
 
 // GetInboundUserRequest lists users by (tag, email).
 type GetInboundUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Tag string `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
-	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tag           string                 `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetInboundUserRequest) Reset() {
@@ -257,10 +257,10 @@ func (x *GetInboundUserRequest) GetEmail() string {
 
 // GetInboundUserResponse returns a list of inbound users.
 type GetInboundUserResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Users []*xrayprotocol.User `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*xrayprotocol.User   `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetInboundUserResponse) Reset() {
@@ -302,10 +302,10 @@ func (x *GetInboundUserResponse) GetUsers() []*xrayprotocol.User {
 
 // GetInboundUsersCountResponse returns the number of inbound users.
 type GetInboundUsersCountResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Count int64 `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Count         int64                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetInboundUsersCountResponse) Reset() {
@@ -347,81 +347,7 @@ func (x *GetInboundUsersCountResponse) GetCount() int64 {
 
 var File_app_proxyman_command_command_proto protoreflect.FileDescriptor
 
-const file_app_proxyman_command_command_proto_rawDesc = "" +
-	"\n\"app/proxyman" +
-	"/command/comma" +
-	"nd.proto\x12\x19xray" +
-	".app.proxyman." +
-	"command\x1a\x1acommo" +
-	"n/protocol/use" +
-	"r.proto\x1a!commo" +
-	"n/serial/typed" +
-	"_message.proto" +
-	"\"B\n\x10AddUserOpe" +
-	"ration\x12.\n\x04user" +
-	"\x18\x01 \x01(\x0b2\x1a.xray." +
-	"common.protoco" +
-	"l.UserR\x04user\"+" +
-	"\n\x13RemoveUserOp" +
-	"eration\x12\x14\n\x05ema" +
-	"il\x18\x01 \x01(\tR\x05emai" +
-	"l\"g\n\x13AlterInbo" +
-	"undRequest\x12\x10\n\x03" +
-	"tag\x18\x01 \x01(\tR\x03tag" +
-	"\x12>\n\toperation\x18" +
-	"\x02 \x01(\x0b2 .xray.c" +
-	"ommon.serial.T" +
-	"ypedMessageR\to" +
-	"peration\"\x16\n\x14Al" +
-	"terInboundResp" +
-	"onse\"?\n\x15GetInb" +
-	"oundUserReques" +
-	"t\x12\x10\n\x03tag\x18\x01 \x01(\t" +
-	"R\x03tag\x12\x14\n\x05email" +
-	"\x18\x02 \x01(\tR\x05email\"" +
-	"J\n\x16GetInboundU" +
-	"serResponse\x120\n" +
-	"\x05users\x18\x01 \x03(\x0b2\x1a" +
-	".xray.common.p" +
-	"rotocol.UserR\x05" +
-	"users\"4\n\x1cGetIn" +
-	"boundUsersCoun" +
-	"tResponse\x12\x14\n\x05c" +
-	"ount\x18\x01 \x01(\x03R\x05co" +
-	"unt2\xfd\x02\n\x0eHandle" +
-	"rService\x12o\n\x0cAl" +
-	"terInbound\x12..x" +
-	"ray.app.proxym" +
-	"an.command.Alt" +
-	"erInboundReque" +
-	"st\x1a/.xray.app." +
-	"proxyman.comma" +
-	"nd.AlterInboun" +
-	"dResponse\x12v\n\x0fG" +
-	"etInboundUsers" +
-	"\x120.xray.app.pr" +
-	"oxyman.command" +
-	".GetInboundUse" +
-	"rRequest\x1a1.xra" +
-	"y.app.proxyman" +
-	".command.GetIn" +
-	"boundUserRespo" +
-	"nse\x12\x81\x01\n\x14GetInb" +
-	"oundUsersCount" +
-	"\x120.xray.app.pr" +
-	"oxyman.command" +
-	".GetInboundUse" +
-	"rRequest\x1a7.xra" +
-	"y.app.proxyman" +
-	".command.GetIn" +
-	"boundUsersCoun" +
-	"tResponseBCZAg" +
-	"ithub.com/crea" +
-	"mcroissant/xbo" +
-	"ard/pkg/pb/xra" +
-	"y/app/proxyman" +
-	"/commandb\x06prot" +
-	"o3"
+const file_app_proxyman_command_command_proto_rawDesc = "\n\"app/proxyman/command/command.proto\x12\x19xray.app.proxyman.command\x1a\x1acommon/protocol/user.proto\x1a!common/serial/typed_message.proto\"B\n\x10AddUserOperation\x12.\n\x04user\x18\x01 \x01(\v2\x1a.xray.common.protocol.UserR\x04user\"+\n\x13RemoveUserOperation\x12\x14\n\x05email\x18\x01 \x01(\tR\x05email\"g\n\x13AlterInboundRequest\x12\x10\n\x03tag\x18\x01 \x01(\tR\x03tag\x12>\n\toperation\x18\x02 \x01(\v2 .xray.common.serial.TypedMessageR\toperation\"\x16\n\x14AlterInboundResponse\"?\n\x15GetInboundUserRequest\x12\x10\n\x03tag\x18\x01 \x01(\tR\x03tag\x12\x14\n\x05email\x18\x02 \x01(\tR\x05email\"J\n\x16GetInboundUserResponse\x120\n\x05users\x18\x01 \x03(\v2\x1a.xray.common.protocol.UserR\x05users\"4\n\x1cGetInboundUsersCountResponse\x12\x14\n\x05count\x18\x01 \x01(\x03R\x05count2\xfd\x02\n\x0eHandlerService\x12o\n\fAlterInbound\x12..xray.app.proxyman.command.AlterInboundRequest\x1a/.xray.app.proxyman.command.AlterInboundResponse\x12v\n\x0fGetInboundUsers\x120.xray.app.proxyman.command.GetInboundUserRequest\x1a1.xray.app.proxyman.command.GetInboundUserResponse\x12\x81\x01\n\x14GetInboundUsersCount\x120.xray.app.proxyman.command.GetInboundUserRequest\x1a7.xray.app.proxyman.command.GetInboundUsersCountResponseBDZBgithub.com/creamcroissant/mgpanel/pkg/pb/xray/app/proxyman/commandb\x06proto3"
 
 var (
 	file_app_proxyman_command_command_proto_rawDescOnce sync.Once
@@ -435,20 +361,18 @@ func file_app_proxyman_command_command_proto_rawDescGZIP() []byte {
 	return file_app_proxyman_command_command_proto_rawDescData
 }
 
-
 var file_app_proxyman_command_command_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 
-
 var file_app_proxyman_command_command_proto_goTypes = []any{
-	(*AddUserOperation)(nil), // 0: proxymancommand.AddUserOperation
-	(*RemoveUserOperation)(nil), // 1: proxymancommand.RemoveUserOperation
-	(*AlterInboundRequest)(nil), // 2: proxymancommand.AlterInboundRequest
-	(*AlterInboundResponse)(nil), // 3: proxymancommand.AlterInboundResponse
-	(*GetInboundUserRequest)(nil), // 4: proxymancommand.GetInboundUserRequest
-	(*GetInboundUserResponse)(nil), // 5: proxymancommand.GetInboundUserResponse
+	(*AddUserOperation)(nil),             // 0: proxymancommand.AddUserOperation
+	(*RemoveUserOperation)(nil),          // 1: proxymancommand.RemoveUserOperation
+	(*AlterInboundRequest)(nil),          // 2: proxymancommand.AlterInboundRequest
+	(*AlterInboundResponse)(nil),         // 3: proxymancommand.AlterInboundResponse
+	(*GetInboundUserRequest)(nil),        // 4: proxymancommand.GetInboundUserRequest
+	(*GetInboundUserResponse)(nil),       // 5: proxymancommand.GetInboundUserResponse
 	(*GetInboundUsersCountResponse)(nil), // 6: proxymancommand.GetInboundUsersCountResponse
-	(*xrayprotocol.User)(nil), // 7: xrayprotocol.User
-	(*xrayserial.TypedMessage)(nil), // 8: xrayserial.TypedMessage
+	(*xrayprotocol.User)(nil),            // 7: xrayprotocol.User
+	(*xrayserial.TypedMessage)(nil),      // 8: xrayserial.TypedMessage
 }
 var file_app_proxyman_command_command_proto_depIdxs = []int32{
 	7, // 0: proxymancommand.AddUserOperation.User:type_name -> xrayprotocol.User
@@ -466,7 +390,6 @@ var file_app_proxyman_command_command_proto_depIdxs = []int32{
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name
 }
-
 
 func init() { file_app_proxyman_command_command_proto_init() }
 func file_app_proxyman_command_command_proto_init() {
@@ -491,4 +414,3 @@ func file_app_proxyman_command_command_proto_init() {
 	file_app_proxyman_command_command_proto_goTypes = nil
 	file_app_proxyman_command_command_proto_depIdxs = nil
 }
-

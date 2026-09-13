@@ -1,4 +1,4 @@
-# XBoard
+# MGPanel
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 
 </div>
 
-XBoard 是一个基于 Go 的面板与 Agent 系统，用于订阅与流量管理。项目以单一二进制交付，内置管理端/用户端前端、SQLite 存储、后台任务与面板/探针部署脚本。
+MGPanel 是一个基于 Go 的面板与 Agent 系统，用于订阅与流量管理。项目以单一二进制交付，内置管理端/用户端前端、SQLite 存储、后台任务与面板/探针部署脚本。
 
 ## ✨ 亮点
 
@@ -21,7 +21,7 @@ XBoard 是一个基于 Go 的面板与 Agent 系统，用于订阅与流量管�
 ## 📁 目录概览
 
 ```
-cmd/              # xboard (统一 CLI 入口)
+cmd/              # mgpanel (统一 CLI 入口)
 internal/         # API、Service、Repository、Job、Async、Bootstrap 等核心模块
 pkg/, test/       # 预留扩展库与契约/集成测试
 Dockerfile        # Go 多阶段构建
@@ -47,29 +47,29 @@ mkdir -p data
 cp config.example.yml config.yml # 使用 YAML 配置
 
 # 3. 启动服务
-go run ./cmd/xboard serve
+go run ./cmd/mgpanel serve
 ```
 
-服务默认监听 `0.0.0.0:8080`，首次启动会在 `data/xboard.db` 自动执行 SQLite 迁移。
+服务默认监听 `0.0.0.0:8080`，首次启动会在 `data/mgpanel.db` 自动执行 SQLite 迁移。
 
 ### CLI 命令
 
-`xboard` 二进制文件提供以下子命令：
+`mgpanel` 二进制文件提供以下子命令：
 
-- `xboard serve`: 启动 HTTP 服务（默认）。
-- `xboard user`: 用户管理（创建、列表、重置密码等）。
-- `xboard config`: 查看或更新系统配置。
-- `xboard migrate`: 数据库迁移管理。
-- `xboard backup`: 备份数据库。
-- `xboard restore`: 从备份恢复数据库。
-- `xboard job`: 管理后台任务。
-- `xboard version`: 查看版本信息。
+- `mgpanel serve`: 启动 HTTP 服务（默认）。
+- `mgpanel user`: 用户管理（创建、列表、重置密码等）。
+- `mgpanel config`: 查看或更新系统配置。
+- `mgpanel migrate`: 数据库迁移管理。
+- `mgpanel backup`: 备份数据库。
+- `mgpanel restore`: 从备份恢复数据库。
+- `mgpanel job`: 管理后台任务。
+- `mgpanel version`: 查看版本信息。
 
 ### 初始化向导
 
 - 当数据库中尚未存在管理员账号时，服务会自动跳转到 `/install`，展示与面板同风格的安装引导。
 - 引导界面允许填写“用户名（可选）/ 邮箱（可选）+ 密码”，至少提供其一即可完成初始化。
-- 也可使用 CLI (`go run ./cmd/xboard user create --email admin@example.com --password secret --admin`) 手动创建。
+- 也可使用 CLI (`go run ./cmd/mgpanel user create --email admin@example.com --password secret --admin`) 手动创建。
 
 ### 管理前端
 
@@ -87,12 +87,12 @@ go run ./cmd/xboard serve
 ### Docker
 
 ```bash
-docker build -t xboard .
+docker build -t mgpanel .
 docker run --rm -it \
   -p 8080:8080 \
   -v $(pwd)/data:/data \
-  --name xboard \
-  xboard serve
+  --name mgpanel \
+  mgpanel serve
 ```
 
 镜像中只包含编译后的二进制；`/data` 用于持久化 SQLite 文件。
@@ -103,73 +103,73 @@ docker run --rm -it \
 
 ```bash
 # 安装 panel（需要 root）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/panel.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/panel.sh | sudo bash
 
 # 安装 agent（需要 root）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # 安装 agent + sing-box core
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090' -c sing-box
 
 # 单命令 bootstrap 入口（bootstrap 逻辑已并入 agent.sh）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo INSTALL_DIR=/opt/xboard/agent bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo INSTALL_DIR=/opt/mgpanel/agent bash -s -- \
   --bootstrap --ref latest -- -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # 指定 tag 的 bootstrap（脚本/service/二进制版本强绑定）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo INSTALL_DIR=/opt/xboard/agent bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo INSTALL_DIR=/opt/mgpanel/agent bash -s -- \
   --bootstrap --ref v1.2.3 -- -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # 卸载 panel 脚本管理产物
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/panel.sh | sudo bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/panel.sh | sudo bash -s -- --uninstall
 
 # 卸载 agent 脚本管理产物
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- --uninstall
 
 # 备用方案：先下载再执行（所有系统通用，不依赖 /dev/fd）
-wget -qO /tmp/panel.sh https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/panel.sh
+wget -qO /tmp/panel.sh https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/panel.sh
 sudo bash /tmp/panel.sh
 
 # agent 安装（curl 管道）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # agent 安装（wget 管道）
-wget -qO- https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- \
+wget -qO- https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # agent bootstrap（wget 下载后执行）
-wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh
-sudo INSTALL_DIR=/opt/xboard/agent bash /tmp/agent.sh --bootstrap --ref latest -- \
+wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh
+sudo INSTALL_DIR=/opt/mgpanel/agent bash /tmp/agent.sh --bootstrap --ref latest -- \
   -k 'your-agent-communication-key' -g '10.0.0.2:9090'
 
 # agent 卸载（curl 管道）
-curl -fsSL https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh | sudo bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh | sudo bash -s -- --uninstall
 
 # agent 卸载（wget 下载后执行）
-wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/xboard2p/main/deploy/agent.sh
+wget -qO /tmp/agent.sh https://raw.githubusercontent.com/creamcroissant/mgpanel/main/deploy/agent.sh
 sudo bash /tmp/agent.sh --uninstall
 ```
 
 服务管理行为：
 - 安装时优先使用 systemd；若 systemd 不可用且 OpenRC 可用，则自动回退到 OpenRC（`/etc/init.d/*` + `rc-update add`）。
-- `XBOARD_INSTALL_SKIP_SYSTEMD=1` 保持旧语义：跳过自动服务注册。
-- 当使用自定义 `INSTALL_DIR` 时，落地的 systemd unit 会将 `WorkingDirectory` 与 `ExecStart` 渲染为该目录（不再固定 `/opt/xboard`）。
+- `MGPANEL_INSTALL_SKIP_SYSTEMD=1` 保持旧语义：跳过自动服务注册。
+- 当使用自定义 `INSTALL_DIR` 时，落地的 systemd unit 会将 `WorkingDirectory` 与 `ExecStart` 渲染为该目录（不再固定 `/opt/mgpanel`）。
 - `--uninstall` 会对 systemd 与 OpenRC 都执行 best-effort 清理（`systemctl` / `rc-service` + `rc-update`），且保持幂等。
 
 服务控制示例：
 ```bash
 # systemd 主机
-sudo systemctl start xboard
-sudo systemctl status xboard
+sudo systemctl start mgpanel
+sudo systemctl status mgpanel
 
 # OpenRC 主机
-sudo rc-service xboard start
-sudo rc-service xboard status
+sudo rc-service mgpanel start
+sudo rc-service mgpanel status
 ```
 
-默认安装目录为：panel 使用 `/opt/xboard/panel`，agent 使用 `/opt/xboard/agent`。
+默认安装目录为：panel 使用 `/opt/mgpanel/panel`，agent 使用 `/opt/mgpanel/agent`。
 
 下载依赖准备（`curl` + CA 证书）由 `deploy/panel.sh` 与 `deploy/agent.sh` 在二进制下载前直接处理。
 
@@ -178,28 +178,28 @@ release 二进制完整性校验：
 - checksum 条目缺失、checksum 不一致、或清单下载失败都会直接 hard-fail。
 
 agent 安装相关环境变量：
-- `XBOARD_BOOTSTRAP_REF`：bootstrap 目标版本（`latest`、release tag 或 commit hash；commit hash 场景需显式设置 `XBOARD_RELEASE_TAG` 以保持版本一致）。
-- `XBOARD_BOOTSTRAP_REPO`：bootstrap 源仓库（默认 `creamcroissant/xboard2p`）。
-- `XBOARD_AGENT_SCRIPT_URL` / `XBOARD_AGENT_SERVICE_URL`：私有镜像下载地址覆盖。
-- `XBOARD_BOOTSTRAP_DOWNLOAD_STRICT`：兼容保留变量；bootstrap 默认 strict-only，不再影响行为。
+- `MGPANEL_BOOTSTRAP_REF`：bootstrap 目标版本（`latest`、release tag 或 commit hash；commit hash 场景需显式设置 `MGPANEL_RELEASE_TAG` 以保持版本一致）。
+- `MGPANEL_BOOTSTRAP_REPO`：bootstrap 源仓库（默认 `creamcroissant/mgpanel`）。
+- `MGPANEL_AGENT_SCRIPT_URL` / `MGPANEL_AGENT_SERVICE_URL`：私有镜像下载地址覆盖。
+- `MGPANEL_BOOTSTRAP_DOWNLOAD_STRICT`：兼容保留变量；bootstrap 默认 strict-only，不再影响行为。
 
 `deploy/agent.sh` 安装参数（CLI/ENV 对应）：
-- `-k, --communication-key` / `XBOARD_AGENT_COMMUNICATION_KEY`
-- `-g, --grpc-address` / `XBOARD_AGENT_GRPC_ADDRESS`
+- `-k, --communication-key` / `MGPANEL_AGENT_COMMUNICATION_KEY`
+- `-g, --grpc-address` / `MGPANEL_AGENT_GRPC_ADDRESS`
   - 默认双端口部署：填写 Panel 的 gRPC 端点（例如 `10.0.0.2:9090`）。
   - 若 Panel 开启 `grpc.reuse_http_port=true`：填写 Panel 的 HTTP 端点（例如 `10.0.0.2:8080`）。
-- `-t, --grpc-tls-enabled` / `XBOARD_AGENT_GRPC_TLS_ENABLED`（默认 `false`）
-- `--traffic-type` / `XBOARD_AGENT_TRAFFIC_TYPE`（默认 `netio`）
-- `-f, --force-config-overwrite` / `XBOARD_AGENT_CONFIG_OVERWRITE=1`
-- `-c, --with-core` / `XBOARD_AGENT_WITH_CORE`（默认不安装任何 core）
+- `-t, --grpc-tls-enabled` / `MGPANEL_AGENT_GRPC_TLS_ENABLED`（默认 `false`）
+- `--traffic-type` / `MGPANEL_AGENT_TRAFFIC_TYPE`（默认 `netio`）
+- `-f, --force-config-overwrite` / `MGPANEL_AGENT_CONFIG_OVERWRITE=1`
+- `-c, --with-core` / `MGPANEL_AGENT_WITH_CORE`（默认不安装任何 core）
 - `--uninstall`（仅清理脚本管理产物）
 
 仅 Core 运维参数：
-- `--core-action` / `XBOARD_AGENT_CORE_ACTION`
-- `--core-type` / `XBOARD_AGENT_CORE_TYPE`
-- `--core-version` / `XBOARD_AGENT_CORE_VERSION`
-- `--core-channel` / `XBOARD_AGENT_CORE_CHANNEL`
-- `--core-flavor` / `XBOARD_AGENT_CORE_FLAVOR`
+- `--core-action` / `MGPANEL_AGENT_CORE_ACTION`
+- `--core-type` / `MGPANEL_AGENT_CORE_TYPE`
+- `--core-version` / `MGPANEL_AGENT_CORE_VERSION`
+- `--core-channel` / `MGPANEL_AGENT_CORE_CHANNEL`
+- `--core-flavor` / `MGPANEL_AGENT_CORE_FLAVOR`
 
 配置文件生成规则：
 - `config.yml` 不存在：按参数写入。
@@ -217,9 +217,9 @@ agent 安装相关环境变量：
 
 非交互示例：
 ```bash
-sudo INSTALL_DIR=/opt/xboard/agent \
-  XBOARD_AGENT_COMMUNICATION_KEY='your-agent-communication-key' \
-  XBOARD_AGENT_GRPC_ADDRESS='10.0.0.2:9090' \
+sudo INSTALL_DIR=/opt/mgpanel/agent \
+  MGPANEL_AGENT_COMMUNICATION_KEY='your-agent-communication-key' \
+  MGPANEL_AGENT_GRPC_ADDRESS='10.0.0.2:9090' \
   sh ./deploy/agent.sh
 ```
 
@@ -275,7 +275,7 @@ bootstrap 现为 strict-only：
 | 安装依赖 | `go mod tidy` |
 | 代码格式化 | `gofmt -w ./cmd ./internal ./pkg ./test` |
 | 单元测试 | `go test ./...` |
-| 启动服务 | `go run ./cmd/xboard serve` |
+| 启动服务 | `go run ./cmd/mgpanel serve` |
 | 完整构建 | `make build` |
 | 仅构建前端 | `make build-frontend` |
 | 仅构建后端 | `make build-backend` |

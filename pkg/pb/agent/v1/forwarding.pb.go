@@ -315,34 +315,7 @@ func (x *ForwardingStatusReport) GetAppliedAt() int64 {
 
 var File_agent_v1_forwarding_proto protoreflect.FileDescriptor
 
-const file_agent_v1_forwarding_proto_rawDesc = "" +
-	"\n" +
-	"\x19agent/v1/forwarding.proto\x12\bagent.v1\"2\n" +
-	"\x16ForwardingRulesRequest\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x03R\aversion\"\xc5\x01\n" +
-	"\x17ForwardingRulesResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n" +
-	"\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12.\n" +
-	"\x05rules\x18\x03 \x03(\v2\x18.agent.v1.ForwardingRuleR\x05rules\x12\x18\n" +
-	"\aversion\x18\x04 \x01(\x03R\aversion\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\xef\x01\n" +
-	"\x0eForwardingRule\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
-	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12\x1f\n" +
-	"\vlisten_port\x18\x04 \x01(\x05R\n" +
-	"listenPort\x12%\n" +
-	"\x0etarget_address\x18\x05 \x01(\tR\rtargetAddress\x12\x1f\n" +
-	"\vtarget_port\x18\x06 \x01(\x05R\n" +
-	"targetPort\x12\x1a\n" +
-	"\bpriority\x18\a \x01(\x05R\bpriority\x12\x18\n" +
-	"\aenabled\x18\b \x01(\bR\aenabled\"\x90\x01\n" +
-	"\x16ForwardingStatusReport\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x18\n" +
-	"\asuccess\x18\x02 \x01(\bR\asuccess\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12\x1d\n" +
-	"\n" +
-	"applied_at\x18\x04 \x01(\x03R\tappliedAtB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_forwarding_proto_rawDesc = "\n\x19agent/v1/forwarding.proto\x12\bagent.v1\"2\n\x16ForwardingRulesRequest\x12\x18\n\aversion\x18\x01 \x01(\x03R\aversion\"\xc5\x01\n\x17ForwardingRulesResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12.\n\x05rules\x18\x03 \x03(\v2\x18.agent.v1.ForwardingRuleR\x05rules\x12\x18\n\aversion\x18\x04 \x01(\x03R\aversion\x12#\n\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\xef\x01\n\x0eForwardingRule\x12\x0e\n\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n\bprotocol\x18\x03 \x01(\tR\bprotocol\x12\x1f\n\vlisten_port\x18\x04 \x01(\x05R\nlistenPort\x12%\n\x0etarget_address\x18\x05 \x01(\tR\rtargetAddress\x12\x1f\n\vtarget_port\x18\x06 \x01(\x05R\ntargetPort\x12\x1a\n\bpriority\x18\a \x01(\x05R\bpriority\x12\x18\n\aenabled\x18\b \x01(\bR\aenabled\"\x90\x01\n\x16ForwardingStatusReport\x12\x18\n\aversion\x18\x01 \x01(\x03R\aversion\x12\x18\n\asuccess\x18\x02 \x01(\bR\asuccess\x12#\n\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12\x1d\n\napplied_at\x18\x04 \x01(\x03R\tappliedAtB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_forwarding_proto_rawDescOnce sync.Once

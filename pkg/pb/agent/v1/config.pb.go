@@ -376,37 +376,7 @@ func (x *UserInfo) GetEnabled() bool {
 
 var File_agent_v1_config_proto protoreflect.FileDescriptor
 
-const file_agent_v1_config_proto_rawDesc = "" +
-	"\n" +
-	"\x15agent/v1/config.proto\x12\bagent.v1\"<\n" +
-	"\rConfigRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\x05R\x06nodeId\x12\x12\n" +
-	"\x04etag\x18\x02 \x01(\tR\x04etag\"\x9c\x01\n" +
-	"\x0eConfigResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n" +
-	"\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12\x1f\n" +
-	"\vconfig_json\x18\x03 \x01(\fR\n" +
-	"configJson\x12\x12\n" +
-	"\x04etag\x18\x04 \x01(\tR\x04etag\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\x03R\aversion\"`\n" +
-	"\fUsersRequest\x12\x17\n" +
-	"\anode_id\x18\x01 \x01(\x05R\x06nodeId\x12\x12\n" +
-	"\x04etag\x18\x02 \x01(\tR\x04etag\x12#\n" +
-	"\rsince_version\x18\x03 \x01(\x03R\fsinceVersion\"\xa4\x01\n" +
-	"\rUsersResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n" +
-	"\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12(\n" +
-	"\x05users\x18\x03 \x03(\v2\x12.agent.v1.UserInfoR\x05users\x12\x12\n" +
-	"\x04etag\x18\x04 \x01(\tR\x04etag\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\x03R\aversion\"\xab\x01\n" +
-	"\bUserInfo\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
-	"\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1f\n" +
-	"\vspeed_limit\x18\x04 \x01(\x03R\n" +
-	"speedLimit\x12!\n" +
-	"\fdevice_limit\x18\x05 \x01(\x05R\vdeviceLimit\x12\x18\n" +
-	"\aenabled\x18\x06 \x01(\bR\aenabledB:Z8github.com/creamcroissant/xboard/pkg/pb/agent/v1;agentv1b\x06proto3"
+const file_agent_v1_config_proto_rawDesc = "\n\x15agent/v1/config.proto\x12\bagent.v1\"<\n\rConfigRequest\x12\x17\n\anode_id\x18\x01 \x01(\x05R\x06nodeId\x12\x12\n\x04etag\x18\x02 \x01(\tR\x04etag\"\x9c\x01\n\x0eConfigResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12\x1f\n\vconfig_json\x18\x03 \x01(\fR\nconfigJson\x12\x12\n\x04etag\x18\x04 \x01(\tR\x04etag\x12\x18\n\aversion\x18\x05 \x01(\x03R\aversion\"`\n\fUsersRequest\x12\x17\n\anode_id\x18\x01 \x01(\x05R\x06nodeId\x12\x12\n\x04etag\x18\x02 \x01(\tR\x04etag\x12#\n\rsince_version\x18\x03 \x01(\x03R\fsinceVersion\"\xa4\x01\n\rUsersResponse\x12\x18\n\asuccess\x18\x01 \x01(\bR\asuccess\x12!\n\fnot_modified\x18\x02 \x01(\bR\vnotModified\x12(\n\x05users\x18\x03 \x03(\v2\x12.agent.v1.UserInfoR\x05users\x12\x12\n\x04etag\x18\x04 \x01(\tR\x04etag\x12\x18\n\aversion\x18\x05 \x01(\x03R\aversion\"\xab\x01\n\bUserInfo\x12\x17\n\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n\x04uuid\x18\x02 \x01(\tR\x04uuid\x12\x14\n\x05email\x18\x03 \x01(\tR\x05email\x12\x1f\n\vspeed_limit\x18\x04 \x01(\x03R\nspeedLimit\x12!\n\fdevice_limit\x18\x05 \x01(\x05R\vdeviceLimit\x12\x18\n\aenabled\x18\x06 \x01(\bR\aenabledB;Z9github.com/creamcroissant/mgpanel/pkg/pb/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_config_proto_rawDescOnce sync.Once

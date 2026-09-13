@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HandlerService_AlterInbound_FullMethodName              = "/xray.app.proxyman.command.HandlerService/AlterInbound"
-	HandlerService_GetInboundUsers_FullMethodName           = "/xray.app.proxyman.command.HandlerService/GetInboundUsers"
-	HandlerService_GetInboundUsersCount_FullMethodName      = "/xray.app.proxyman.command.HandlerService/GetInboundUsersCount"
+	HandlerService_AlterInbound_FullMethodName         = "/xray.app.proxyman.command.HandlerService/AlterInbound"
+	HandlerService_GetInboundUsers_FullMethodName      = "/xray.app.proxyman.command.HandlerService/GetInboundUsers"
+	HandlerService_GetInboundUsersCount_FullMethodName = "/xray.app.proxyman.command.HandlerService/GetInboundUsersCount"
 )
 
 // HandlerServiceClient is the client API for HandlerService service.
@@ -108,7 +108,7 @@ func (UnimplementedHandlerServiceServer) GetInboundUsersCount(context.Context, *
 	return nil, status.Error(codes.Unimplemented, "method GetInboundUsersCount not implemented")
 }
 func (UnimplementedHandlerServiceServer) mustEmbedUnimplementedHandlerServiceServer() {}
-func (UnimplementedHandlerServiceServer) testEmbeddedByValue()                      {}
+func (UnimplementedHandlerServiceServer) testEmbeddedByValue()                        {}
 
 // UnsafeHandlerServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to HandlerServiceServer will

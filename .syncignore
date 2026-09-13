@@ -1,4 +1,4 @@
-# xboard ↔ xboard2p 同步差异规则（gitignore-like）
+# mgpanel ↔ mgpanel 同步差异规则（gitignore-like）
 # 供 scripts/repo-diff.sh 使用，用于“管理视图”过滤。
 # 注意：最后一条匹配规则生效，支持 ! 反选。
 
@@ -11,7 +11,7 @@
 .github/ISSUE_TEMPLATE/
 .github/workflows/ci.yml
 
-# 同步到 xboard2p 时忽略所有测试资产（目录 / 文件 / 脚本）
+# 同步到 mgpanel 时忽略所有测试资产（目录 / 文件 / 脚本）
 test/
 tests/
 test_data/
@@ -74,7 +74,7 @@ integration_test.py
 agent_config_test.yml
 test.md
 
-# 同步到 xboard2p 时忽略除 README 外的所有文档
+# 同步到 mgpanel 时忽略除 README 外的所有文档
 docs/
 **/*.md
 **/*.rst

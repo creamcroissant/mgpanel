@@ -1,22 +1,22 @@
 services:
-  xboard:
-    image: xboard:latest
+  mgpanel:
+    image: mgpanel:latest
     build:
       context: .
       args:
         - VERSION=${VERSION:-dev}
         - COMMIT=${COMMIT:-unknown}
         - BUILD_TIME=${BUILD_TIME:-unknown}
-    container_name: xboard
+    container_name: mgpanel
     restart: unless-stopped
     volumes:
       # SQLite database persistence
-      - xboard-data:/data
+      - mgpanel-data:/data
       # Configuration file (create config.yml first)
-      - ./config.yml:/etc/xboard/config.yml:ro
+      - ./config.yml:/etc/mgpanel/config.yml:ro
     environment:
-      - XBOARD_DB_PATH=/data/xboard.db
-      - XBOARD_HTTP_ADDR=:8080
+      - MGPANEL_DB_PATH=/data/mgpanel.db
+      - MGPANEL_HTTP_ADDR=:8080
       - TZ=Asia/Shanghai
     ports:
       - "8080:8080"
@@ -33,5 +33,5 @@ services:
         max-file: "5"
 
 volumes:
-  xboard-data:
+  mgpanel-data:
     driver: local

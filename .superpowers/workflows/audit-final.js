@@ -36,7 +36,7 @@ phase('Audit');
 log('启动 8 路全量并行审计...');
 
 const results = await parallel([
-  () => agent('审计 cmd/xboard/ 和 cmd/agent/ 和 internal/config/。检查所有 .go 文件。\n\n检查项：\n1. 错误处理：_ = func() 模式、log.Fatal/panic(非main)、err.Error()泄露\n2. Context传播：所有 context.Background()/TODO()是否合理\n3. Shutdown：信号处理、graceful shutdown顺序、goroutine等待\n4. 资源泄露：ticker、文件描述符、终端恢复\n5. 并发安全：全局变量无锁访问\n\n命令参考：\ngrep -rn \'_ = \' cmd/ internal/config/ --include="*.go" | grep -v \'_test.go\'\ngrep -rn \'context.Background()\' cmd/ internal/config/ --include="*.go"\ngrep -rn \'context.TODO()\' cmd/ internal/config/ --include="*.go"\n\n只输出 Read 确认后的真实问题。', { label: 'audit:cmd+config', schema: S }),
+  () => agent('审计 cmd/mgpanel/ 和 cmd/agent/ 和 internal/config/。检查所有 .go 文件。\n\n检查项：\n1. 错误处理：_ = func() 模式、log.Fatal/panic(非main)、err.Error()泄露\n2. Context传播：所有 context.Background()/TODO()是否合理\n3. Shutdown：信号处理、graceful shutdown顺序、goroutine等待\n4. 资源泄露：ticker、文件描述符、终端恢复\n5. 并发安全：全局变量无锁访问\n\n命令参考：\ngrep -rn \'_ = \' cmd/ internal/config/ --include="*.go" | grep -v \'_test.go\'\ngrep -rn \'context.Background()\' cmd/ internal/config/ --include="*.go"\ngrep -rn \'context.TODO()\' cmd/ internal/config/ --include="*.go"\n\n只输出 Read 确认后的真实问题。', { label: 'audit:cmd+config', schema: S }),
 
   () => agent('全量审计 internal/service/（112 个 .go 文件）。\n\n检查：\n1. _ = func() 错误吞没（排除 .Store/.Load/.Delete/.Set/.Close 等惯用模式）\n2. context.Background()/TODO()是否合理\n3. map 无锁保护（struct map 字段缺 sync.RWMutex）\n4. time.Sleep 在生产代码中\n5. defer 在 for 循环中\n6. for+select+ticker 的 defer Stop()\n\n命令：\ngrep -rn \'_ = \' internal/service/ --include="*.go" | grep -v \'_test.go\' | grep -v \'\\.Store\|\\.Load\|\\.Delete\|\\.Set\|\\.Close\|\\.Remove\|\\.Done\|\\.Rollback\|\\.Err()\'\ngrep -rn \'context.Background()\' internal/service/ --include="*.go" | grep -v \'_test.go\'\n\n对每个命中 Read 确认后输出。', { label: 'audit:service', schema: S }),
 
@@ -115,6 +115,6 @@ if (summaries.length) {
 const output = report.join('\n');
 log(output);
 
-await agent('将审计报告写入 /opt/work/xboard/docs/superpowers/audit/2026-07-22-audit-final.md\n\n' + output, { label: 'write-report' });
+await agent('将审计报告写入 /opt/work/mgpanel/docs/superpowers/audit/2026-07-22-audit-final.md\n\n' + output, { label: 'write-report' });
 
 return { total: allFindings.length, counts, findings: allFindings.slice(0, 50) };

@@ -7,9 +7,9 @@
 package xrayprotocol
 
 import (
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	xrayserial "github.com/creamcroissant/mgpanel/pkg/pb/xray/common/serial"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -24,12 +24,12 @@ const (
 
 // User is a generic user for all protocols.
 type User struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Level uint32 `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
-	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Account *xrayserial.TypedMessage `protobuf:"bytes,3,opt,name=account,proto3" json:"account,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Level         uint32                   `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
+	Email         string                   `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Account       *xrayserial.TypedMessage `protobuf:"bytes,3,opt,name=account,proto3" json:"account,omitempty"`
 	unknownFields protoimpl.UnknownFields
-	sizeCache protoimpl.SizeCache
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -85,27 +85,7 @@ func (x *User) GetAccount() *xrayserial.TypedMessage {
 
 var File_common_protocol_user_proto protoreflect.FileDescriptor
 
-const file_common_protocol_user_proto_rawDesc = "" +
-	"\n\x1acommon/proto" +
-	"col/user.proto" +
-	"\x12\x14xray.common." +
-	"protocol\x1a!comm" +
-	"on/serial/type" +
-	"d_message.prot" +
-	"o\"n\n\x04User\x12\x14\n\x05l" +
-	"evel\x18\x01 \x01(\x0dR\x05le" +
-	"vel\x12\x14\n\x05email\x18\x02" +
-	" \x01(\tR\x05email\x12:\n" +
-	"\x07account\x18\x03 \x01(\x0b" +
-	"2 .xray.common" +
-	".serial.TypedM" +
-	"essageR\x07accoun" +
-	"tB>Z<github.co" +
-	"m/creamcroissa" +
-	"nt/xboard/pkg/" +
-	"pb/xray/common" +
-	"/protocolb\x06pro" +
-	"to3"
+const file_common_protocol_user_proto_rawDesc = "\n\x1acommon/protocol/user.proto\x12\x14xray.common.protocol\x1a!common/serial/typed_message.proto\"n\n\x04User\x12\x14\n\x05level\x18\x01 \x01(\rR\x05level\x12\x14\n\x05email\x18\x02 \x01(\tR\x05email\x12:\n\aaccount\x18\x03 \x01(\v2 .xray.common.serial.TypedMessageR\aaccountB?Z=github.com/creamcroissant/mgpanel/pkg/pb/xray/common/protocolb\x06proto3"
 
 var (
 	file_common_protocol_user_proto_rawDescOnce sync.Once
@@ -119,12 +99,10 @@ func file_common_protocol_user_proto_rawDescGZIP() []byte {
 	return file_common_protocol_user_proto_rawDescData
 }
 
-
 var file_common_protocol_user_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 
-
 var file_common_protocol_user_proto_goTypes = []any{
-	(*User)(nil), // 0: xrayprotocol.User
+	(*User)(nil),                    // 0: xrayprotocol.User
 	(*xrayserial.TypedMessage)(nil), // 1: xrayserial.TypedMessage
 }
 var file_common_protocol_user_proto_depIdxs = []int32{
@@ -135,7 +113,6 @@ var file_common_protocol_user_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
-
 
 func init() { file_common_protocol_user_proto_init() }
 func file_common_protocol_user_proto_init() {
@@ -160,4 +137,3 @@ func file_common_protocol_user_proto_init() {
 	file_common_protocol_user_proto_goTypes = nil
 	file_common_protocol_user_proto_depIdxs = nil
 }
-

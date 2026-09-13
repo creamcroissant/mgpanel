@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultPIDDir      = "/var/run/xboard/cores"
+	defaultPIDDir      = "/var/run/mgpanel/cores"
 	pidFilePermissions = 0600
 )
 
