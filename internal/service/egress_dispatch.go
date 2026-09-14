@@ -31,7 +31,10 @@ const (
 	// EgressDispatchCapabilityTTL 能力门控窗口（I13）：
 	// agent 必须在该时间内成功拉取过 /api/v1/agent/egress-routes，
 	// 才认为其支持内核分发；否则一律回落 socks（不对老 agent 渲染 mark 出站）。
-	EgressDispatchCapabilityTTL = 10 * time.Minute
+	//
+	// 取值需显著大于 agent 拉取间隔（server_pull_interval 可配，默认 60s）：过短会让
+	// 面板在 socks/l3 间反复翻转渲染（核心配置抖动）。取 30min 兼顾两者。
+	EgressDispatchCapabilityTTL = 30 * time.Minute
 
 	egressMeshNetworkID = "default"
 )
@@ -99,6 +102,7 @@ type egressDispatchService struct {
 	specs      repository.InboundSpecRepository
 	policies   repository.RoutingPolicyRepository
 	sets       repository.ExitNodeSetRepository
+	relayPaths repository.RelayPathRepository
 	pairs      repository.EgressDispatchPairRepository
 	meshPeers  repository.AgentMeshPeerRepository
 	settings   repository.SettingRepository
@@ -111,6 +115,7 @@ func NewEgressDispatchService(
 	specs repository.InboundSpecRepository,
 	policies repository.RoutingPolicyRepository,
 	sets repository.ExitNodeSetRepository,
+	relayPaths repository.RelayPathRepository,
 	pairs repository.EgressDispatchPairRepository,
 	meshPeers repository.AgentMeshPeerRepository,
 	settings repository.SettingRepository,
@@ -121,7 +126,7 @@ func NewEgressDispatchService(
 	}
 	return &egressDispatchService{
 		agentHosts: agentHosts, specs: specs, policies: policies, sets: sets,
-		pairs: pairs, meshPeers: meshPeers, settings: settings, logger: logger,
+		relayPaths: relayPaths, pairs: pairs, meshPeers: meshPeers, settings: settings, logger: logger,
 	}
 }
 
@@ -252,7 +257,13 @@ func (s *egressDispatchService) meshPeerIndex(ctx context.Context) (map[int64]me
 
 // desiredPairs 计算"期望的 (入口, 成员) 配对集合"，过滤条件必须与编译器渲染一致：
 // 成员 enabled + 在 mesh + 非自身。
-func (s *egressDispatchService) desiredPairs(ctx context.Context) ([]repository.EgressDispatchPairKey, error) {
+// desiredPairSet 期望配对集合及其关联的出口集（供观测字段 sets 使用）。
+type desiredPairSet struct {
+	keys []repository.EgressDispatchPairKey
+	sets map[repository.EgressDispatchPairKey][]int64
+}
+
+func (s *egressDispatchService) desiredPairs(ctx context.Context) (*desiredPairSet, error) {
 	peerIndex, err := s.meshPeerIndex(ctx)
 	if err != nil {
 		return nil, err
@@ -265,6 +276,28 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) ([]repository.
 	policiesByCore := map[string][]*repository.RoutingPolicy{}
 	seen := map[repository.EgressDispatchPairKey]struct{}{}
 	out := make([]repository.EgressDispatchPairKey, 0, len(specs))
+	setsOf := map[repository.EgressDispatchPairKey][]int64{}
+
+	addMember := func(entryAgentID, memberAgentID, setID int64) {
+		if memberAgentID <= 0 || memberAgentID == entryAgentID {
+			return
+		}
+		if _, ok := peerIndex[memberAgentID]; !ok {
+			return // 成员不在 mesh
+		}
+		if _, ok := peerIndex[entryAgentID]; !ok {
+			return // 入口自身不在 mesh
+		}
+		key := repository.EgressDispatchPairKey{EntryAgentID: entryAgentID, MemberAgentID: memberAgentID}
+		if setID > 0 && !containsInt64(setsOf[key], setID) {
+			setsOf[key] = append(setsOf[key], setID)
+		}
+		if _, dup := seen[key]; dup {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
 
 	addSet := func(entryAgentID int64, setID *int64) error {
 		if setID == nil || *setID <= 0 {
@@ -275,23 +308,37 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) ([]repository.
 			return fmt.Errorf("list members of set %d: %w", *setID, err)
 		}
 		for _, m := range members {
-			if m == nil || !m.Enabled || m.AgentHostID == entryAgentID {
+			if m == nil || !m.Enabled {
 				continue
 			}
-			if _, ok := peerIndex[m.AgentHostID]; !ok {
-				continue // 成员不在 mesh
-			}
-			if _, ok := peerIndex[entryAgentID]; !ok {
-				continue // 入口自身不在 mesh
-			}
-			key := repository.EgressDispatchPairKey{EntryAgentID: entryAgentID, MemberAgentID: m.AgentHostID}
-			if _, dup := seen[key]; dup {
-				continue
-			}
-			seen[key] = struct{}{}
-			out = append(out, key)
+			addMember(entryAgentID, m.AgentHostID, *setID)
 		}
 		return nil
+	}
+
+	relayUsable := map[int64]bool{}
+	isRelayUsable := func(pathID int64) bool {
+		if usable, cached := relayUsable[pathID]; cached {
+			return usable
+		}
+		usable := false
+		if s.relayPaths != nil {
+			if paths, err := s.relayPaths.List(ctx, ""); err == nil {
+				for _, rp := range paths {
+					if rp == nil || rp.ID != pathID || !rp.Enabled || len(rp.Nodes) < 2 {
+						continue
+					}
+					nodes := append([]repository.RelayPathNode(nil), rp.Nodes...)
+					sort.Slice(nodes, func(i, j int) bool { return nodes[i].Sequence < nodes[j].Sequence })
+					if _, ok := peerIndex[nodes[1].AgentHostID]; ok {
+						usable = true
+					}
+					break
+				}
+			}
+		}
+		relayUsable[pathID] = usable
+		return usable
 	}
 
 	for _, spec := range specs {
@@ -311,7 +358,15 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) ([]repository.
 		if err := addSet(entry, spec.ExitNodeSetID); err != nil {
 			return nil, err
 		}
-		// 2) 适用于该 spec 的分流策略（全局策略 + 绑该 spec 的 scoped 策略）
+		// 2) 固定出口（exit_agent_host_id）：与编译器 2b 段同条件——
+		//    既无出口集、又无可用中继链路时才生效（否则该路径不参与渲染）。
+		if spec.ExitNodeSetID == nil || *spec.ExitNodeSetID <= 0 {
+			relayHandled := spec.RelayPathID != nil && *spec.RelayPathID > 0 && isRelayUsable(*spec.RelayPathID)
+			if !relayHandled && spec.ExitAgentHostID != nil && *spec.ExitAgentHostID > 0 {
+				addMember(entry, *spec.ExitAgentHostID, 0)
+			}
+		}
+		// 3) 适用于该 spec 的分流策略（全局策略 + 绑该 spec 的 scoped 策略）
 		for _, p := range policiesByCore[coreType] {
 			if p == nil || p.SpecID != nil && *p.SpecID != spec.ID {
 				continue
@@ -327,7 +382,17 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) ([]repository.
 		}
 		return out[i].MemberAgentID < out[j].MemberAgentID
 	})
-	return out, nil
+	return &desiredPairSet{keys: out, sets: setsOf}, nil
+}
+
+// containsInt64 判断切片是否已含该值（集合信息规模很小，线性足够）。
+func containsInt64(items []int64, v int64) bool {
+	for _, item := range items {
+		if item == v {
+			return true
+		}
+	}
+	return false
 }
 
 // ReconcilePairs 回收不再期望的配对（保留仍被引用的，seq 稳定不变）。
@@ -336,7 +401,7 @@ func (s *egressDispatchService) ReconcilePairs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	removed, err := s.pairs.DeleteUnused(ctx, desired)
+	removed, err := s.pairs.DeleteUnused(ctx, desired.keys)
 	if err != nil {
 		return fmt.Errorf("delete unused pairs: %w", err)
 	}
@@ -369,10 +434,11 @@ func (s *egressDispatchService) AssignmentsForHost(ctx context.Context, agentHos
 		return nil, fmt.Errorf("load agent host: %w", err)
 	}
 
-	desired, err := s.desiredPairs(ctx)
+	desiredSet, err := s.desiredPairs(ctx)
 	if err != nil {
 		return nil, err
 	}
+	desired := desiredSet.keys
 
 	// 入口主机集合的期望模式（决定哪些配对值得建隧道）。
 	entryMode := map[int64]string{agentHostID: s.desiredMode(ctx, host)}
@@ -411,10 +477,10 @@ func (s *egressDispatchService) AssignmentsForHost(ctx context.Context, agentHos
 			continue
 		}
 		if key.MemberAgentID == agentHostID {
-			out = append(out, buildExitAssignment(pair, entryPeer, self))
+			out = append(out, buildExitAssignment(pair, entryPeer, self, desiredSet.sets[key]))
 		}
 		if key.EntryAgentID == agentHostID {
-			out = append(out, buildEntryAssignment(pair, memberPeer, self))
+			out = append(out, buildEntryAssignment(pair, memberPeer, self, desiredSet.sets[key]))
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -427,7 +493,7 @@ func (s *egressDispatchService) AssignmentsForHost(ctx context.Context, agentHos
 }
 
 // buildEntryAssignment 入口侧：本端 .1，对端为成员。
-func buildEntryAssignment(pair *repository.EgressDispatchPair, memberPeer, self meshPeerInfo) EgressRouteAssignment {
+func buildEntryAssignment(pair *repository.EgressDispatchPair, memberPeer, self meshPeerInfo, sets []int64) EgressRouteAssignment {
 	mark := EgressMemberMark(pair.MemberAgentID)
 	return EgressRouteAssignment{
 		Role:          "entry",
@@ -443,11 +509,12 @@ func buildEntryAssignment(pair *repository.EgressDispatchPair, memberPeer, self 
 		PeerEndpoint:  fmt.Sprintf("%s:%d", memberPeer.WGIP, pair.ListenPort),
 		TunnelNet:     pair.LocalNet,
 		MTU:           EgressTunnelMTU,
+		Sets:          sets,
 	}
 }
 
 // buildExitAssignment 出口侧：本端 .2，对端为入口。
-func buildExitAssignment(pair *repository.EgressDispatchPair, entryPeer, self meshPeerInfo) EgressRouteAssignment {
+func buildExitAssignment(pair *repository.EgressDispatchPair, entryPeer, self meshPeerInfo, sets []int64) EgressRouteAssignment {
 	return EgressRouteAssignment{
 		Role:          "exit",
 		EntryAgentID:  pair.EntryAgentID,
@@ -462,6 +529,7 @@ func buildExitAssignment(pair *repository.EgressDispatchPair, entryPeer, self me
 		PeerEndpoint:  fmt.Sprintf("%s:%d", entryPeer.WGIP, pair.ListenPort),
 		TunnelNet:     pair.LocalNet,
 		MTU:           EgressTunnelMTU,
+		Sets:          sets,
 	}
 }
 

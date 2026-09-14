@@ -10,6 +10,8 @@
 #                            `ip route show table <table>` 的 default dev xe<member>；
 #                            接口存在性与 MTU=1400。
 #   出口侧（I8，需 --exit-host）：nft 表 mgpanel_egress 的 forward 放行（iifname "xi*"）
+#     注意 family：agent 侧 `nft add table mgpanel_egress` 不带族 → 默认族 ip（与 mgpanel_relay 一致），
+#     故默认 --family ip；如实现改为 inet 可用 --family inet 覆盖。
 #                            与针对本 pair 网段的 masquerade。
 #   真实出口 IP：用 python3（SO_MARK）向 IP 回显服务发起 HTTP 请求，分别打印
 #                「不打 mark」与「打 mark」时服务端看到的源地址；
@@ -33,6 +35,7 @@
 #   --echo-url <url>    IP 回显服务（默认 https://ifconfig.me）
 #   --expect-exit-ip <ip>  断言「打 mark」看到的出口 IP
 #   --timeout <秒>      HTTP 超时（默认 5）
+#   --family <ip|inet>  nft 表族（默认 ip：agent 建表不带族）
 #   --json              以 JSON 输出（stdout 只出 JSON，人读摘要走 stderr）
 #   --dry-run           只打印将要执行的命令，不执行、不判定
 #   -h, --help
@@ -44,6 +47,7 @@ set -uo pipefail
 HOST=""
 EXIT_HOST=""
 ECHO_URL="https://ifconfig.me"
+NFT_FAMILY="ip"
 EXPECT_EXIT_IP=""
 TIMEOUT=5
 MTU_EXPECT=1400
@@ -71,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --timeout)
       [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "用法错误: --timeout 需要整数秒: ${2:-<空>}" >&2; exit 2; }
       TIMEOUT="$2"; shift 2 ;;
+    --family) NFT_FAMILY="${2:-ip}"; shift 2 ;;
     --json) JSON=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -329,10 +334,10 @@ done
 if [[ -n "$EXIT_HOST" ]]; then
   emit_line "== 出口侧 nft 核验: $EXIT_DESC =="
   if ((DRY_RUN)); then
-    run_on "$EXIT_HOST" "nft list table inet mgpanel_egress"
+    run_on "$EXIT_HOST" "nft list table $NFT_FAMILY mgpanel_egress"
     add_check "-" "出口 nft 表 mgpanel_egress (I8)" ok "(dry-run)"
   else
-    nft_out="$(run_on "$EXIT_HOST" "nft list table inet mgpanel_egress" 2>&1)"
+    nft_out="$(run_on "$EXIT_HOST" "nft list table $NFT_FAMILY mgpanel_egress" 2>&1)"
     if (($? != 0)); then
       add_check "-" "出口 nft 表 mgpanel_egress (I8)" fail "读取失败或表不存在: $nft_out"
     else

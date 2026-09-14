@@ -549,6 +549,9 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	}
 	peerWGIP := make(map[int64]string, len(allPeers))
 	for _, p := range allPeers {
+		if strings.TrimSpace(p.WGIP) == "" {
+			continue // 无 mesh 地址的 peer 不参与出口渲染（与面板侧配对过滤保持一致，GAP-7）
+		}
 		peerWGIP[p.AgentHostID] = p.WGIP
 	}
 

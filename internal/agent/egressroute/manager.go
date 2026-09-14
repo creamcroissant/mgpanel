@@ -95,6 +95,15 @@ type Manager struct {
 	mu sync.Mutex
 	// managedIfaces 记录上一轮 Apply 建过的隧道接口，用于本轮不再期望时清理。
 	managedIfaces map[string]bool
+
+	// 以下字段实现"延迟拆除"（GAP-2：切回 socks / 成员移除时，核心可能仍在跑含 mark 出站的
+	// 旧 revision，若立即拆表会让已打 mark 的流量落回主表从入口直出）：
+	// 本轮不再期望的对象先记入 pending*，只有 CommitRemovals（在成功应用新配置之后调用）
+	// 才真正拆除；Apply 内部重新校验 lastDesired*，避免误拆刚被重新期望的对象。
+	pendingMarks  map[int]int     // mark → table（入口 fwmark 规则 + 策略路由表）
+	pendingIfaces map[string]bool // 隧道接口（入口 xe* / 出口 xi*）
+	lastMarks     map[int]int     // 上一轮期望的 mark → table
+	lastIfaces    map[string]bool
 }
 
 func NewManager(cfg Config) *Manager {
@@ -103,7 +112,15 @@ func NewManager(cfg Config) *Manager {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Manager{cfg: cfg, logger: log, managedIfaces: map[string]bool{}}
+	return &Manager{
+		cfg:           cfg,
+		logger:        log,
+		managedIfaces: map[string]bool{},
+		pendingMarks:  map[int]int{},
+		pendingIfaces: map[string]bool{},
+		lastMarks:     map[int]int{},
+		lastIfaces:    map[string]bool{},
+	}
 }
 
 func (m *Manager) bins() wgtunnel.Bins {
@@ -197,7 +214,8 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Assignment) error 
 		m.logger.Info("egress-route: policy route applied",
 			slog.Int("table", a.Table), slog.String("dev", a.Iface))
 	}
-	// 清理不再期望的 pref 5500 规则及其路由表（relay 的 pref 5000 不受影响）
+	// 不再期望的 pref 5500 规则/表：先记账，等 CommitRemovals（成功应用新配置之后）再拆（GAP-2）。
+	m.lastMarks = desiredMarks
 	for _, line := range strings.Split(existing, "\n") {
 		mark, table, ok := parseEgressRuleLine(line)
 		if !ok {
@@ -206,11 +224,54 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Assignment) error 
 		if _, want := desiredMarks[mark]; want {
 			continue
 		}
+		m.pendingMarks[mark] = table
+	}
+	return nil
+}
+
+// CommitRemovals 拆除上一轮起记账的陈旧内核对象。只应由"本轮成功应用了新配置"之后的
+// 调用方触发（见 internal/agent/service 的 syncRoutesThenApply）：
+// 这样核心已经从含 mark 的配置切到新配置，拆表才安全（GAP-2）。
+func (m *Manager) CommitRemovals(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.pendingMarks) == 0 && len(m.pendingIfaces) == 0 {
+		return nil
+	}
+	ip, err := m.bin(m.cfg.IPBinary, "egress stale cleanup")
+	if err != nil {
+		return nil // 降级：无 ip 二进制则保留记账，下轮重试
+	}
+	for mark, table := range m.pendingMarks {
+		if _, stillWanted := m.lastMarks[mark]; stillWanted {
+			delete(m.pendingMarks, mark) // 已被重新期望 → 不拆
+			continue
+		}
 		_ = m.run(ctx, ip, "rule", "del", "pref", strconv.Itoa(rulePref),
 			"fwmark", strconv.Itoa(mark), "lookup", strconv.Itoa(table))
 		_ = m.run(ctx, ip, "route", "flush", "table", strconv.Itoa(table))
+		delete(m.pendingMarks, mark)
 		m.logger.Info("egress-route: stale egress routing removed",
 			slog.Int("mark", mark), slog.Int("table", table))
+	}
+	for iface := range m.pendingIfaces {
+		delete(m.pendingIfaces, iface)
+		if m.lastIfaces[iface] {
+			continue // 已被重新期望 → 不拆
+		}
+		if _, err := m.runCapture(ctx, ip, "link", "show", iface); err != nil {
+			continue // 接口已不存在
+		}
+		if err := m.run(ctx, ip, "link", "del", iface); err != nil {
+			m.logger.Warn("egress-route: stale tunnel removal failed",
+				slog.String("iface", iface), slog.String("err", err.Error()))
+			continue
+		}
+		delete(m.managedIfaces, iface)
+		m.logger.Info("egress-route: stale tunnel removed", slog.String("iface", iface))
 	}
 	return nil
 }
@@ -269,9 +330,6 @@ func (m *Manager) ensureTunnel(ctx context.Context, a Assignment) error {
 // reapStaleTunnels 删除上一轮建过、本轮不再期望的隧道接口（幂等：接口已不存在视为清理完成）。
 // agent 重启会丢失记录，残留接口此时无规则/无 NAT、不承载流量，仅占一个 wg 监听位。
 func (m *Manager) reapStaleTunnels(ctx context.Context, desired []Assignment) {
-	if len(m.managedIfaces) == 0 {
-		return
-	}
 	ip, err := m.bin(m.cfg.IPBinary, "stale tunnel cleanup")
 	if err != nil {
 		return
@@ -282,21 +340,18 @@ func (m *Manager) reapStaleTunnels(ctx context.Context, desired []Assignment) {
 			desiredIfaces[a.Iface] = true
 		}
 	}
+	m.lastIfaces = desiredIfaces
+	// 已消失的接口直接销账；仍存在但不再期望的接口记账，等 CommitRemovals 拆除（GAP-2）。
 	for iface := range m.managedIfaces {
 		if desiredIfaces[iface] {
+			delete(m.pendingIfaces, iface)
 			continue
 		}
 		if _, err := m.runCapture(ctx, ip, "link", "show", iface); err != nil {
 			delete(m.managedIfaces, iface) // 接口已不存在，清理完成
 			continue
 		}
-		if err := m.run(ctx, ip, "link", "del", iface); err != nil {
-			m.logger.Warn("egress-route: stale tunnel removal failed",
-				slog.String("iface", iface), slog.String("err", err.Error()))
-			continue
-		}
-		delete(m.managedIfaces, iface)
-		m.logger.Info("egress-route: stale tunnel removed", slog.String("iface", iface))
+		m.pendingIfaces[iface] = true
 	}
 }
 

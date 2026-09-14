@@ -354,7 +354,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	relayPathService := service.NewRelayPathService(store.RelayPaths(), store.AgentHosts(), logger)
 	agentRelayRouteService := service.NewAgentRelayRouteService(store.AgentHosts(), store.RelayPaths(), store.AgentMeshPeers(), logger)
 	egressDispatchService := service.NewEgressDispatchService(store.AgentHosts(), store.InboundSpecs(), store.RoutingPolicies(),
-		store.ExitNodeSets(), store.EgressDispatchPairs(), store.AgentMeshPeers(), store.Settings(), logger)
+		store.ExitNodeSets(), store.RelayPaths(), store.EgressDispatchPairs(), store.AgentMeshPeers(), store.Settings(), logger)
 	agentEgressRouteService := service.NewAgentEgressRouteService(store.AgentHosts(), egressDispatchService, logger)
 	// 编译器出口集渲染门控（B 方案：L7 决策 + L3 分发）：未注入/未满足能力门槛时一律渲染 socks。
 	service.SetEgressDispatchResolver(egressDispatchService)

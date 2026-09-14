@@ -802,6 +802,9 @@ func (a *Agent) getRelayRouteMgr() *relayroute.Manager {
 type egressRouteManager interface {
 	Apply(ctx context.Context, assignments []egressroute.Assignment) error
 	Probe(ctx context.Context, assignments []egressroute.Assignment) ([]egressroute.MemberState, error)
+	// CommitRemovals 拆除 Apply 阶段延迟记账的陈旧规则/表/隧道（GAP-2）。
+	// 只应在成功应用了新配置之后调用：核心已切到新配置，拆表才安全。
+	CommitRemovals(ctx context.Context) error
 }
 
 // getEgressRouteMgr 返回出口集分发管理器（惰性构造，与 mesh/relay 共用锁）。
@@ -824,7 +827,19 @@ func (a *Agent) syncRoutesThenApply(ctx context.Context) {
 		slog.Warn("egress-route: not ready, skip apply batch this round")
 		return
 	}
+	// 延迟拆除（GAP-2）：先看本轮是否真的换上了新配置（revision 前进）。
+	// 只有换上了才拆——否则核心可能仍在跑含 mark 出站的旧 revision，拆表会让
+	// 已打 mark 的流量落回主表从入口直出。
+	revBefore := a.getApplyRevision()
 	a.syncApplyBatch(ctx)
+	if a.getApplyRevision() <= revBefore {
+		return
+	}
+	if mgr := a.getEgressRouteMgr(); mgr != nil {
+		if err := mgr.CommitRemovals(ctx); err != nil {
+			slog.Warn("egress-route: commit removals failed", slog.String("err", err.Error()))
+		}
+	}
 }
 
 // syncEgressRoutes 周期拉取本机应生效的出口集分发 assignment 并幂等应用。
