@@ -7,12 +7,15 @@ package relayroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/creamcroissant/mgpanel/internal/agent/wgtunnel"
 )
 
 // Role 描述本机在某条链路中的角色（与面板 GET /api/v1/agent/relay-routes 契约一致）。
@@ -332,144 +335,42 @@ func (m *Manager) meshCIDR() string {
 	return "10.144.0.0/24"
 }
 
-// ensureTunnel 幂等建立/刷新点对点辅助 wg 隧道 xr<pathID>：
-//   - 接口不存在: link add(type wireguard) → addr add → wg set(listen-port/private-key/peer) → link set up
-//   - 已存在: 仅刷新 addr(容错已存在) 与 peer(endpoint/allowed-ips/keepalive)
-//
-// 私钥经临时文件传入(wg 不接受 argv 传私钥)，用后即删。
+// ensureTunnel 幂等建立/刷新点对点辅助 wg 隧道 xr<pathID>（实现见 wgtunnel.Ensure）。
+// 缺 ip/wg 二进制时由 wgtunnel 返回 ErrBinaryUnavailable，此处降级跳过。
 func (m *Manager) ensureTunnel(ctx context.Context, r Role) error {
-	wg, err := m.bin(m.cfg.WgBinary, "wireguard tunnel")
-	if err != nil {
-		return nil // 降级：无 wg 二进制不 panic
+	err := wgtunnel.Ensure(ctx, m.bins(), wgtunnel.Spec{
+		Iface:         r.IfaceName,
+		ListenPort:    r.ListenPort,
+		LocalAddr:     r.LocalAddr,
+		OwnPrivateKey: r.OwnPrivateKey,
+		PeerPublicKey: r.PeerPublicKey,
+		PeerEndpoint:  r.PeerEndpoint,
+		// MTU 0：relay 隧道沿用内核默认（生产既有值），不引入行为变化。
+	})
+	if errors.Is(err, wgtunnel.ErrBinaryUnavailable) {
+		return nil // 降级：无 wg/ip 二进制不 panic
 	}
-	ip, err := m.bin(m.cfg.IPBinary, "wireguard tunnel")
-	if err != nil {
-		return nil
-	}
-	exists := true
-	if _, err := m.runCapture(ctx, ip, "link", "show", r.IfaceName); err != nil {
-		exists = false
-	}
-	if !exists {
-		if err := m.run(ctx, ip, "link", "add", r.IfaceName, "type", "wireguard"); err != nil {
-			return fmt.Errorf("link add %s: %w", r.IfaceName, err)
-		}
-	}
-	keyFile, err := writeTempKeyFile(r.OwnPrivateKey)
-	if err != nil {
-		return fmt.Errorf("write private key file: %w", err)
-	}
-	defer func() { _ = os.Remove(keyFile) }()
-	if !exists {
-		if err := m.run(ctx, wg, "set", r.IfaceName,
-			"listen-port", strconv.Itoa(r.ListenPort),
-			"private-key", keyFile); err != nil {
-			return fmt.Errorf("wg init %s: %w", r.IfaceName, err)
-		}
-	}
-	if err := m.run(ctx, ip, "addr", "add", r.LocalAddr, "dev", r.IfaceName); err != nil {
-		// EEXIST 视为幂等成功；其余错误返回
-		if !strings.Contains(err.Error(), "exists") {
-			return fmt.Errorf("addr add %s: %w", r.IfaceName, err)
-		}
-	}
-	if err := m.run(ctx, wg, "set", r.IfaceName, "peer", r.PeerPublicKey,
-		"endpoint", r.PeerEndpoint,
-		"allowed-ips", "0.0.0.0/0",
-		"persistent-keepalive", "25"); err != nil {
-		return fmt.Errorf("wg peer %s: %w", r.IfaceName, err)
-	}
-	if exists {
-		if err := m.run(ctx, wg, "set", r.IfaceName,
-			"listen-port", strconv.Itoa(r.ListenPort),
-			"private-key", keyFile); err != nil {
-			return fmt.Errorf("wg refresh %s: %w", r.IfaceName, err)
-		}
-	}
-	if err := m.run(ctx, ip, "link", "set", r.IfaceName, "up"); err != nil {
-		return fmt.Errorf("link set up %s: %w", r.IfaceName, err)
-	}
-	m.logger.Info("relay-route: aux tunnel ensured",
-		slog.String("iface", r.IfaceName), slog.Int("port", r.ListenPort), slog.String("local", r.LocalAddr))
-	return nil
+	return err
 }
 
-// ensureTunnelForwardNat 出口侧隧道内转发/NAT（按 iface 幂等）：
-//   - ip_forward 常驻(sysctl.d，同 mesh mid 基础设施复用)
-//   - nft mgpanel_relay 表内: forward-ok 链 `iifname <iface> accept`
-//     postrouting-nat 链 `ip saddr <tunnelNet> masquerade`
-//
-// 规则以 comment "xr<id>" 打标，存在即跳过。
+// ensureTunnelForwardNat 出口侧隧道内转发/NAT（实现见 wgtunnel.EnsureForwardNat，按 iface 幂等打标）。
 func (m *Manager) ensureTunnelForwardNat(ctx context.Context, r Role) error {
-	nft, err := m.bin(m.cfg.NFTBinary, "tunnel forward/nat")
-	if err != nil {
-		return nil
-	}
-	sysctl, err := m.bin(m.cfg.SysctlBinary, "ip_forward")
-	if err != nil {
-		return nil
-	}
-	if err := os.WriteFile(m.cfg.SysctlConfPath, []byte(sysctlConfBody), 0o644); err != nil {
-		return fmt.Errorf("write sysctl conf: %w", err)
-	}
-	if err := m.run(ctx, sysctl, "--system"); err != nil {
-		return fmt.Errorf("sysctl --system: %w", err)
-	}
-	tableOut, err := m.runCapture(ctx, nft, "list", "table", nftTable)
-	if err != nil {
-		// 表不存在则建基础结构
-		base := [][]string{
-			{"add", "table", nftTable},
-			{"add", "chain", nftTable, "forward-ok", "{", "type", "filter", "hook", "forward", "priority", "-100", ";", "policy", "accept", ";", "}"},
-			{"add", "chain", nftTable, "postrouting-nat", "{", "type", "nat", "hook", "postrouting", "priority", "100", ";", "policy", "accept", ";", "}"},
-		}
-		for _, args := range base {
-			if err := m.run(ctx, nft, args...); err != nil {
-				return fmt.Errorf("nft %v: %w", args, err)
-			}
-		}
-		tableOut = ""
-	}
 	tunnelNet := fmt.Sprintf("10.200.%d.0/30", r.PathID%250)
-	comment := fmt.Sprintf("comment \"xr%d\"", r.PathID)
-	var steps [][]string
-	if !strings.Contains(tableOut, `iifname "`+r.IfaceName+`" accept`) && !strings.Contains(tableOut, "iifname "+r.IfaceName+" accept") {
-		steps = append(steps, []string{"add", "rule", nftTable, "forward-ok",
-			"iifname", r.IfaceName, "accept", comment})
+	err := wgtunnel.EnsureForwardNat(ctx, m.bins(), nftTable, r.IfaceName, tunnelNet)
+	if errors.Is(err, wgtunnel.ErrBinaryUnavailable) {
+		return nil
 	}
-	if !strings.Contains(tableOut, tunnelNet) {
-		steps = append(steps, []string{"add", "rule", nftTable, "postrouting-nat",
-			"ip", "saddr", tunnelNet, "masquerade", comment})
-	}
-	for _, args := range steps {
-		if err := m.run(ctx, nft, args...); err != nil {
-			return fmt.Errorf("nft %v: %w", args, err)
-		}
-	}
-	if len(steps) > 0 {
-		m.logger.Info("relay-route: tunnel forward/nat rules added",
-			slog.String("iface", r.IfaceName), slog.String("net", tunnelNet))
-	}
-	return nil
+	return err
 }
 
-// writeTempKeyFile 将 base64 私钥落为 0600 临时文件（wg private-key 参数只收文件路径）。
-func writeTempKeyFile(privB64 string) (string, error) {
-	f, err := os.CreateTemp("", "mgpanel-wg-key-*")
-	if err != nil {
-		return "", err
+// bins 汇总 wgtunnel 需要的外部命令路径（relay 侧注入 Config 中的配置）。
+func (m *Manager) bins() wgtunnel.Bins {
+	return wgtunnel.Bins{
+		IP:             m.cfg.IPBinary,
+		Wg:             m.cfg.WgBinary,
+		NFT:            m.cfg.NFTBinary,
+		Sysctl:         m.cfg.SysctlBinary,
+		SysctlConfPath: m.cfg.SysctlConfPath,
+		Logger:         m.logger,
 	}
-	if err := os.Chmod(f.Name(), 0o600); err != nil {
-		os.Remove(f.Name())
-		return "", err
-	}
-	if _, err := f.WriteString(privB64 + "\n"); err != nil {
-		os.Remove(f.Name())
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
-		return "", err
-	}
-	return f.Name(), nil
 }

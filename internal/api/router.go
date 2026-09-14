@@ -98,6 +98,7 @@ type Services struct {
 	AdminSystemSettings     service.AdminSystemSettingsService
 	AgentHost               service.AgentHostService
 	AgentRelayRoute         service.AgentRelayRouteService
+	AgentEgressRoute        service.AgentEgressRouteService
 	AgentUserSync           service.AgentUserSyncService
 	AgentCore               service.AgentCoreService
 	Forwarding              service.ForwardingService
@@ -718,7 +719,7 @@ func registerV1Routes(api chi.Router, services Services) {
 		registerV1GuestRoutes(v1, services.Comm, services.I18n)
 		registerV1PassportRoutes(v1, services.Auth, services.Verify, services.Password, services.MailLink, services.Comm, services.I18n)
 		registerV1UserRoutes(v1, services.User, services.UserKnowledge, services.UserNotice, services.UserStat, services.Auth, services.Server, services.UserSelection, services.ShortLink, services.Subscription, services.I18n)
-		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.AgentUserSync, services.I18n)
+		registerV1AgentRoutes(v1, services.AgentHost, services.UnlockProbe, services.AgentRelayRoute, services.AgentEgressRoute, services.AgentUserSync, services.I18n)
 	})
 }
 
@@ -805,7 +806,7 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 
 // registerV1AgentRoutes registers agent-related API endpoints.
 // These endpoints are called by agents deployed on edge nodes.
-func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, relayRoute service.AgentRelayRouteService, userSync service.AgentUserSyncService, i18nManager *i18n.Manager) {
+func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, unlockProbe service.UnlockProbeService, relayRoute service.AgentRelayRouteService, egressRoute service.AgentEgressRouteService, userSync service.AgentUserSyncService, i18nManager *i18n.Manager) {
 	if agentHost == nil {
 		return // Agent host service not configured
 	}
@@ -821,6 +822,11 @@ func registerV1AgentRoutes(v1 chi.Router, agentHost service.AgentHostService, un
 		if relayRoute != nil {
 			agent.Route("/relay-routes", func(rr chi.Router) {
 				rr.Get("/", handler.NewAgentRelayRouteHandler(relayRoute, nil).ServeHTTP)
+			})
+		}
+		if egressRoute != nil {
+			agent.Route("/egress-routes", func(er chi.Router) {
+				er.Get("/", handler.NewAgentEgressRouteHandler(egressRoute, nil).ServeHTTP)
 			})
 		}
 		if userSync != nil {

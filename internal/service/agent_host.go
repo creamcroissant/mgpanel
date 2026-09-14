@@ -146,6 +146,9 @@ type UpdateAgentHostRequest struct {
 	Host    *string `json:"host,omitempty"`
 	Country *string `json:"country,omitempty"`
 	Region  *string `json:"region,omitempty"`
+	// EgressDispatch 出口集内核分发模式：inherit | socks | l3
+	// （见 docs/plans/20260915-egress-dispatch-l3.md）。
+	EgressDispatch *string `json:"egress_dispatch,omitempty"`
 }
 
 // AgentHostMetricsReport contains metrics reported by an agent.
@@ -396,6 +399,13 @@ func (s *agentHostService) Update(ctx context.Context, id int64, req UpdateAgent
 	if req.Region != nil {
 		host.Region = strings.TrimSpace(*req.Region)
 	}
+	if req.EgressDispatch != nil {
+		mode := strings.ToLower(strings.TrimSpace(*req.EgressDispatch))
+		if !IsValidEgressDispatchMode(mode) {
+			return fmt.Errorf("%w: egress_dispatch must be inherit|socks|l3 / 出口调度模式非法", ErrBadRequest)
+		}
+		host.EgressDispatch = mode
+	}
 	if host.Name == "" || host.Host == "" {
 		return fmt.Errorf("name and host are required / 名称和主机地址不能为空")
 	}
@@ -571,12 +581,12 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 		}
 
 		// Look up by original protocol tag (Code) first, fall back to Name
-	// after auto-naming may have changed the Name.
-	srv, exists := codeMap[p.Name]
-	if !exists {
-		srv, exists = serverMap[p.Name]
-	}
-	if exists {
+		// after auto-naming may have changed the Name.
+		srv, exists := codeMap[p.Name]
+		if !exists {
+			srv, exists = serverMap[p.Name]
+		}
+		if exists {
 			// Backfill Code for servers that were created before naming support
 			if srv.Code == "" {
 				srv.Code = p.Name
@@ -615,12 +625,12 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 				UpdatedAt:       now,
 				Host:            host.Host,
 				Show:            1,
-				Code:           p.Name, // store original protocol tag for stable matching
-				Port:         port,
-				ServerPort:   0,
-				Tags:         json.RawMessage("[]"),
-				Settings:     settingsJSON,
-				ObfsSettings: json.RawMessage("{}"),
+				Code:            p.Name, // store original protocol tag for stable matching
+				Port:            port,
+				ServerPort:      0,
+				Tags:            json.RawMessage("[]"),
+				Settings:        settingsJSON,
+				ObfsSettings:    json.RawMessage("{}"),
 			}
 			if p.Running {
 				newServer.LastHeartbeatAt = now
@@ -644,9 +654,10 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 
 // computeServerSerial determines the position of serverID among all servers
 // on the same agent host, returning a display serial suitable for node naming.
-//   position 0 (first by ID) -> serial 0 (no suffix)
-//   position 1 (second)      -> serial 2 -> -02
-//   position 2 (third)       -> serial 3 -> -03
+//
+//	position 0 (first by ID) -> serial 0 (no suffix)
+//	position 1 (second)      -> serial 2 -> -02
+//	position 2 (third)       -> serial 3 -> -03
 func (s *agentHostService) computeServerSerial(ctx context.Context, agentHostID int64, serverID int64) int {
 	servers, err := s.servers.FindByAgentHostID(ctx, agentHostID)
 	if err != nil || len(servers) <= 1 {
@@ -1160,8 +1171,6 @@ func (s *agentHostService) AssignTemplate(ctx context.Context, agentID, template
 	host.TemplateID = templateID
 	return s.agentHosts.Update(ctx, host)
 }
-
-
 
 func generateAgentHostToken() (string, error) {
 	tokenBytes := make([]byte, 32)

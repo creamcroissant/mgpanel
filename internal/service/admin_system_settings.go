@@ -398,6 +398,15 @@ func generateCommunicationKey() (string, error) {
 func normalizeCategorySettingsForResponse(category string, settings map[string]string) map[string]string {
 	switch strings.TrimSpace(category) {
 	case generalSettingsCategory:
+		// 出口集内核分发默认模式始终回显有效值（未配置时回显 socks = 行为与引入前一致）。
+		if strings.TrimSpace(settings[SettingKeyEgressDispatchDefault]) == "" {
+			result := make(map[string]string, len(settings)+1)
+			for key, value := range settings {
+				result[key] = value
+			}
+			result[SettingKeyEgressDispatchDefault] = DefaultEgressDispatchMode
+			settings = result
+		}
 		// 规则集下载基址始终回显有效值（未配置时回显默认），保证 UI 与下发一致。
 		if strings.TrimSpace(settings[routeRuleSetBaseURLKey]) == "" {
 			result := make(map[string]string, len(settings)+1)
@@ -529,8 +538,15 @@ func validateCategorySettings(category string, settings map[string]string) error
 	}
 }
 
-// validateGeneralSettings 校验通用设置（目前仅规则集下载基址）。
+// validateGeneralSettings 校验通用设置（规则集下载基址 + 出口集分发默认模式）。
 func validateGeneralSettings(settings map[string]string) error {
+	if mode, ok := settings[SettingKeyEgressDispatchDefault]; ok {
+		if !IsValidEgressDispatchMode(mode) {
+			err := &SystemSettingsValidationError{}
+			err.add(SettingKeyEgressDispatchDefault, "必须为 inherit / socks / l3 之一")
+			return err
+		}
+	}
 	raw, ok := settings[routeRuleSetBaseURLKey]
 	if !ok {
 		return nil

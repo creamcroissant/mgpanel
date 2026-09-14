@@ -167,7 +167,12 @@ type AgentHost struct {
 	CurrentCoreType       string   // 当前运行核心类型
 	Country               string   `json:"country"` // GeoIP 推断的国家 ISO 码 (如 "JP")，手动标注优先
 	Region                string   // 自由文本地区名 (如 "Asia East")
-	LastHeartbeatAt       int64    // 最后心跳时间
+	// EgressDispatch 出口集内核分发模式：inherit（跟随全局默认）| socks | l3。
+	EgressDispatch string
+	// EgressSyncedAt 最近一次成功拉取 /agent/egress-routes 的时间（unix 秒）；
+	// 面板以新鲜度作为能力门控，见 docs/plans/20260915-egress-dispatch-l3.md。
+	EgressSyncedAt  int64
+	LastHeartbeatAt int64 // 最后心跳时间
 	ConfigYAML            string   // Agent 上报的运行配置 YAML
 	CreatedAt             int64
 	UpdatedAt             int64
@@ -486,6 +491,22 @@ type ForwardingRuleLog struct {
 	OperatorID  *int64 // 操作者 ID (可为空，系统操作时)
 	Detail      string // 操作详情 (JSON 格式)
 	CreatedAt   int64
+}
+
+// EgressDispatchPair 是「出口集内核分发」的一个 (入口, 成员) 隧道配对。
+// seq 由面板分配并持久化（稳定不变，避免重配抖动），决定隧道网段
+// 10.220.<seq/64>.<(seq%64)*4>/30 与监听端口 32000+seq。
+// 见 docs/plans/20260915-egress-dispatch-l3.md I4/I5。
+type EgressDispatchPair struct {
+	ID            int64  `json:"id"`
+	EntryAgentID  int64  `json:"entry_agent_id"`
+	MemberAgentID int64  `json:"member_agent_id"`
+	Seq           int64  `json:"seq"`
+	ListenPort    int    `json:"listen_port"`
+	LocalNet      string `json:"local_net"`
+	Enabled       bool   `json:"enabled"`
+	CreatedAt     int64  `json:"created_at"`
+	UpdatedAt     int64  `json:"updated_at"`
 }
 
 // AgentMeshPeer represents a WireGuard mesh peer in the database.

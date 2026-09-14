@@ -29,6 +29,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/agent/config"
 	"github.com/creamcroissant/mgpanel/internal/agent/configcenter"
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
+	"github.com/creamcroissant/mgpanel/internal/agent/egressroute"
 	"github.com/creamcroissant/mgpanel/internal/agent/forwarding"
 	"github.com/creamcroissant/mgpanel/internal/agent/geoip"
 	agentgrpc "github.com/creamcroissant/mgpanel/internal/agent/grpc"
@@ -87,6 +88,7 @@ type Agent struct {
 
 	cachedAdvertiseHost string              // 缓存探测到的公网 IP，避免每次 sync 都调外网 API
 	relayRouteMgr       *relayroute.Manager // 中继链路内核路由管理器（惰性构造，meshMu 保护）
+	egressRouteMgr      egressRouteManager  // 出口集内核分发管理器（惰性构造，meshMu 保护）
 
 	batchApplier              applyBatchRunner
 	inventoryScanner          *configcenter.AgentInventoryScanner
@@ -705,8 +707,7 @@ func (a *Agent) sync(ctx context.Context) {
 
 func (a *Agent) syncGRPC(ctx context.Context) {
 	a.syncAgentHost(ctx, "", "")
-	a.syncRelayRoutes(ctx)
-	a.syncApplyBatch(ctx)
+	a.syncRoutesThenApply(ctx)
 	a.syncCoreOperations(ctx)
 	a.syncAgentCommands(ctx)
 
@@ -795,6 +796,106 @@ func (a *Agent) getRelayRouteMgr() *relayroute.Manager {
 		a.relayRouteMgr = relayroute.NewManager(relayroute.Config{Logger: slog.Default()})
 	}
 	return a.relayRouteMgr
+}
+
+// egressRouteManager 抽象出口集分发内核管理器（真实实现 *egressroute.Manager；测试可注入 fake）。
+type egressRouteManager interface {
+	Apply(ctx context.Context, assignments []egressroute.Assignment) error
+	Probe(ctx context.Context, assignments []egressroute.Assignment) ([]egressroute.MemberState, error)
+}
+
+// getEgressRouteMgr 返回出口集分发管理器（惰性构造，与 mesh/relay 共用锁）。
+func (a *Agent) getEgressRouteMgr() egressRouteManager {
+	a.meshMu.Lock()
+	defer a.meshMu.Unlock()
+	if a.egressRouteMgr == nil {
+		a.egressRouteMgr = egressroute.NewManager(egressroute.Config{Logger: slog.Default()})
+	}
+	return a.egressRouteMgr
+}
+
+// syncRoutesThenApply 按 I12 顺序同步内核路由再应用配置，并按 I14 做就绪门控：
+// egress 未就绪（Apply 失败或 Probe 发现缺项）时本轮跳过 syncApplyBatch，
+// 核心继续跑旧 revision，避免 mark 生效但表/规则不存在导致流量从入口直出。
+func (a *Agent) syncRoutesThenApply(ctx context.Context) {
+	egressReady := a.syncEgressRoutes(ctx)
+	a.syncRelayRoutes(ctx)
+	if !egressReady {
+		slog.Warn("egress-route: not ready, skip apply batch this round")
+		return
+	}
+	a.syncApplyBatch(ctx)
+}
+
+// syncEgressRoutes 周期拉取本机应生效的出口集分发 assignment 并幂等应用。
+// 面板端点：GET /api/v1/agent/egress-routes?token=<host_token>。
+// 返回 false 表示内核未就绪，调用方必须跳过本轮配置应用（I14）。
+// 拉取/解析失败不改就绪判定：面板未回收到本机能力前不会渲染 mark 出站，
+// 上一轮已生效的内核状态保持不变。
+func (a *Agent) syncEgressRoutes(ctx context.Context) bool {
+	if a == nil || a.cfg == nil {
+		return true
+	}
+	hostToken := strings.TrimSpace(a.cfg.Panel.HostToken)
+	if hostToken == "" {
+		return true
+	}
+	base := strings.TrimSuffix(resolvePanelHTTPBase(a.cfg), "/")
+	if base == "" {
+		slog.Debug("egress-route: no panel http base, skip")
+		return true
+	}
+	reqURL := base + "/api/v1/agent/egress-routes?token=" + url.QueryEscape(hostToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return true
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Debug("egress-route: fetch skipped", slog.String("err", err.Error()))
+		return true
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("egress-route: unexpected status", slog.Int("status", resp.StatusCode))
+		return true
+	}
+	var payload struct {
+		Data []egressroute.Assignment `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		slog.Warn("egress-route: decode failed", slog.String("err", err.Error()))
+		return true
+	}
+	mgr := a.getEgressRouteMgr()
+	if err := mgr.Apply(ctx, payload.Data); err != nil {
+		slog.Warn("egress-route: not ready, apply failed",
+			slog.Int("assignments", len(payload.Data)), slog.String("err", err.Error()))
+		return false
+	}
+	states, err := mgr.Probe(ctx, payload.Data)
+	if err != nil {
+		slog.Warn("egress-route: not ready, probe failed", slog.String("err", err.Error()))
+		return false
+	}
+	if notReady := egressNotReady(states); len(notReady) > 0 {
+		slog.Warn("egress-route: not ready, skip apply", slog.Any("members", notReady))
+		return false
+	}
+	slog.Info("egress-route: assignments applied", slog.Int("count", len(payload.Data)))
+	return true
+}
+
+// egressNotReady 返回内核未就绪的成员明细（就绪判定见 I14；空切片表示全部就绪）。
+func egressNotReady(states []egressroute.MemberState) []egressroute.MemberState {
+	var out []egressroute.MemberState
+	for _, st := range states {
+		if !st.OK {
+			out = append(out, st)
+		}
+	}
+	return out
 }
 
 // syncRelayRoutes 周期拉取本机应生效的中继链路角色并幂等应用。

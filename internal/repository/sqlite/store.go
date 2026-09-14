@@ -11,7 +11,7 @@ import (
 
 // Store wires SQLite-backed repository implementations.
 type Store struct {
-	db   *sql.DB
+	db    *sql.DB
 	cache cache.Store
 
 	// 内部具体类型引用（用于 cache 注入）
@@ -78,6 +78,7 @@ type Store struct {
 	specHostBindings       repository.SpecHostBindingRepository
 	mcpApiKeys             *mcpApiKeyRepo
 	meshPeers              *agentMeshPeerRepo
+	egressDispatchPairs    *egressDispatchPairRepo
 }
 
 // StoreOption configures the SQLite-backed repository store.
@@ -120,69 +121,70 @@ func NewStore(db *sql.DB, opts ...StoreOption) *Store {
 	statServersRepo := &statServerRepo{db: db}
 	subscriptionSourcesRepo := newSubscriptionSourceRepo(db)
 	s := &Store{
-		db:                     db,
-		usersRepo:              usersRepo,
-		settingsRepo:           settingsRepo,
-		serversRepo:            serversRepo,
-		statUsersRepo:          statUsersRepo,
-		statServersRepo:        statServersRepo,
+		db:                      db,
+		usersRepo:               usersRepo,
+		settingsRepo:            settingsRepo,
+		serversRepo:             serversRepo,
+		statUsersRepo:           statUsersRepo,
+		statServersRepo:         statServersRepo,
 		subscriptionSourcesRepo: subscriptionSourcesRepo,
-		coreOperations:         newCoreOperationRepo(db),
-		operationLogs:          newOperationLogRepo(db),
-		binaryVersionStates:    newBinaryVersionStateRepo(db),
-		agentLifecycleOps:      newAgentLifecycleOperationRepo(db),
-		agentTrafficPolicies:   newAgentTrafficPolicyRepo(db),
-		agentTrafficStates:     newAgentTrafficStateRepo(db),
-		subscriptionSources:    subscriptionSourcesRepo,
-		subscriptionReasons:    newSubscriptionFilterReasonRepo(db),
-		users:                  usersRepo,
-		settings:               settingsRepo,
-		plugins:                &pluginRepo{db: db},
-		loginLogs:              &loginLogRepo{db: db},
-		tokens:                 &tokenRepo{db: db},
-		servers:                serversRepo,
-		groups:                 &serverGroupRepo{db: db},
-		routes:                 &serverRouteRepo{db: db},
-		statUsers:              statUsersRepo,
-		statServers:            statServersRepo,
-		notices:                &noticeRepo{db: db},
-		knowledge:              &knowledgeRepo{db: db},
-		subLogs:                &subscriptionLogRepo{db: db},
-		agentHosts:             newAgentHostRepo(db),
-		configTemplates:        newConfigTemplateRepo(db),
-		serverClientConfigs:    newServerClientConfigRepo(db),
-		userTraffic:            newUserTrafficRepo(db),
-		shortLinks:             NewShortLinkRepository(db),
-		subscriptionTemplates:  newSubscriptionTemplateRepo(db),
-		forwardingRules:        newForwardingRuleRepo(db),
-		forwardingRuleLogs:     newForwardingRuleLogRepo(db),
-		userNoticeReads:        newUserNoticeReadsRepo(db),
-		agentCoreInstances:     newAgentCoreInstanceRepo(db),
-		agentCoreSwitchLogs:    newAgentCoreSwitchLogRepo(db),
-		accessLogs:             newAccessLogRepo(db),
-		unlockProbeResults:     newUnlockProbeResultRepo(db),
-		inboundSpecs:           newInboundSpecRepo(db),
-		inboundSpecRevisions:   newInboundSpecRevisionRepo(db),
-		coreConfigItems:       newCoreConfigItemRepo(db),
-		desiredArtifacts:       newDesiredArtifactRepo(db),
-		applyRuns:              newApplyRunRepo(db),
-		trafficReportDedups:    newTrafficReportDedupRepo(db),
-		agentConfigInventories: newAgentConfigInventoryRepo(db),
-		inboundIndexes:         newInboundIndexRepo(db),
-		driftStates:            newDriftStateRepo(db),
-		cdnSites:               newCDNSiteRepo(db),
-		cdnEdges:               newCDNEdgeRepo(db),
-		cdnCacheRules:          newCDNCacheRuleRepo(db),
-		cdnOriginLatencies:     newCDNOriginLatencyRepo(db),
-		cfZones:                newCloudflareZoneRepo(db),
-		cfDNSRecords:           newCloudflareDNSRecordRepo(db),
-		cfDists:                newCloudfrontDistRepo(db),
-		specHostBindings:       newSpecHostBindingRepo(db),
-			mcpApiKeys:             newMCPApiKeyRepo(db),
-		meshPeers:              NewAgentMeshPeerRepository(db).(*agentMeshPeerRepo),
-		exitNodeSets:           newExitNodeSetRepo(db),
-		routingPolicies:        newRoutingPolicyRepo(db),
-		relayPaths:             newRelayPathRepo(db),
+		coreOperations:          newCoreOperationRepo(db),
+		operationLogs:           newOperationLogRepo(db),
+		binaryVersionStates:     newBinaryVersionStateRepo(db),
+		agentLifecycleOps:       newAgentLifecycleOperationRepo(db),
+		agentTrafficPolicies:    newAgentTrafficPolicyRepo(db),
+		agentTrafficStates:      newAgentTrafficStateRepo(db),
+		subscriptionSources:     subscriptionSourcesRepo,
+		subscriptionReasons:     newSubscriptionFilterReasonRepo(db),
+		users:                   usersRepo,
+		settings:                settingsRepo,
+		plugins:                 &pluginRepo{db: db},
+		loginLogs:               &loginLogRepo{db: db},
+		tokens:                  &tokenRepo{db: db},
+		servers:                 serversRepo,
+		groups:                  &serverGroupRepo{db: db},
+		routes:                  &serverRouteRepo{db: db},
+		statUsers:               statUsersRepo,
+		statServers:             statServersRepo,
+		notices:                 &noticeRepo{db: db},
+		knowledge:               &knowledgeRepo{db: db},
+		subLogs:                 &subscriptionLogRepo{db: db},
+		agentHosts:              newAgentHostRepo(db),
+		configTemplates:         newConfigTemplateRepo(db),
+		serverClientConfigs:     newServerClientConfigRepo(db),
+		userTraffic:             newUserTrafficRepo(db),
+		shortLinks:              NewShortLinkRepository(db),
+		subscriptionTemplates:   newSubscriptionTemplateRepo(db),
+		forwardingRules:         newForwardingRuleRepo(db),
+		forwardingRuleLogs:      newForwardingRuleLogRepo(db),
+		userNoticeReads:         newUserNoticeReadsRepo(db),
+		agentCoreInstances:      newAgentCoreInstanceRepo(db),
+		agentCoreSwitchLogs:     newAgentCoreSwitchLogRepo(db),
+		accessLogs:              newAccessLogRepo(db),
+		unlockProbeResults:      newUnlockProbeResultRepo(db),
+		inboundSpecs:            newInboundSpecRepo(db),
+		inboundSpecRevisions:    newInboundSpecRevisionRepo(db),
+		coreConfigItems:         newCoreConfigItemRepo(db),
+		desiredArtifacts:        newDesiredArtifactRepo(db),
+		applyRuns:               newApplyRunRepo(db),
+		trafficReportDedups:     newTrafficReportDedupRepo(db),
+		agentConfigInventories:  newAgentConfigInventoryRepo(db),
+		inboundIndexes:          newInboundIndexRepo(db),
+		driftStates:             newDriftStateRepo(db),
+		cdnSites:                newCDNSiteRepo(db),
+		cdnEdges:                newCDNEdgeRepo(db),
+		cdnCacheRules:           newCDNCacheRuleRepo(db),
+		cdnOriginLatencies:      newCDNOriginLatencyRepo(db),
+		cfZones:                 newCloudflareZoneRepo(db),
+		cfDNSRecords:            newCloudflareDNSRecordRepo(db),
+		cfDists:                 newCloudfrontDistRepo(db),
+		specHostBindings:        newSpecHostBindingRepo(db),
+		mcpApiKeys:              newMCPApiKeyRepo(db),
+		meshPeers:               NewAgentMeshPeerRepository(db).(*agentMeshPeerRepo),
+		egressDispatchPairs:     newEgressDispatchPairRepo(db),
+		exitNodeSets:            newExitNodeSetRepo(db),
+		routingPolicies:         newRoutingPolicyRepo(db),
+		relayPaths:              newRelayPathRepo(db),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -229,7 +231,6 @@ func (s *Store) Users() repository.UserRepository {
 func (s *Store) Settings() repository.SettingRepository {
 	return s.settings
 }
-
 
 func (s *Store) Plugins() repository.PluginRepository {
 	return s.plugins
@@ -327,6 +328,11 @@ func (s *Store) UnlockProbeResults() repository.UnlockProbeResultRepository {
 	return s.unlockProbeResults
 }
 
+// EgressDispatchPairs 出口集内核分发隧道配对仓储。
+func (s *Store) EgressDispatchPairs() repository.EgressDispatchPairRepository {
+	return s.egressDispatchPairs
+}
+
 func (s *Store) ExitNodeSets() repository.ExitNodeSetRepository {
 	return s.exitNodeSets
 }
@@ -370,7 +376,6 @@ func (s *Store) AgentConfigInventories() repository.AgentConfigInventoryReposito
 func (s *Store) InboundIndexes() repository.InboundIndexRepository {
 	return s.inboundIndexes
 }
-
 
 func (s *Store) SpecHostBindings() repository.SpecHostBindingRepository {
 	return s.specHostBindings

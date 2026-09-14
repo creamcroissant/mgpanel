@@ -647,8 +647,8 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 
 		exitTag := fmt.Sprintf("mesh-exit-%d", exitID)
 
-		// socks outbound：指向出口 agent 的 WG IP:1080
-		outboundContent := renderMeshSocksOutbound(coreType, exitWGIP, 1080, exitTag)
+		// 成员出站：l3 模式下为 direct/freedom + fwmark（内核分发），否则 socks over mesh
+		outboundContent := renderMeshMemberOutbound(ctx, coreType, req.AgentHostID, exitID, exitWGIP, exitTag)
 		outboundFilename := fmt.Sprintf("mesh-%s-exit.json", specTag)
 		artifacts = append(artifacts, &repository.DesiredArtifact{
 			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
@@ -784,12 +784,12 @@ func (s *artifactCompilerService) buildRoutingPolicyPool(
 		exitTag := fmt.Sprintf("mesh-exit-%d", m.AgentHostID)
 		memberOutboundTags = append(memberOutboundTags, exitTag)
 
-		// 每个成员只生成一次 socks outbound（可能已被 spec 出口集或其它规则生成）
+		// 每个成员只生成一次成员出站（可能已被 spec 出口集或其它规则生成）
 		if _, gen := setMemberOutboundGen[m.AgentHostID]; gen {
 			continue
 		}
 		setMemberOutboundGen[m.AgentHostID] = struct{}{}
-		outboundContent := renderMeshSocksOutbound(coreType, wgIP, 1080, exitTag)
+		outboundContent := renderMeshMemberOutbound(ctx, coreType, req.AgentHostID, m.AgentHostID, wgIP, exitTag)
 		out = append(out, &repository.DesiredArtifact{
 			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 			Filename: fmt.Sprintf("mesh-exit-%d.json", m.AgentHostID), SourceTag: fmt.Sprintf("exit-%d", m.AgentHostID),
@@ -918,7 +918,7 @@ func (s *artifactCompilerService) buildMeshExitSetArtifacts(
 		}
 		setMemberOutboundGen[m.AgentHostID] = struct{}{}
 
-		outboundContent := renderMeshSocksOutbound(coreType, wgIP, 1080, exitTag)
+		outboundContent := renderMeshMemberOutbound(ctx, coreType, req.AgentHostID, m.AgentHostID, wgIP, exitTag)
 		artifacts = append(artifacts, &repository.DesiredArtifact{
 			AgentHostID: req.AgentHostID, CoreType: coreType, DesiredRevision: req.DesiredRevision,
 			Filename: fmt.Sprintf("mesh-exit-%d.json", m.AgentHostID), SourceTag: fmt.Sprintf("exit-%d", m.AgentHostID),
@@ -1117,6 +1117,50 @@ func renderMeshSocksInbound(coreType, listenIP string, port int, tag string) []b
 }
 
 // renderMeshSocksOutbound 生成 sing-box / Xray 的 socks outbound 配置。
+// renderMeshEgressMarkOutbound 渲染"内核分发"成员出站（I11）：
+// 出站本身只是本机 direct/freedom + fwmark，实际出口由内核按 mark 的策略路由决定
+// （详见 docs/plans/20260915-egress-dispatch-l3.md）。
+func renderMeshEgressMarkOutbound(coreType, tag string, memberAgentID int64) []byte {
+	mark := EgressMemberMark(memberAgentID)
+	if coreType == "xray" {
+		data := map[string]any{
+			"outbounds": []any{
+				map[string]any{
+					"protocol": "freedom",
+					"tag":      tag,
+					"streamSettings": map[string]any{
+						"sockopt": map[string]any{"mark": mark},
+					},
+				},
+			},
+		}
+		b, _ := json.Marshal(data)
+		return b
+	}
+	// sing-box
+	data := map[string]any{
+		"outbounds": []any{
+			map[string]any{
+				"type":         "direct",
+				"tag":          tag,
+				"routing_mark": mark,
+			},
+		},
+	}
+	b, _ := json.Marshal(data)
+	return b
+}
+
+// renderMeshMemberOutbound 按主机分发模式渲染成员出站（I11）：
+//   - l3:   direct/freedom + fwmark（内核分发；出口无需 sing-box）
+//   - socks: 传统 socks over mesh（默认，行为不变）
+func renderMeshMemberOutbound(ctx context.Context, coreType string, agentHostID int64, memberAgentID int64, memberWGIP string, tag string) []byte {
+	if resolveEgressMode(ctx, agentHostID) == "l3" {
+		return renderMeshEgressMarkOutbound(coreType, tag, memberAgentID)
+	}
+	return renderMeshSocksOutbound(coreType, memberWGIP, 1080, tag)
+}
+
 func renderMeshSocksOutbound(coreType, serverIP string, port int, tag string) []byte {
 	if coreType == "xray" {
 		data := map[string]any{

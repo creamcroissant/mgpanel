@@ -341,6 +341,8 @@ type UpdateAgentHostRequest struct {
 	Host    *string `json:"host,omitempty"`
 	Country *string `json:"country,omitempty"`
 	Region  *string `json:"region,omitempty"`
+	// EgressDispatch 出口集内核分发模式：inherit | socks | l3（B 方案，默认 inherit）。
+	EgressDispatch *string `json:"egress_dispatch,omitempty"`
 }
 
 // RegisterAgentHostRequest represents the request to auto-register an agent host.
@@ -432,6 +434,9 @@ func (h *AgentHostHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if req.Region != nil {
 		updateReq.Region = req.Region
 	}
+	if req.EgressDispatch != nil {
+		updateReq.EgressDispatch = req.EgressDispatch
+	}
 
 	if err := h.service.Update(ctx, id, updateReq); err != nil {
 		status := http.StatusInternalServerError
@@ -442,6 +447,9 @@ func (h *AgentHostHandler) Update(w http.ResponseWriter, r *http.Request) {
 		} else if errors.Is(err, service.ErrRequiredField) {
 			status = http.StatusBadRequest
 			key = "error.missing_fields"
+		} else if errors.Is(err, service.ErrBadRequest) {
+			status = http.StatusBadRequest
+			key = "error.bad_request"
 		}
 		RespondErrorI18nAction(ctx, w, status, "agent_host.update", key, h.i18n)
 		return
@@ -563,4 +571,3 @@ func (h *AgentHostHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 }
-

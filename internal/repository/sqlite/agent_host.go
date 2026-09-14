@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/bootstrap"
@@ -46,8 +47,8 @@ func (r *agentHostRepo) Create(ctx context.Context, host *repository.AgentHost) 
 			disk_total, disk_used, upload_total, download_total,
 			upload_rate_bps, download_rate_bps, raw_upload_total_bytes, raw_download_total_bytes,
 			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region,
-			last_heartbeat_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			egress_dispatch, last_heartbeat_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		host.Name, host.Host, host.Token, host.Status, host.ProvisionStatus, host.TemplateID,
 		host.CoreVersion, string(capsJSON), string(tagsJSON),
@@ -56,7 +57,7 @@ func (r *agentHostRepo) Create(ctx context.Context, host *repository.AgentHost) 
 		host.UploadRateBps, host.DownloadRateBps, host.RawUploadTotalBytes, host.RawDownloadTotalBytes,
 		host.BootID, host.LastRealtimeReportAt, host.LastRestartAt, host.AgentVersion, host.CurrentCoreType,
 		host.ConfigYAML, host.Country, host.Region,
-		host.LastHeartbeatAt, host.CreatedAt, host.UpdatedAt,
+		normalizeEgressDispatchMode(host.EgressDispatch), host.LastHeartbeatAt, host.CreatedAt, host.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func (r *agentHostRepo) FindByID(ctx context.Context, id int64) (*repository.Age
 			cpu_total, cpu_used, mem_total, mem_used,
 			disk_total, disk_used, upload_total, download_total,
 			upload_rate_bps, download_rate_bps, raw_upload_total_bytes, raw_download_total_bytes,
-			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region,
+			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region, egress_dispatch, egress_synced_at,
 			last_heartbeat_at, created_at, updated_at
 		FROM agent_hosts WHERE id = ?
 	`, id)
@@ -90,7 +91,7 @@ func (r *agentHostRepo) FindByHost(ctx context.Context, host string) (*repositor
 			cpu_total, cpu_used, mem_total, mem_used,
 			disk_total, disk_used, upload_total, download_total,
 			upload_rate_bps, download_rate_bps, raw_upload_total_bytes, raw_download_total_bytes,
-			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region,
+			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region, egress_dispatch, egress_synced_at,
 			last_heartbeat_at, created_at, updated_at
 		FROM agent_hosts WHERE host = ?
 	`, host)
@@ -104,7 +105,7 @@ func (r *agentHostRepo) FindByToken(ctx context.Context, token string) (*reposit
 			cpu_total, cpu_used, mem_total, mem_used,
 			disk_total, disk_used, upload_total, download_total,
 			upload_rate_bps, download_rate_bps, raw_upload_total_bytes, raw_download_total_bytes,
-			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region,
+			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region, egress_dispatch, egress_synced_at,
 			last_heartbeat_at, created_at, updated_at
 		FROM agent_hosts WHERE token = ?
 	`, token)
@@ -135,7 +136,7 @@ func (r *agentHostRepo) Update(ctx context.Context, host *repository.AgentHost) 
 	_, err = execWithRetry(ctx, r.db, `
 		UPDATE agent_hosts SET
 			name = ?, host = ?, token = ?, status = ?, provision_status = ?, template_id = ?,
-			core_version = ?, capabilities = ?, build_tags = ?, config_yaml = ?, country = ?, region = ?,
+			core_version = ?, capabilities = ?, build_tags = ?, config_yaml = ?, country = ?, region = ?, egress_dispatch = ?,
 			cpu_total = ?, cpu_used = ?, mem_total = ?, mem_used = ?,
 			disk_total = ?, disk_used = ?, upload_total = ?, download_total = ?,
 			last_heartbeat_at = ?, updated_at = ?
@@ -143,7 +144,7 @@ func (r *agentHostRepo) Update(ctx context.Context, host *repository.AgentHost) 
 	`,
 		host.Name, host.Host, host.Token, host.Status, host.ProvisionStatus, host.TemplateID,
 		host.CoreVersion, string(capsJSON), string(tagsJSON),
-		host.ConfigYAML, host.Country, host.Region,
+		host.ConfigYAML, host.Country, host.Region, normalizeEgressDispatchMode(host.EgressDispatch),
 		host.CPUTotal, host.CPUUsed, host.MemTotal, host.MemUsed,
 		host.DiskTotal, host.DiskUsed, host.UploadTotal, host.DownloadTotal,
 		host.LastHeartbeatAt, host.UpdatedAt, host.ID,
@@ -165,7 +166,7 @@ func (r *agentHostRepo) ListAll(ctx context.Context) ([]*repository.AgentHost, e
 			cpu_total, cpu_used, mem_total, mem_used,
 			disk_total, disk_used, upload_total, download_total,
 			upload_rate_bps, download_rate_bps, raw_upload_total_bytes, raw_download_total_bytes,
-			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region,
+			boot_id, last_realtime_report_at, last_restart_at, agent_version, current_core_type, config_yaml, country, region, egress_dispatch, egress_synced_at,
 			last_heartbeat_at, created_at, updated_at
 		FROM agent_hosts ORDER BY name ASC
 	`)
@@ -247,7 +248,7 @@ func (r *agentHostRepo) scanHost(row *sql.Row) (*repository.AgentHost, error) {
 		&h.DiskTotal, &h.DiskUsed, &h.UploadTotal, &h.DownloadTotal,
 		&h.UploadRateBps, &h.DownloadRateBps, &h.RawUploadTotalBytes, &h.RawDownloadTotalBytes,
 		&h.BootID, &h.LastRealtimeReportAt, &h.LastRestartAt, &h.AgentVersion, &h.CurrentCoreType,
-		&h.ConfigYAML, &h.Country, &h.Region,
+		&h.ConfigYAML, &h.Country, &h.Region, &h.EgressDispatch, &h.EgressSyncedAt,
 		&h.LastHeartbeatAt, &h.CreatedAt, &h.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -289,7 +290,7 @@ func (r *agentHostRepo) scanHostFromRows(rows *sql.Rows) (*repository.AgentHost,
 		&h.DiskTotal, &h.DiskUsed, &h.UploadTotal, &h.DownloadTotal,
 		&h.UploadRateBps, &h.DownloadRateBps, &h.RawUploadTotalBytes, &h.RawDownloadTotalBytes,
 		&h.BootID, &h.LastRealtimeReportAt, &h.LastRestartAt, &h.AgentVersion, &h.CurrentCoreType,
-		&h.ConfigYAML, &h.Country, &h.Region,
+		&h.ConfigYAML, &h.Country, &h.Region, &h.EgressDispatch, &h.EgressSyncedAt,
 		&h.LastHeartbeatAt, &h.CreatedAt, &h.UpdatedAt,
 	)
 	if err != nil {
@@ -344,6 +345,23 @@ func (r *agentHostRepo) UpdateCapabilities(ctx context.Context, id int64, coreVe
 	})
 	// NOTE: no RowsAffected check -- capability updates are fire-and-forget;
 	// the host may be deleted concurrently.
+}
+
+// normalizeEgressDispatchMode 保证列值始终是契约内的三态之一（空/未识别 → inherit）。
+func normalizeEgressDispatchMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case "inherit", "socks", "l3":
+		return strings.TrimSpace(mode)
+	default:
+		return "inherit"
+	}
+}
+
+// UpdateEgressSyncedAt 记录最近一次成功拉取出口分发路由的时间（能力门控新鲜度）。
+// NOTE: no RowsAffected check -- 主机可能被并发删除，属可接受情形。
+func (r *agentHostRepo) UpdateEgressSyncedAt(ctx context.Context, id int64, syncedAt int64) error {
+	_, err := execWithRetry(ctx, r.db, `UPDATE agent_hosts SET egress_synced_at = ? WHERE id = ?`, syncedAt, id)
+	return err
 }
 
 func (r *agentHostRepo) Count(ctx context.Context) (int64, error) {

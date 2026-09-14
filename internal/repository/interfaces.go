@@ -62,6 +62,7 @@ type Store interface {
 	CloudFrontDistributions() CloudFrontDistributionRepository
 		MCPApiKeys() MCPApiKeyRepository
 	AgentMeshPeers() AgentMeshPeerRepository
+	EgressDispatchPairs() EgressDispatchPairRepository
 }
 
 
@@ -319,6 +320,8 @@ type AgentHostRepository interface {
 	UpdateStatus(ctx context.Context, id int64, status int, heartbeatAt int64) error
 	UpdateMetrics(ctx context.Context, id int64, metrics AgentHostMetrics) error
 	UpdateCapabilities(ctx context.Context, id int64, coreVersion string, capabilities, buildTags []string) error
+	// UpdateEgressSyncedAt 记录最近一次成功拉取出口分发路由的时间（能力门控的新鲜度判定）。
+	UpdateEgressSyncedAt(ctx context.Context, id int64, syncedAt int64) error
 
 	// 统计查询
 	Count(ctx context.Context) (int64, error)
@@ -470,6 +473,25 @@ type AgentMeshPeerRepository interface {
 	FindByAgentHostID(ctx context.Context, agentHostID int64) (*AgentMeshPeer, error)
 	ListByNetworkID(ctx context.Context, networkID string) ([]*AgentMeshPeer, error)
 	Delete(ctx context.Context, agentHostID int64) error
+}
+
+// EgressDispatchPairKey 唯一定位一个 (入口, 成员) 分发配对。
+type EgressDispatchPairKey struct {
+	EntryAgentID  int64
+	MemberAgentID int64
+}
+
+// EgressDispatchPairRepository 管理出口集内核分发的隧道配对分配与回收。
+// seq 分配走单事务「读取已用 seq → 取最小空闲 → 插入」，UNIQUE 冲突时重试。
+type EgressDispatchPairRepository interface {
+	// EnsurePair 幂等地返回 (entry, member) 的配对，必要时分配最小空闲 seq/端口/网段。
+	EnsurePair(ctx context.Context, entryAgentID, memberAgentID int64) (*EgressDispatchPair, error)
+	// ListByHost 返回该主机参与的全部配对（入口侧或成员侧）。
+	ListByHost(ctx context.Context, agentHostID int64) ([]*EgressDispatchPair, error)
+	// ListAll 返回全部配对。
+	ListAll(ctx context.Context) ([]*EgressDispatchPair, error)
+	// DeleteUnused 删除不在 alive 集合中的配对，返回删除行数。
+	DeleteUnused(ctx context.Context, alive []EgressDispatchPairKey) (int64, error)
 }
 
 // ForwardingRuleRepository 管理端口转发规则。

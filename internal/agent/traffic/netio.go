@@ -3,6 +3,8 @@ package traffic
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/v3/net"
@@ -10,6 +12,43 @@ import (
 
 // NetIOCountersFetcher defines a function signature for fetching network IO counters.
 type NetIOCountersFetcher func(ctx context.Context, pernic bool) ([]net.IOCountersStat, error)
+
+// tunnelIfacePrefixes 需要在流量汇总口径中排除的隧道接口前缀：
+//   - xe / xi：出口集内核分发隧道（本方案）
+//   - xr：中继链路隧道
+//
+// 这些接口承载的是已被 WAN 统计过一次的流量，重复计入会让面板节点流量虚高。
+var tunnelIfacePrefixes = []string{"xe", "xi", "xr"}
+
+// tunnelIfaceNames 需要精确匹配（非前缀）排除的隧道/回环接口。
+var tunnelIfaceNames = []string{"wgmesh0", "lo"}
+
+// isTunnelInterface 判定接口是否属于隧道（汇总时排除）。
+// 前缀形接口名必须是「前缀 + 纯数字」（xe2 / xi1 / xr8），避免误伤 xeb0、xia1 之类正常网卡。
+func isTunnelInterface(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return true
+	}
+	for _, exact := range tunnelIfaceNames {
+		if name == exact {
+			return true
+		}
+	}
+	for _, prefix := range tunnelIfacePrefixes {
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		rest := name[len(prefix):]
+		if rest == "" {
+			continue
+		}
+		if _, err := strconv.Atoi(rest); err == nil {
+			return true
+		}
+	}
+	return false
+}
 
 // NetIOCollector 使用 gopsutil 采集节点网络流量。
 // 记录累计字节数，并计算每次采集的增量。
@@ -53,13 +92,19 @@ func (c *NetIOCollector) CollectCumulative(ctx context.Context) (uploadTotal, do
 			}
 		}
 	} else {
-		counters, err := c.fetcher(ctx, false)
+		// 汇总口径：逐网卡求和，但**排除隧道接口**——同一份流量会同时出现在
+		// WAN 与隧道上（wgmesh0 / 中继 xr* / 出口集分发 xe*·xi*），不排除会重复计数。
+		// 见 docs/plans/20260915-egress-dispatch-l3.md §8 决策 5。
+		counters, err := c.fetcher(ctx, true)
 		if err != nil {
 			return 0, 0, err
 		}
-		if len(counters) > 0 {
-			totalSent = counters[0].BytesSent
-			totalRecv = counters[0].BytesRecv
+		for _, counter := range counters {
+			if isTunnelInterface(counter.Name) {
+				continue
+			}
+			totalSent += counter.BytesSent
+			totalRecv += counter.BytesRecv
 		}
 	}
 	return totalSent, totalRecv, nil
