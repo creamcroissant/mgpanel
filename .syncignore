@@ -92,3 +92,7 @@ docs/
 scripts/repo-sync.sh
 scripts/repo-diff.sh
 scripts/e2e-test.sh
+
+# 开发专用文档/流程（发行仓不携带；须置于 README 反选规则之后，最后匹配优先）
+coding.md
+.spec-workflow/**
