@@ -330,8 +330,14 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) (*desiredPairS
 					}
 					nodes := append([]repository.RelayPathNode(nil), rp.Nodes...)
 					sort.Slice(nodes, func(i, j int) bool { return nodes[i].Sequence < nodes[j].Sequence })
-					if _, ok := peerIndex[nodes[1].AgentHostID]; ok {
-						usable = true
+					// 与编译器 buildRelaySpecRouting 同口径：**每一跳**都必须有 mesh IP，
+					// 否则编译器会回落固定出口/出口集渲染 mark，而这里却以为中继接管了（GAP-1 残留）。
+					usable = true
+					for i := 0; i+1 < len(nodes); i++ {
+						if _, ok := peerIndex[nodes[i+1].AgentHostID]; !ok {
+							usable = false
+							break
+						}
 					}
 					break
 				}
@@ -354,19 +360,26 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) (*desiredPairS
 			}
 			policiesByCore[coreType] = pols
 		}
+		// 中继链路可用时，编译器直接在 2-0 段 continue（不渲染出口集/固定出口）→ 此处同样跳过，
+		// 避免建造不承载流量的多余隧道（也会占用 seq/端口）。
+		relayHandled := spec.RelayPathID != nil && *spec.RelayPathID > 0 && isRelayUsable(*spec.RelayPathID)
 		// 1) spec 自身绑定的出口集（兜底段）
-		if err := addSet(entry, spec.ExitNodeSetID); err != nil {
-			return nil, err
+		if !relayHandled {
+			if err := addSet(entry, spec.ExitNodeSetID); err != nil {
+				return nil, err
+			}
 		}
 		// 2) 固定出口（exit_agent_host_id）：与编译器 2b 段同条件——
 		//    既无出口集、又无可用中继链路时才生效（否则该路径不参与渲染）。
-		if spec.ExitNodeSetID == nil || *spec.ExitNodeSetID <= 0 {
-			relayHandled := spec.RelayPathID != nil && *spec.RelayPathID > 0 && isRelayUsable(*spec.RelayPathID)
-			if !relayHandled && spec.ExitAgentHostID != nil && *spec.ExitAgentHostID > 0 {
+		if !relayHandled && (spec.ExitNodeSetID == nil || *spec.ExitNodeSetID <= 0) {
+			if spec.ExitAgentHostID != nil && *spec.ExitAgentHostID > 0 {
 				addMember(entry, *spec.ExitAgentHostID, 0)
 			}
 		}
 		// 3) 适用于该 spec 的分流策略（全局策略 + 绑该 spec 的 scoped 策略）
+		if relayHandled {
+			continue
+		}
 		for _, p := range policiesByCore[coreType] {
 			if p == nil || p.SpecID != nil && *p.SpecID != spec.ID {
 				continue

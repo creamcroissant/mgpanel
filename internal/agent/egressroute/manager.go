@@ -104,6 +104,12 @@ type Manager struct {
 	pendingIfaces map[string]bool // 隧道接口（入口 xe* / 出口 xi*）
 	lastMarks     map[int]int     // 上一轮期望的 mark → table
 	lastIfaces    map[string]bool
+	// appliedRevision 最近一次已知的"已应用配置 revision"（由 service 每轮传入）。
+	appliedRevision int64
+	// pendingSinceRevision 记账时刻的"已应用配置 revision"。
+	// 拆除条件是 currentRevision > pendingSinceRevision（自记账以来确实换过配置），
+	// 而不是"本轮前进"——生产路径 syncApplyBatch 是异步入队，本轮判断必然不成立。
+	pendingSinceRevision int64
 }
 
 func NewManager(cfg Config) *Manager {
@@ -161,12 +167,13 @@ func (m *Manager) runCapture(ctx context.Context, bin string, args ...string) (s
 
 // Apply 全量对账：desired 为本机应生效的全部分配，新增的补齐、不再期望的清理。
 // 二进制缺失时对应步骤整体跳过（Warn 降级），就绪与否交由 Probe/调用方判定。
-func (m *Manager) Apply(ctx context.Context, desired []Assignment) error {
+func (m *Manager) Apply(ctx context.Context, desired []Assignment, appliedRevision int64) error {
 	if m == nil {
 		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.appliedRevision = appliedRevision
 	if err := m.applyEntries(ctx, desired); err != nil {
 		return err
 	}
@@ -224,15 +231,21 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Assignment) error 
 		if _, want := desiredMarks[mark]; want {
 			continue
 		}
+		if len(m.pendingMarks) == 0 && len(m.pendingIfaces) == 0 {
+			m.pendingSinceRevision = m.appliedRevision
+		}
 		m.pendingMarks[mark] = table
 	}
 	return nil
 }
 
-// CommitRemovals 拆除上一轮起记账的陈旧内核对象。只应由"本轮成功应用了新配置"之后的
-// 调用方触发（见 internal/agent/service 的 syncRoutesThenApply）：
-// 这样核心已经从含 mark 的配置切到新配置，拆表才安全（GAP-2）。
-func (m *Manager) CommitRemovals(ctx context.Context) error {
+// CommitRemovals 拆除记账的陈旧内核对象。currentRevision 为调用方已知的"已应用配置
+// revision"；只有当它严格大于记账时刻的 revision（说明自记账以来确实成功换过配置、
+// 核心已不再跑含 mark 的旧配置）才真正拆除，否则保留账目（GAP-2）。
+//
+// 注意：调用方应**每轮**调用（而不是只在"本轮 revision 前进"时调用）——生产路径
+// syncApplyBatch 是异步入队，本轮判断永远来不及；"自记账以来前进"才能收敛。
+func (m *Manager) CommitRemovals(ctx context.Context, currentRevision int64) error {
 	if m == nil {
 		return nil
 	}
@@ -240,6 +253,9 @@ func (m *Manager) CommitRemovals(ctx context.Context) error {
 	defer m.mu.Unlock()
 	if len(m.pendingMarks) == 0 && len(m.pendingIfaces) == 0 {
 		return nil
+	}
+	if currentRevision <= m.pendingSinceRevision {
+		return nil // 记账以来还没换过配置：核心可能仍在用旧 mark，保留
 	}
 	ip, err := m.bin(m.cfg.IPBinary, "egress stale cleanup")
 	if err != nil {
@@ -350,6 +366,9 @@ func (m *Manager) reapStaleTunnels(ctx context.Context, desired []Assignment) {
 		if _, err := m.runCapture(ctx, ip, "link", "show", iface); err != nil {
 			delete(m.managedIfaces, iface) // 接口已不存在，清理完成
 			continue
+		}
+		if len(m.pendingMarks) == 0 && len(m.pendingIfaces) == 0 {
+			m.pendingSinceRevision = m.appliedRevision
 		}
 		m.pendingIfaces[iface] = true
 	}

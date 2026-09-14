@@ -547,6 +547,11 @@ func (s *artifactCompilerService) buildMeshExitArtifacts(
 	if err != nil {
 		return nil, nil, fmt.Errorf("list mesh peers: %w", err)
 	}
+	if strings.TrimSpace(ownPeer.WGIP) == "" {
+		// 入口自身没有 mesh 地址：出口渲染/配对都不可能成立（与面板侧 meshPeerIndex 同口径）。
+		slog.Warn("mesh peer missing wg ip, skip exit rendering", "agent_host_id", req.AgentHostID)
+		return nil, nil, nil
+	}
 	peerWGIP := make(map[int64]string, len(allPeers))
 	for _, p := range allPeers {
 		if strings.TrimSpace(p.WGIP) == "" {

@@ -90,6 +90,7 @@ func (r *egressDispatchPairRepo) insertWithSmallestFreeSeq(ctx context.Context, 
 			return fmt.Errorf("list used seq: %w", err)
 		}
 		used := make(map[int64]struct{})
+		lastAllocated := int64(-1)
 		for rows.Next() {
 			var seq int64
 			if err := rows.Scan(&seq); err != nil {
@@ -97,6 +98,9 @@ func (r *egressDispatchPairRepo) insertWithSmallestFreeSeq(ctx context.Context, 
 				return fmt.Errorf("scan used seq: %w", err)
 			}
 			used[seq] = struct{}{}
+			if seq > lastAllocated {
+				lastAllocated = seq
+			}
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
@@ -104,8 +108,13 @@ func (r *egressDispatchPairRepo) insertWithSmallestFreeSeq(ctx context.Context, 
 		}
 		rows.Close()
 
+		// 单调分配（不复用刚释放的 seq）：延迟拆除期间旧接口可能仍占用其 UDP 端口，
+		// 立即复用同一个 seq 会让新隧道 bind 失败 → Apply 报错 → I14 门控冻结配置。
+		// 回收后的 seq 仅在环形回绕后（空间用尽）才可能被重新使用。
 		seq := int64(-1)
-		for candidate := int64(0); candidate <= egressPairSeqMax; candidate++ {
+		start := lastAllocated + 1
+		for offset := int64(0); offset <= egressPairSeqMax; offset++ {
+			candidate := (start + offset) % (egressPairSeqMax + 1)
 			if _, taken := used[candidate]; !taken {
 				seq = candidate
 				break

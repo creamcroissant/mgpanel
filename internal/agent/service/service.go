@@ -800,11 +800,11 @@ func (a *Agent) getRelayRouteMgr() *relayroute.Manager {
 
 // egressRouteManager 抽象出口集分发内核管理器（真实实现 *egressroute.Manager；测试可注入 fake）。
 type egressRouteManager interface {
-	Apply(ctx context.Context, assignments []egressroute.Assignment) error
+	Apply(ctx context.Context, assignments []egressroute.Assignment, appliedRevision int64) error
 	Probe(ctx context.Context, assignments []egressroute.Assignment) ([]egressroute.MemberState, error)
-	// CommitRemovals 拆除 Apply 阶段延迟记账的陈旧规则/表/隧道（GAP-2）。
-	// 只应在成功应用了新配置之后调用：核心已切到新配置，拆表才安全。
-	CommitRemovals(ctx context.Context) error
+	// CommitRemovals 拆除 Apply 阶段延迟记账的陈旧规则/表/隧道（GAP-2）：
+	// 仅当 currentRevision 大于记账时刻的 revision（自记账以来成功换过配置）才真正拆除。
+	CommitRemovals(ctx context.Context, currentRevision int64) error
 }
 
 // getEgressRouteMgr 返回出口集分发管理器（惰性构造，与 mesh/relay 共用锁）。
@@ -827,16 +827,12 @@ func (a *Agent) syncRoutesThenApply(ctx context.Context) {
 		slog.Warn("egress-route: not ready, skip apply batch this round")
 		return
 	}
-	// 延迟拆除（GAP-2）：先看本轮是否真的换上了新配置（revision 前进）。
-	// 只有换上了才拆——否则核心可能仍在跑含 mark 出站的旧 revision，拆表会让
-	// 已打 mark 的流量落回主表从入口直出。
-	revBefore := a.getApplyRevision()
+	// 延迟拆除（GAP-2/I15）：syncApplyBatch 在生产走异步入队（commandQueue），
+	// 本轮拿不到结果，因此这里**每轮**按"自记账以来 revision 是否前进"判定：
+	// 只要核心确已换上不含该 mark 的新配置，就安全拆除陈旧规则/表/隧道。
 	a.syncApplyBatch(ctx)
-	if a.getApplyRevision() <= revBefore {
-		return
-	}
 	if mgr := a.getEgressRouteMgr(); mgr != nil {
-		if err := mgr.CommitRemovals(ctx); err != nil {
+		if err := mgr.CommitRemovals(ctx, a.getApplyRevision()); err != nil {
 			slog.Warn("egress-route: commit removals failed", slog.String("err", err.Error()))
 		}
 	}
@@ -884,7 +880,7 @@ func (a *Agent) syncEgressRoutes(ctx context.Context) bool {
 		return true
 	}
 	mgr := a.getEgressRouteMgr()
-	if err := mgr.Apply(ctx, payload.Data); err != nil {
+	if err := mgr.Apply(ctx, payload.Data, a.getApplyRevision()); err != nil {
 		slog.Warn("egress-route: not ready, apply failed",
 			slog.Int("assignments", len(payload.Data)), slog.String("err", err.Error()))
 		return false
