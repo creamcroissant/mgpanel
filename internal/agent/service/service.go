@@ -812,9 +812,30 @@ func (a *Agent) getEgressRouteMgr() egressRouteManager {
 	a.meshMu.Lock()
 	defer a.meshMu.Unlock()
 	if a.egressRouteMgr == nil {
-		a.egressRouteMgr = egressroute.NewManager(egressroute.Config{Logger: slog.Default()})
+		a.egressRouteMgr = egressroute.NewManager(egressroute.Config{
+			Logger:            slog.Default(),
+			AppliedConfigPath: a.egressAppliedConfigPath(),
+		})
 	}
 	return a.egressRouteMgr
+}
+
+// egressAppliedConfigPath 返回 staged apply 的 merged 输出路径（核心实际读取的配置文件）。
+// 出口集分发用它精确判定"某个 fwmark 是否仍被已应用配置引用"（见 egressroute/applied_config.go）。
+func (a *Agent) egressAppliedConfigPath() string {
+	if a == nil || a.cfg == nil {
+		return ""
+	}
+	paths, err := protocol.ResolveStagedApplyPaths(protocol.Config{
+		ConfigDir:        a.cfg.Protocol.ConfigDir,
+		LegacyConfigDir:  a.cfg.Protocol.LegacyConfigDir,
+		ManagedConfigDir: a.cfg.Protocol.ManagedConfigDir,
+		MergeOutputFile:  a.cfg.Protocol.MergeOutputFile,
+	})
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(paths.LegacyDir, paths.MergeOutputFile)
 }
 
 // syncRoutesThenApply 按 I12 顺序同步内核路由再应用配置，并按 I14 做就绪门控：

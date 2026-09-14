@@ -376,10 +376,9 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) (*desiredPairS
 				addMember(entry, *spec.ExitAgentHostID, 0)
 			}
 		}
-		// 3) 适用于该 spec 的分流策略（全局策略 + 绑该 spec 的 scoped 策略）
-		if relayHandled {
-			continue
-		}
+		// 3) 适用于该 spec 的分流策略（全局策略 + 绑该 spec 的 scoped 策略）。
+		// 注意：编译器的策略段（第三步）**不受中继接管影响**（2-0 的 continue 只跳过该 spec 的
+		// 出口集/固定出口），因此这里绝不能因 relayHandled 跳过——否则策略池渲染出 mark 却无配对。
 		for _, p := range policiesByCore[coreType] {
 			if p == nil || p.SpecID != nil && *p.SpecID != spec.ID {
 				continue

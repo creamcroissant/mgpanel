@@ -69,6 +69,10 @@ type Config struct {
 	SysctlBinary   string // 默认 "sysctl"
 	SysctlConfPath string // 默认 wgtunnel 的 /etc/sysctl.d/90-mgpanel-egress.conf
 	Logger         *slog.Logger
+
+	// AppliedConfigPath 已应用的核心配置（staged apply merged 输出）路径；
+	// 用于精确判定 mark 是否仍被核心引用（见 applied_config.go）。
+	AppliedConfigPath string
 }
 
 func (c *Config) fill() {
@@ -104,6 +108,8 @@ type Manager struct {
 	pendingIfaces map[string]bool // 隧道接口（入口 xe* / 出口 xi*）
 	lastMarks     map[int]int     // 上一轮期望的 mark → table
 	lastIfaces    map[string]bool
+	// ifaceMark 记录接口 → mark（入口指派下发过），用于判断陈旧接口对应的 mark 是否仍被引用。
+	ifaceMark map[string]int
 	// appliedRevision 最近一次已知的"已应用配置 revision"（由 service 每轮传入）。
 	appliedRevision int64
 	// pendingSinceRevision 记账时刻的"已应用配置 revision"。
@@ -126,6 +132,7 @@ func NewManager(cfg Config) *Manager {
 		pendingIfaces: map[string]bool{},
 		lastMarks:     map[int]int{},
 		lastIfaces:    map[string]bool{},
+		ifaceMark:     map[string]int{},
 	}
 }
 
@@ -205,6 +212,7 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Assignment) error 
 			return err
 		}
 		desiredMarks[a.Mark] = a.Table
+		m.ifaceMark[a.Iface] = a.Mark
 		if !strings.Contains(existing, ruleSpec(a.Mark, a.Table)) {
 			if err := m.run(ctx, ip, "rule", "add", "pref", strconv.Itoa(rulePref),
 				"fwmark", strconv.Itoa(a.Mark), "lookup", strconv.Itoa(a.Table)); err != nil {
@@ -254,16 +262,36 @@ func (m *Manager) CommitRemovals(ctx context.Context, currentRevision int64) err
 	if len(m.pendingMarks) == 0 && len(m.pendingIfaces) == 0 {
 		return nil
 	}
-	if currentRevision <= m.pendingSinceRevision {
-		return nil // 记账以来还没换过配置：核心可能仍在用旧 mark，保留
+	// 精确信号：已应用配置里还引用的 mark 一律不拆（覆盖 agent 重启 / apply 滞后等窗口）。
+	referenced, referencedKnown := marksReferencedByConfig(m.cfg.AppliedConfigPath)
+	revAdvanced := currentRevision > m.pendingSinceRevision
+
+	markRemovable := func(mark int) bool {
+		if _, stillWanted := m.lastMarks[mark]; stillWanted {
+			return false // 已被重新期望 → 不拆
+		}
+		if referencedKnown {
+			return !referenced[mark] // 已应用配置不再引用 → 可拆
+		}
+		return revAdvanced // 无法判定时退回保守的 revision 代理条件
+	}
+	ifaceRemovable := func(iface string) bool {
+		if m.lastIfaces[iface] {
+			return false
+		}
+		// 入口隧道可由 mark 精确判定；出口镜像隧道无法由 mark 表达（其流量由入口侧决定），
+		// 故退回 revision 代理条件（拆早只会丢包，不会泄漏）。
+		if mark, ok := m.ifaceMark[iface]; ok && referencedKnown {
+			return !referenced[mark]
+		}
+		return revAdvanced
 	}
 	ip, err := m.bin(m.cfg.IPBinary, "egress stale cleanup")
 	if err != nil {
 		return nil // 降级：无 ip 二进制则保留记账，下轮重试
 	}
 	for mark, table := range m.pendingMarks {
-		if _, stillWanted := m.lastMarks[mark]; stillWanted {
-			delete(m.pendingMarks, mark) // 已被重新期望 → 不拆
+		if !markRemovable(mark) {
 			continue
 		}
 		_ = m.run(ctx, ip, "rule", "del", "pref", strconv.Itoa(rulePref),
@@ -274,10 +302,10 @@ func (m *Manager) CommitRemovals(ctx context.Context, currentRevision int64) err
 			slog.Int("mark", mark), slog.Int("table", table))
 	}
 	for iface := range m.pendingIfaces {
-		delete(m.pendingIfaces, iface)
-		if m.lastIfaces[iface] {
-			continue // 已被重新期望 → 不拆
+		if !ifaceRemovable(iface) {
+			continue
 		}
+		delete(m.pendingIfaces, iface)
 		if _, err := m.runCapture(ctx, ip, "link", "show", iface); err != nil {
 			continue // 接口已不存在
 		}

@@ -10,8 +10,11 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
 
-// egressListenPortBase 出口集分发隧道监听端口基址（I5：32000 + seq）。
-const egressListenPortBase = 32000
+// egressListenPortBase 出口集分发隧道监听端口基址（I5：21000 + seq，seq ≤ 4095 → 21000–25095）。
+//
+// 为什么不是 32000：Linux 默认临时端口段为 32768–60999，监听端口落在该区间会与
+// 系统随机分配的源端口撞车（`wg set listen-port` bind 失败 → Apply 报错 → I14 门控冻结）。
+const egressListenPortBase = 21000
 
 // egressPairSeqMax seq 上限：seq/64 < 256 且 (seq%64)*4 + 3 <= 255，
 // 保证隧道网段始终落在 10.220.<0..63>.<...>/30 内（I4）。
