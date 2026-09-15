@@ -210,27 +210,30 @@ func (s *applyOrchestratorService) PrepareApplyRun(ctx context.Context, req Prep
 		Limit:           1000,
 		Offset:          0,
 	}
-	artifacts, err := s.artifacts.List(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	if len(artifacts) == 0 && s.compiler != nil {
-		// 跨主机/未渲染: 按需渲染该 host 自身绑定的 spec 产物。
-		// 渲染失败不吞错：记录 WARN 供排查（失败常见于 host 无 spec 绑定且非 mesh 成员）。
+	// 每次 Apply 都以当前配置为准重渲染该修订号的产物。
+	//
+	// 必要性（生产实测）：修订号只随 spec 变更推进（inbound_spec_revisions），而路由策略 /
+	// 出口集 / 成员是全局配置，变更它们不推进任何 spec 的修订号。若沿用「仅当该修订号下
+	// 无产物时才渲染」，这类变更将永远无法下发——Apply 反复重推旧产物（现象：新建策略后
+	// apply 成功，agent 侧配置却毫无变化，因为命中的是数天前渲染的产物）。
+	//
+	// ReplaceRevision 按 (host, core, revision) + source_tag/filename scoped 替换，幂等；
+	// 渲染失败不阻断下发（保留既有产物），常见于 host 无 spec 绑定且非 mesh 成员。
+	if s.compiler != nil {
 		if _, rerr := s.compiler.RenderArtifacts(ctx, RenderArtifactsRequest{
 			AgentHostID:     req.AgentHostID,
 			CoreType:        coreType,
 			DesiredRevision: req.TargetRevision,
 		}); rerr != nil {
-			slog.Warn("apply: on-demand artifact render failed",
+			slog.Warn("apply: artifact re-render failed, falling back to existing artifacts",
 				"agent_host_id", req.AgentHostID, "core_type", coreType,
 				"target_revision", req.TargetRevision, "error", rerr)
-		} else {
-			artifacts, err = s.artifacts.List(ctx, filter)
-			if err != nil {
-				return nil, err
-			}
 		}
+	}
+
+	artifacts, err := s.artifacts.List(ctx, filter)
+	if err != nil {
+		return nil, err
 	}
 	if len(artifacts) == 0 {
 		return nil, fmt.Errorf("%w (agent_host_id=%d core_type=%s target_revision=%d 没有可下发的配置)", ErrApplyOrchestratorNoArtifacts, req.AgentHostID, coreType, req.TargetRevision)
@@ -689,7 +692,6 @@ func findReusableOpenApplyRun(ctx context.Context, applyRuns repository.ApplyRun
 	}
 	return nil, nil
 }
-
 
 func (s *applyOrchestratorService) CancelApplyRun(ctx context.Context, req CancelApplyRunRequest) error {
 	if s == nil || s.applyRuns == nil {

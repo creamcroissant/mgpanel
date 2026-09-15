@@ -47,6 +47,12 @@ internal/config/loader_test.go
 **/test_*.sh
 **/test_*.js
 **/test_*.ts
+**/test-*.py
+**/test-*.sh
+**/test-*.js
+**/test-*.ts
+**/test-*.mjs
+**/test-*.cjs
 **/test*.cjs
 **/*test*.cjs
 **/test*.mjs
@@ -57,6 +63,10 @@ internal/config/loader_test.go
 **/*e2e*.sh
 **/*e2e*.js
 **/*e2e*.ts
+**/*e2e*.mjs
+**/*e2e*.cjs
+**/*e2e*.jsx
+**/*e2e*.tsx
 **/*smoke*.py
 **/*smoke*.sh
 **/*smoke*.js
@@ -69,6 +79,8 @@ internal/config/loader_test.go
 
 # 已知测试入口/配置
 scripts/e2e-test.sh
+scripts/e2e-relay-strategy.mjs
+scripts/test-sandbox.sh
 smoke_test.py
 integration_test.py
 agent_config_test.yml

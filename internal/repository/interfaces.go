@@ -47,7 +47,7 @@ type Store interface {
 	InboundSpecs() InboundSpecRepository
 	InboundSpecRevisions() InboundSpecRevisionRepository
 	DesiredArtifacts() DesiredArtifactRepository
-		CoreConfigItems() CoreConfigItemRepository
+	CoreConfigItems() CoreConfigItemRepository
 	ApplyRuns() ApplyRunRepository
 	TrafficReportDedups() TrafficReportDedupRepository
 	AgentConfigInventories() AgentConfigInventoryRepository
@@ -60,11 +60,10 @@ type Store interface {
 	CloudflareZones() CloudflareZoneRepository
 	CloudflareDNSRecords() CloudflareDNSRecordRepository
 	CloudFrontDistributions() CloudFrontDistributionRepository
-		MCPApiKeys() MCPApiKeyRepository
+	MCPApiKeys() MCPApiKeyRepository
 	AgentMeshPeers() AgentMeshPeerRepository
 	EgressDispatchPairs() EgressDispatchPairRepository
 }
-
 
 // MCPApiKeyRepository manages MCP API keys for LLM access.
 type MCPApiKeyRepository interface {
@@ -692,6 +691,10 @@ type CoreConfigItemRepository interface {
 type DesiredArtifactRepository interface {
 	CreateBatch(ctx context.Context, artifacts []*DesiredArtifact) error
 	DeleteByHostCoreRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, sourceTags ...string) error
+	// DeleteByFilenames 按 filename 精确删除指定维度(host+core+revision)下的产物，返回删除行数。
+	// 用途：回收「实体已删除」的孤儿产物（已删策略/出口集/规格遗留的规则与出站文件），
+	// 这类产物不在任何 source_tag 替换范围内，否则会继续在节点生效。
+	DeleteByFilenames(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, filenames ...string) (int64, error)
 	ReplaceRevision(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, artifacts []*DesiredArtifact, sourceTags ...string) (int64, error)
 	List(ctx context.Context, filter DesiredArtifactFilter) ([]*DesiredArtifact, error)
 	Count(ctx context.Context, filter DesiredArtifactFilter) (int64, error)
@@ -800,16 +803,16 @@ type CDNCacheRule struct {
 
 // CloudflareZone represents a Cloudflare zone integration.
 type CloudflareZone struct {
-	ID        int64
-	AccountID string // maps to api_token_encrypted column (legacy name, keep for backward compat)
+	ID                int64
+	AccountID         string // maps to api_token_encrypted column (legacy name, keep for backward compat)
 	APITokenEncrypted string
-	ZoneID    string
-	ZoneName  string
-	Status    string
-	Plan      string
-	Enabled   bool
-	CreatedAt int64
-	UpdatedAt int64
+	ZoneID            string
+	ZoneName          string
+	Status            string
+	Plan              string
+	Enabled           bool
+	CreatedAt         int64
+	UpdatedAt         int64
 }
 
 // CloudflareDNSRecord represents a Cloudflare DNS record managed by the panel.

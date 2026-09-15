@@ -2,9 +2,9 @@ package sqlite
 
 import (
 	"context"
-	"fmt"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -111,6 +111,39 @@ func (r *desiredArtifactRepo) DeleteByHostCoreRevision(ctx context.Context, agen
 	}
 	_, err := execWithRetry(ctx, r.db, query, args...) // idempotent: no error if not found
 	return err
+}
+
+// DeleteByFilenames 按 filename 精确删除产物（孤儿回收）。
+// 与 ReplaceRevision 的按名删除语义一致，但不写入任何内容，也不触碰其它文件名。
+func (r *desiredArtifactRepo) DeleteByFilenames(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64, filenames ...string) (int64, error) {
+	unique := make([]string, 0, len(filenames))
+	seen := make(map[string]struct{}, len(filenames))
+	for _, name := range filenames {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		unique = append(unique, name)
+	}
+	if len(unique) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(unique))
+	args := []any{agentHostID, coreType, desiredRevision}
+	for i, name := range unique {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	query := "DELETE FROM desired_artifacts WHERE agent_host_id = ? AND core_type = ? AND desired_revision = ? AND filename IN (" + strings.Join(placeholders, ",") + ")"
+	res, err := execWithRetry(ctx, r.db, query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // ReplaceRevision 在单事务内删除指定维度(host+core+revision)的同名旧 artifacts

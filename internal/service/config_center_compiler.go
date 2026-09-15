@@ -301,6 +301,18 @@ func (s *artifactCompilerService) RenderArtifacts(ctx context.Context, req Rende
 	if _, err := s.artifacts.ReplaceRevision(ctx, req.AgentHostID, coreType, req.DesiredRevision, artifacts, sourceTags...); err != nil {
 		return nil, fmt.Errorf("replace artifacts: %w", err)
 	}
+	// 回收孤儿产物：产物替换是按 source_tag/filename 局部进行的，删除策略 / 出口集 / 规格后
+	// 其规则与出站产物不会被任何替换覆盖，会继续留在该修订号内并下发到节点生效
+	// （生产实测：已删除的 policy-1 仍在 hy-e5 上把 netflix 分流到旧 socks 出口）。
+	if orphans := s.orphanCompilerArtifacts(ctx, req.AgentHostID, coreType, req.DesiredRevision, artifacts); len(orphans) > 0 {
+		deleted, derr := s.artifacts.DeleteByFilenames(ctx, req.AgentHostID, coreType, req.DesiredRevision, orphans...)
+		if derr != nil {
+			return nil, fmt.Errorf("delete orphan artifacts: %w", derr)
+		}
+		slog.Info("compiler: orphan artifacts reclaimed",
+			"agent_host_id", req.AgentHostID, "core_type", coreType, "revision", req.DesiredRevision,
+			"deleted", deleted, "orphans", strings.Join(orphans, ","))
+	}
 
 	return &RenderArtifactsResult{
 		DesiredRevision: req.DesiredRevision,
@@ -506,6 +518,64 @@ func buildV2RayAPIFragmentArtifacts(
 		seen = true
 	}
 	return out, nil
+}
+
+// compilerArtifactPrefixes 编译器产物文件名前缀。核心配置项产物由 RenderCoreConfigs 生成，
+// 前缀固定为 core-<configType>-<tag>.json，因此按前缀即可安全区分归属，互不误删。
+var compilerArtifactPrefixes = []string{"mesh-", "route-", "inbound-", "relay-", "experimental-"}
+
+// orphanCompilerArtifacts 返回该修订号下「属于编译器命名空间、但本次渲染已不再产出」的孤儿文件名。
+func (s *artifactCompilerService) orphanCompilerArtifacts(
+	ctx context.Context,
+	agentHostID int64,
+	coreType string,
+	revision int64,
+	fresh []*repository.DesiredArtifact,
+) []string {
+	if s == nil || s.artifacts == nil {
+		return nil
+	}
+	existing, err := s.artifacts.List(ctx, repository.DesiredArtifactFilter{
+		AgentHostID:     agentHostID,
+		CoreType:        &coreType,
+		DesiredRevision: &revision,
+		Limit:           1000,
+	})
+	if err != nil {
+		slog.Warn("compiler: list artifacts for orphan sweep failed",
+			"agent_host_id", agentHostID, "revision", revision, "error", err)
+		return nil
+	}
+	freshNames := make(map[string]struct{}, len(fresh))
+	for _, a := range fresh {
+		if a != nil && a.Filename != "" {
+			freshNames[a.Filename] = struct{}{}
+		}
+	}
+	var orphans []string
+	for _, a := range existing {
+		if a == nil || a.Filename == "" {
+			continue
+		}
+		if _, ok := freshNames[a.Filename]; ok {
+			continue
+		}
+		if !hasCompilerArtifactPrefix(a.Filename) {
+			continue
+		}
+		orphans = append(orphans, a.Filename)
+	}
+	return orphans
+}
+
+// hasCompilerArtifactPrefix 判断文件名是否属于编译器产物命名空间。
+func hasCompilerArtifactPrefix(filename string) bool {
+	for _, prefix := range compilerArtifactPrefixes {
+		if strings.HasPrefix(filename, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // renderV2RayAPIFragment 生成 experimental.v2ray_api 段 JSON bytes。

@@ -110,6 +110,13 @@ func Ensure(ctx context.Context, bins Bins, spec Spec) error {
 			return fmt.Errorf("wg init %s: %w", spec.Iface, err)
 		}
 	}
+	// 若该地址仍挂在**其它隧道接口**上（旧 pair 被回收、新 pair 复用同一 /30），先让旧接口释放。
+	// 否则 addr add 可能成功，但随后的 `ip link set up` 会以 "Address already in use" 失败
+	// （内核在接口 UP 时插入本地路由才发现重复），导致整批 apply 被跳过、连拆除都执行不到。
+	if holder := releaseDuplicateAddress(ctx, bins, ip, spec.Iface, spec.LocalAddr); holder != "" {
+		bins.Logger.Warn("wgtunnel: stale tunnel released duplicate address",
+			slog.String("iface", spec.Iface), slog.String("addr", spec.LocalAddr), slog.String("stale_iface", holder))
+	}
 	if err := run(ctx, ip, "addr", "add", spec.LocalAddr, "dev", spec.Iface); err != nil {
 		// EEXIST 视为幂等成功；其余错误返回
 		if !strings.Contains(err.Error(), "exists") {
@@ -135,7 +142,19 @@ func Ensure(ctx context.Context, bins Bins, spec Spec) error {
 		}
 	}
 	if err := run(ctx, ip, "link", "set", spec.Iface, "up"); err != nil {
-		return fmt.Errorf("link set up %s: %w", spec.Iface, err)
+		// 兜底：竞态下地址可能刚被别的接口抢占，再接管一次并重试（仅一次）。
+		if strings.Contains(err.Error(), "in use") {
+			if holder := releaseDuplicateAddress(ctx, bins, ip, spec.Iface, spec.LocalAddr); holder != "" {
+				bins.Logger.Warn("wgtunnel: released duplicate address after link up failure",
+					slog.String("iface", spec.Iface), slog.String("addr", spec.LocalAddr), slog.String("stale_iface", holder))
+				if retryErr := run(ctx, ip, "link", "set", spec.Iface, "up"); retryErr == nil {
+					err = nil
+				}
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("link set up %s: %w", spec.Iface, err)
+		}
 	}
 	bins.Logger.Info("wgtunnel: tunnel ensured",
 		slog.String("iface", spec.Iface), slog.Int("port", spec.ListenPort),
@@ -149,6 +168,66 @@ func Ensure(ctx context.Context, bins Bins, spec Spec) error {
 //   - forward-ok: `iifname <iface> accept`；postrouting-nat: `ip saddr <tunnelNet> masquerade`
 //
 // 两条规则以 comment "<iface>" 打标，表内已存在即跳过（按 iface 幂等）。
+// tunnelIfacePrefixes 本子系统创建的隧道接口前缀（出口集分发 xe*/xi*、中继 xr*）。
+var tunnelIfacePrefixes = []string{"xe", "xi", "xr"}
+
+// releaseDuplicateAddress 检查 addr 是否已被**其它隧道接口**占用；占用则从旧接口移除该地址，
+// 返回被接管的接口名（无占用返回空串）。
+//
+// 背景（生产实测）：面板回收旧 pair 后，新 pair 会复用同一 /30 网段（seq 复用）。旧接口若尚未拆除，
+// 新接口 addr add 仍会成功（内核允许同一地址挂在多个接口上），但 `ip link set up` 会以
+// "Address already in use" 失败 —— 因为本地路由插入到接口 UP 时才做重复检测。后果是出口侧
+// 整批 apply 被跳过（I14 未就绪不应用配置），而拆除动作本就在 apply 之后 → 死锁，隧道永久起不来。
+//
+// 安全性：面板侧 seq 在 egress_dispatch_pairs 中唯一，网段由 seq 推导，因此**活跃 pair 不可能同址**；
+// 出现同址 ⇒ 持有者是已回收 pair 的残留接口。仍只对本子系统前缀（xe/xi/xr）的接口动手，
+// 绝不触碰 eth0 等非隧道接口。
+func releaseDuplicateAddress(ctx context.Context, bins Bins, ip, targetIface, addr string) string {
+	host := addr
+	if i := strings.IndexByte(host, '/'); i >= 0 {
+		host = host[:i]
+	}
+	if host == "" {
+		return ""
+	}
+	out, err := runCapture(ctx, ip, "-o", "-4", "addr", "show", "to", host)
+	if err != nil || strings.TrimSpace(out) == "" {
+		return ""
+	}
+	released := ""
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		holder := strings.TrimSuffix(fields[1], ":")
+		if holder == "" || holder == targetIface || !isTunnelIface(holder) {
+			continue
+		}
+		if err := run(ctx, ip, "addr", "del", addr, "dev", holder); err != nil {
+			bins.Logger.Warn("wgtunnel: release duplicate address failed",
+				slog.String("iface", holder), slog.String("addr", addr), slog.String("err", err.Error()))
+			continue
+		}
+		if released == "" {
+			released = holder
+		} else {
+			released += "," + holder
+		}
+	}
+	return released
+}
+
+// isTunnelIface 判断接口名是否属于本子系统隧道（xe<id> / xi<id> / xr<id>）。
+func isTunnelIface(name string) bool {
+	for _, prefix := range tunnelIfacePrefixes {
+		if strings.HasPrefix(name, prefix) && len(name) > len(prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func EnsureForwardNat(ctx context.Context, bins Bins, table, iface, tunnelNet string) error {
 	bins.fill()
 	if strings.TrimSpace(table) == "" || strings.TrimSpace(iface) == "" || strings.TrimSpace(tunnelNet) == "" {
