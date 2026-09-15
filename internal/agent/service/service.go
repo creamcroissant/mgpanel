@@ -813,18 +813,25 @@ func (a *Agent) getEgressRouteMgr() egressRouteManager {
 	defer a.meshMu.Unlock()
 	if a.egressRouteMgr == nil {
 		a.egressRouteMgr = egressroute.NewManager(egressroute.Config{
-			Logger:            slog.Default(),
-			AppliedConfigPath: a.egressAppliedConfigPath(),
+			Logger:             slog.Default(),
+			AppliedConfigPaths: a.egressAppliedConfigPaths(),
 		})
 	}
 	return a.egressRouteMgr
 }
 
-// egressAppliedConfigPath 返回 staged apply 的 merged 输出路径（核心实际读取的配置文件）。
-// 出口集分发用它精确判定"某个 fwmark 是否仍被已应用配置引用"（见 egressroute/applied_config.go）。
-func (a *Agent) egressAppliedConfigPath() string {
+// egressAppliedConfigPaths 返回"核心实际读取的配置"路径列表，供出口集分发精确判定
+// "某个 fwmark 是否仍被已应用配置引用"（见 egressroute/applied_config.go）。
+//
+// 取 ManagedDir（staged apply 把 stageDir rename 到这里，核心读的是它）：
+//   - xray:     ManagedDir/<mergeOutputFile>（单文件 merged 输出）
+//   - sing-box: ManagedDir 下的一批 fragment（无 merged 文件）→ 交给目录扫描
+//
+// 注意**不要**取 LegacyDir：那是 merge base 输入，apply 不会更新它，读它会得到
+// 恒空的 mark 集合 → 误判为"可以拆除"（泄漏）。
+func (a *Agent) egressAppliedConfigPaths() []string {
 	if a == nil || a.cfg == nil {
-		return ""
+		return nil
 	}
 	paths, err := protocol.ResolveStagedApplyPaths(protocol.Config{
 		ConfigDir:        a.cfg.Protocol.ConfigDir,
@@ -833,9 +840,13 @@ func (a *Agent) egressAppliedConfigPath() string {
 		MergeOutputFile:  a.cfg.Protocol.MergeOutputFile,
 	})
 	if err != nil {
-		return ""
+		return nil
 	}
-	return filepath.Join(paths.LegacyDir, paths.MergeOutputFile)
+	out := []string{paths.ManagedDir}
+	if merged := filepath.Join(paths.ManagedDir, paths.MergeOutputFile); merged != paths.ManagedDir {
+		out = append(out, merged)
+	}
+	return out
 }
 
 // syncRoutesThenApply 按 I12 顺序同步内核路由再应用配置，并按 I14 做就绪门控：

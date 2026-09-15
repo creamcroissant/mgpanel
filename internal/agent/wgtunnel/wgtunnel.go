@@ -200,9 +200,62 @@ func EnsureForwardNat(ctx context.Context, bins Bins, table, iface, tunnelNet st
 			return fmt.Errorf("nft %v: %w", args, err)
 		}
 	}
+	// 穿透主机既有防火墙：许多出口机带 iptables/ufw/docker 的 `filter FORWARD` 链，
+	// 其 policy 往往是 drop。nftables 同一 hook 上的多个 base chain 都会被评估，
+	// 因此仅靠本子系统 priority -100 的 forward-ok 链**不足以**放行（生产实测：
+	// Docker 出口机上隧道包被 FORWARD policy drop 丢弃）。
+	// 在这些既有链的**链首**插入针对本隧道接口的双向 accept（幂等，按 comment 标记识别）。
+	if err := ensureLegacyForwardAccept(ctx, bins, nft, iface); err != nil {
+		return err
+	}
 	if len(steps) > 0 {
 		bins.Logger.Info("wgtunnel: tunnel forward/nat rules added",
 			slog.String("iface", iface), slog.String("net", tunnelNet), slog.String("table", table))
+	}
+	return nil
+}
+
+// tunnelAcceptMarker 本隧道接口在既有防火墙链里插入的 accept 规则标记（幂等识别用）。
+func tunnelAcceptMarker(iface string) string { return "mgpanel-tunnel:" + iface }
+
+// ensureLegacyForwardAccept 在既有 `filter FORWARD` 链（ip / inet 两族）里保证
+// 「iifname <iface> accept」与「oifname <iface> accept」两条规则存在。
+//
+// 为什么需要：nftables 同一 hook 的多个 base chain 都会被评估，其它链（iptables-nft /
+// ufw / docker 留下的 `filter FORWARD`，policy drop）会把隧道转发流量丢掉。
+// 在链首插入 accept 即可放行；链不存在则跳过（纯 nft 防火墙场景）。
+//
+// 只处理**接口维度**（iifname/oifname），不放开其它流量，保持最小授权：
+//   - iifname: 从隧道进来的客户端流量
+//   - oifname: 回程（互联网 → 隧道 → 入口）
+func ensureLegacyForwardAccept(ctx context.Context, bins Bins, nft, iface string) error {
+	marker := tunnelAcceptMarker(iface)
+	for _, family := range []string{"ip", "inet"} {
+		chainOut, err := runCapture(ctx, nft, "list", "chain", family, "filter", "FORWARD")
+		if err != nil || strings.TrimSpace(chainOut) == "" {
+			continue // 该族无既有 FORWARD 链
+		}
+		for _, spec := range [][]string{
+			{"iifname", iface},
+			{"oifname", iface},
+		} {
+			quoted := spec[0] + ` "` + iface + `"`
+			plain := spec[0] + " " + iface
+			if strings.Contains(chainOut, marker) && (strings.Contains(chainOut, quoted) || strings.Contains(chainOut, plain)) {
+				continue // 已存在（标记 + 同一接口方向）
+			}
+			args := append([]string{"insert", "rule", family, "filter", "FORWARD"}, spec...)
+			// comment 值必须整体作为**一个带引号的 argv 词**传入（nft 解析器要求），
+			// 与既有规则同样的写法：comment "xxx"。裸值含 ':' 会报 syntax error。
+			args = append(args, "accept", fmt.Sprintf("comment %q", marker))
+			if err := run(ctx, nft, args...); err != nil {
+				bins.Logger.Warn("wgtunnel: insert legacy forward accept failed",
+					slog.String("family", family), slog.String("iface", iface), slog.String("err", err.Error()))
+				continue
+			}
+			bins.Logger.Info("wgtunnel: legacy forward accept inserted",
+				slog.String("family", family), slog.String("iface", iface), slog.String("direction", spec[0]))
+		}
 	}
 	return nil
 }

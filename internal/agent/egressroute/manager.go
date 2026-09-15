@@ -39,7 +39,7 @@ type Assignment struct {
 	Mark          int     `json:"mark"`            // 60000 + member_agent_id
 	Table         int     `json:"table"`           // 10000 + member_agent_id
 	Iface         string  `json:"iface"`           // 入口 xe<memberID> / 出口 xi<entryID>
-	ListenPort    int     `json:"listen_port"`     // 32000 + seq
+	ListenPort    int     `json:"listen_port"`     // 21000 + seq
 	LocalAddr     string  `json:"local_addr"`      // 隧道网段本端地址（入口 .1 / 出口 .2）
 	OwnPrivateKey string  `json:"own_private_key"`
 	PeerPublicKey string  `json:"peer_public_key"`
@@ -70,9 +70,9 @@ type Config struct {
 	SysctlConfPath string // 默认 wgtunnel 的 /etc/sysctl.d/90-mgpanel-egress.conf
 	Logger         *slog.Logger
 
-	// AppliedConfigPath 已应用的核心配置（staged apply merged 输出）路径；
-	// 用于精确判定 mark 是否仍被核心引用（见 applied_config.go）。
-	AppliedConfigPath string
+	// AppliedConfigPaths 已应用的核心配置路径（核心实际读取的位置：ManagedDir 及其 merged 输出）。
+	// 目录会被整体扫描（sing-box 的产物是多个 fragment）。用于精确判定 mark 是否仍被引用。
+	AppliedConfigPaths []string
 }
 
 func (c *Config) fill() {
@@ -229,7 +229,12 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Assignment) error 
 		m.logger.Info("egress-route: policy route applied",
 			slog.Int("table", a.Table), slog.String("dev", a.Iface))
 	}
-	// 不再期望的 pref 5500 规则/表：先记账，等 CommitRemovals（成功应用新配置之后）再拆（GAP-2）。
+	// 不再期望的 pref 5500 规则/表：先记账，等 CommitRemovals（已应用配置不再引用该 mark）再拆（GAP-2）。
+	// 反向清理：仍被期望的 mark 必须从待拆账目里移除——否则账目永不为空，
+	// pendingSinceRevision 无法在下一轮重新记账时刷新，回退判定会被永久放宽。
+	for mark := range desiredMarks {
+		delete(m.pendingMarks, mark)
+	}
 	m.lastMarks = desiredMarks
 	for _, line := range strings.Split(existing, "\n") {
 		mark, table, ok := parseEgressRuleLine(line)
@@ -263,7 +268,7 @@ func (m *Manager) CommitRemovals(ctx context.Context, currentRevision int64) err
 		return nil
 	}
 	// 精确信号：已应用配置里还引用的 mark 一律不拆（覆盖 agent 重启 / apply 滞后等窗口）。
-	referenced, referencedKnown := marksReferencedByConfig(m.cfg.AppliedConfigPath)
+	referenced, referencedKnown := marksReferencedByConfigPaths(m.cfg.AppliedConfigPaths)
 	revAdvanced := currentRevision > m.pendingSinceRevision
 
 	markRemovable := func(mark int) bool {

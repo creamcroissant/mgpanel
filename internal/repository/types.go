@@ -172,10 +172,10 @@ type AgentHost struct {
 	// EgressSyncedAt 最近一次成功拉取 /agent/egress-routes 的时间（unix 秒）；
 	// 面板以新鲜度作为能力门控，见 docs/plans/20260915-egress-dispatch-l3.md。
 	EgressSyncedAt  int64
-	LastHeartbeatAt int64 // 最后心跳时间
-	ConfigYAML            string   // Agent 上报的运行配置 YAML
-	CreatedAt             int64
-	UpdatedAt             int64
+	LastHeartbeatAt int64  // 最后心跳时间
+	ConfigYAML      string // Agent 上报的运行配置 YAML
+	CreatedAt       int64
+	UpdatedAt       int64
 }
 
 // AgentLifecycleOperation represents a panel-issued agent lifecycle command.
@@ -495,7 +495,7 @@ type ForwardingRuleLog struct {
 
 // EgressDispatchPair 是「出口集内核分发」的一个 (入口, 成员) 隧道配对。
 // seq 由面板分配并持久化（稳定不变，避免重配抖动），决定隧道网段
-// 10.220.<seq/64>.<(seq%64)*4>/30 与监听端口 32000+seq。
+// 10.220.<seq/64>.<(seq%64)*4>/30 与监听端口 21000+seq。
 // 见 docs/plans/20260915-egress-dispatch-l3.md I4/I5。
 type EgressDispatchPair struct {
 	ID            int64  `json:"id"`

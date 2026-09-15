@@ -70,7 +70,7 @@ type EgressRouteAssignment struct {
 	Mark          int     `json:"mark"`            // 60000 + member_agent_id（I1）
 	Table         int     `json:"table"`           // 10000 + member_agent_id（I2）
 	Iface         string  `json:"iface"`           // 入口 xe<memberID> / 出口 xi<entryID>（I3）
-	ListenPort    int     `json:"listen_port"`     // 32000 + seq（I5）
+	ListenPort    int     `json:"listen_port"`     // 21000 + seq（I5）
 	LocalAddr     string  `json:"local_addr"`      // 隧道网段本端地址（入口 .1 / 出口 .2）
 	OwnPrivateKey string  `json:"own_private_key"`
 	PeerPublicKey string  `json:"peer_public_key"`
@@ -345,6 +345,46 @@ func (s *egressDispatchService) desiredPairs(ctx context.Context) (*desiredPairS
 		}
 		relayUsable[pathID] = usable
 		return usable
+	}
+
+	// 0) 全局策略（SpecID 为空）对所有"会渲染产物的 mesh 主机"生效：
+	//    编译器的策略段独立于 spec 循环，且显式不因 enabledSpecs 为空而提前返回，
+	//    因此**没有 spec 的 mesh 主机**同样会渲染全局策略池的 mark 出站 → 必须有配对。
+	//    核心类型取自 agent_hosts.current_core_type（面板按该类型渲染产物）。
+	if len(peerIndex) > 0 {
+		hosts, err := s.agentHosts.ListAll(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list agent hosts: %w", err)
+		}
+		coreOf := make(map[int64]string, len(hosts))
+		for _, h := range hosts {
+			if h == nil {
+				continue
+			}
+			coreOf[h.ID] = normalizeCoreType(h.CurrentCoreType)
+		}
+		for hostID := range peerIndex {
+			coreType := coreOf[hostID]
+			if coreType == "" {
+				continue // 无核心类型 → 面板不渲染该主机产物
+			}
+			pols, ok := policiesByCore[coreType]
+			if !ok {
+				pols, err = s.policies.ListEnabledByCore(ctx, coreType)
+				if err != nil {
+					return nil, fmt.Errorf("list policies for core %s: %w", coreType, err)
+				}
+				policiesByCore[coreType] = pols
+			}
+			for _, p := range pols {
+				if p == nil || p.SpecID != nil || p.TargetSetID == nil || *p.TargetSetID <= 0 {
+					continue
+				}
+				if err := addSet(hostID, p.TargetSetID); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	for _, spec := range specs {

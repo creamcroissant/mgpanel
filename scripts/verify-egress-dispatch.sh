@@ -32,9 +32,10 @@
 #   --exit-host <目标>  出口节点（可选，给了才做 I8 检查）；取值同上
 #   --member <agentID>  成员 id，可多次；省略时由入口 `ip rule show` 的 pref 5500 规则自动发现
 #   --mark <十进制>     覆盖用于「真实出口 IP」对比的 mark（默认 60000+首个 member）
-#   --echo-url <url>    IP 回显服务（默认 https://ifconfig.me）
+#   --echo-url <url>    IP 回显服务（默认 https://api.ipify.org，返回纯文本 IP）
 #   --expect-exit-ip <ip>  断言「打 mark」看到的出口 IP
 #   --timeout <秒>      HTTP 超时（默认 5）
+#   --exit-member <id>  --exit-host 承载的成员 agentID（可多次；用于精确断言该出口的 pair）
 #   --family <ip|inet>  nft 表族（默认 ip：agent 建表不带族）
 #   --json              以 JSON 输出（stdout 只出 JSON，人读摘要走 stderr）
 #   --dry-run           只打印将要执行的命令，不执行、不判定
@@ -46,7 +47,7 @@ set -uo pipefail
 
 HOST=""
 EXIT_HOST=""
-ECHO_URL="https://ifconfig.me"
+ECHO_URL="https://api.ipify.org"
 NFT_FAMILY="ip"
 EXPECT_EXIT_IP=""
 TIMEOUT=5
@@ -55,6 +56,7 @@ JSON=0
 DRY_RUN=0
 MARK_OVERRIDE=""
 MEMBERS=()
+EXIT_MEMBERS=()
 
 usage() {
   awk '/^# 用法：/{f=1} /^# 退出码：/{f=0} f' "$0" | sed 's/^# \{0,1\}//'
@@ -75,6 +77,7 @@ while [[ $# -gt 0 ]]; do
     --timeout)
       [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "用法错误: --timeout 需要整数秒: ${2:-<空>}" >&2; exit 2; }
       TIMEOUT="$2"; shift 2 ;;
+    --exit-member) EXIT_MEMBERS+=("${2:-}"); shift 2 ;;
     --family) NFT_FAMILY="${2:-ip}"; shift 2 ;;
     --json) JSON=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -148,7 +151,7 @@ run_on() { # $1 目标 $2 命令
 # 取真实出口 IP：在本侧用 SO_MARK 建 TCP（mark=0 即不打），HTTP GET 回显服务并打印响应体。
 PY_SCRIPT="$(
   cat <<'PY'
-import socket, ssl, sys
+import re, socket, ssl, sys
 from urllib.parse import urlparse
 
 mark = int(sys.argv[1])
@@ -180,7 +183,12 @@ try:
             break
         data += chunk
     body = data.split(b"\r\n\r\n", 1)[-1].decode("utf-8", "replace").strip()
-    print(body.split("\n")[0].strip() if body else "ERR: 空响应")
+    # 回显服务可能是纯文本（api.ipify.org）或 HTML（ifconfig.me）→ 统一提取首个 IPv4
+    match = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", body)
+    if match:
+        print(match.group(0))
+    else:
+        print(body.split("\n")[0].strip() if body else "ERR: 空响应")
 except Exception as e:
     print("ERR: %s: %s" % (type(e).__name__, e))
     sys.exit(3)
@@ -351,13 +359,17 @@ if [[ -n "$EXIT_HOST" ]]; then
       if [[ ${#PAIR_NETS[@]} -eq 0 ]]; then
         add_check "-" "出口 masquerade 网段比对 (I8)" skip "入口未取到 pair 网段，跳过网段精确比对"
       else
+        # 注意：--exit-host 只对应**一个**成员出口；其它成员的 pair 网段不在该机上属正常，
+        # 标 info 而非 fail（除非用 --exit-member 指定了该出口承载的成员）。
         for entry in "${PAIR_NETS[@]}"; do
           m="${entry%%:*}"
           pn="${entry#*:}"
           if printf '%s\n' "$nft_out" | grep -q -- "saddr $pn" && printf '%s\n' "$nft_out" | grep -q 'masquerade'; then
             add_check "$m" "出口 postrouting masquerade saddr $pn (I8)" ok
+          elif [[ ${#EXIT_MEMBERS[@]} -gt 0 && " ${EXIT_MEMBERS[*]} " == *" ${m#member } "* ]]; then
+            add_check "$m" "出口 postrouting masquerade saddr $pn (I8)" fail "该出口应承载成员 $m 但缺少 masquerade 规则"
           else
-            add_check "$m" "出口 postrouting masquerade saddr $pn (I8)" fail "未找到该 pair 网段的 masquerade 规则"
+            add_check "$m" "出口 postrouting masquerade saddr $pn (I8)" skip "该 pair 不在本出口（多出口场景正常）"
           fi
         done
       fi
@@ -375,8 +387,8 @@ if ((DRY_RUN)); then
   run_py "$HOST" "$MARK_USED" "$ECHO_URL"
   add_check "-" "真实出口 IP 对比" ok "(dry-run)"
 else
-  no_mark_ip="$(run_py "$HOST" 0 "$ECHO_URL" 2>&1)"
-  mark_ip="$(run_py "$HOST" "$MARK_USED" "$ECHO_URL" 2>&1)"
+  no_mark_ip="$(run_py "$HOST" 0 "$ECHO_URL" 2>/dev/null)"
+  mark_ip="$(run_py "$HOST" "$MARK_USED" "$ECHO_URL" 2>/dev/null)"
   emit_line "   不打 mark: $no_mark_ip"
   emit_line "   打 mark  : $mark_ip"
   if [[ "$no_mark_ip" == ERR:* ]]; then

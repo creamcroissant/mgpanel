@@ -175,7 +175,7 @@ func (m *Manager) applyEntries(ctx context.Context, desired []Role) error {
 			return fmt.Errorf("replace route table %d: %w", r.Table, err)
 		}
 		m.logger.Info("relay-route: policy route applied",
-				slog.Int("table", r.Table), slog.String("dev", r.IfaceName))
+			slog.Int("table", r.Table), slog.String("dev", r.IfaceName))
 	}
 	// 清理不再期望的 mark 规则/路由
 	for _, line := range strings.Split(existing, "\n") {
@@ -257,6 +257,12 @@ func ruleSpec(mark, table int) string {
 // parseRuleLine 从 ip rule show 行提取 fwmark(十进制)与 table 号。
 func parseRuleLine(line string) (mark, table int, ok bool) {
 	fields := strings.Fields(line)
+	// 只认本子系统自己的规则（pref 5000）：其它子系统（如出口集内核分发 pref 5500）
+	// 的 fwmark 规则同样出现在 `ip rule show` 里，若不加过滤会被当成"陈旧 relay 规则"，
+	// 导致 `ip route flush table <别人的表>` 把它们的默认路由冲掉 → mark 流量回落主表直出。
+	if len(fields) == 0 || fields[0] != strconv.Itoa(prefMarkRule)+":" {
+		return 0, 0, false
+	}
 	for i, f := range fields {
 		if f == "fwmark" && i+1 < len(fields) {
 			v, err := strconv.ParseInt(strings.TrimPrefix(fields[i+1], "0x"), 16, 32)
