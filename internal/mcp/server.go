@@ -124,6 +124,16 @@ func (s *Server) dispatch(ctx context.Context, req *JSONRPCRequest) *JSONRPCResp
 			}
 		}
 
+		if required := tools.RequiredScopeOf(handler); !tools.HasScope(ctx, required) {
+			return &JSONRPCResponse{
+				JSONRPC: JSONRPCVersion,
+				ID:      req.ID,
+				Error: &RPCError{
+					Code:    ErrCodeUnauthorized,
+					Message: fmt.Sprintf("tool %q requires scope %q; granted: %v", req.Method, required, tools.ScopesFrom(ctx)),
+				},
+			}
+		}
 		result, err := handler.Handle(ctx, req.Params)
 		if err != nil {
 			return &JSONRPCResponse{
@@ -142,9 +152,9 @@ func (s *Server) dispatch(ctx context.Context, req *JSONRPCRequest) *JSONRPCResp
 
 // MCPInitializeResult is the response to an initialize request.
 type MCPInitializeResult struct {
-	ProtocolVersion string             `json:"protocolVersion"`
+	ProtocolVersion string            `json:"protocolVersion"`
 	ServerInfo      MCPImplementation `json:"serverInfo"`
-	Capabilities    MCPCapabilities    `json:"capabilities"`
+	Capabilities    MCPCapabilities   `json:"capabilities"`
 }
 
 // MCPImplementation identifies the server implementation.
@@ -185,6 +195,8 @@ type MCPToolDefinition struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	InputSchema any    `json:"inputSchema"`
+	// Scope 该工具所需作用域：read（只读）/ ops（写操作）。调用方按自身 Key 作用域筛选。
+	Scope string `json:"scope"`
 }
 
 func (s *Server) handleToolsList(req *JSONRPCRequest) *JSONRPCResponse {
@@ -194,7 +206,8 @@ func (s *Server) handleToolsList(req *JSONRPCRequest) *JSONRPCResponse {
 		toolsList = append(toolsList, MCPToolDefinition{
 			Name:        h.Name(),
 			Description: h.Description(),
-			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "required": []string{}},
+			InputSchema: tools.InputSchemaOf(h),
+			Scope:       tools.RequiredScopeOf(h),
 		})
 	}
 	return &JSONRPCResponse{
@@ -233,6 +246,17 @@ func (s *Server) handleToolsCall(ctx context.Context, req *JSONRPCRequest) *JSON
 			JSONRPC: JSONRPCVersion,
 			ID:      req.ID,
 			Error:   &RPCError{Code: ErrCodeMethodNotFound, Message: fmt.Sprintf("unknown tool: %s", params.Name)},
+		}
+	}
+	// 作用域校验：ops 工具需 Key 具备 ops 作用域（只读 Key 无法触发写操作）。
+	if required := tools.RequiredScopeOf(handler); !tools.HasScope(ctx, required) {
+		return &JSONRPCResponse{
+			JSONRPC: JSONRPCVersion,
+			ID:      req.ID,
+			Error: &RPCError{
+				Code:    ErrCodeUnauthorized,
+				Message: fmt.Sprintf("tool %q requires scope %q; granted: %v", params.Name, required, tools.ScopesFrom(ctx)),
+			},
 		}
 	}
 

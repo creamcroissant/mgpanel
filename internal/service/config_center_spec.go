@@ -28,6 +28,15 @@ type InboundSpecService interface {
 	// ListBoundHosts 返回模板 spec 绑定的主机 ID 列表。
 	ListBoundHosts(ctx context.Context, specID int64) ([]int64, error)
 
+	// BumpRevisionsForHost 推进该主机（可选限定 core）全部启用 spec 的修订号并重渲染。
+	//
+	// 为什么需要：交付链路（面板 GetApplyBatch 与 agent SyncOnce）都要求
+	// target_revision > current_revision 才下发。而路由策略 / 出口集 / 成员等全局配置
+	// 变更**不推进任何 spec 的修订号**，若只在同一修订号内重渲染，内容永远不会到达节点
+	// （生产实测：策略变更后 apply 长期 pending）。故内容变化时必须显式推进修订号。
+	// note 会写入修订历史，便于追溯「为何推进」。
+	BumpRevisionsForHost(ctx context.Context, agentHostID int64, coreType, note string) (int64, error)
+
 	// SetCDNService 注入 CDN 服务引用，保存 xhttp spec 后自动触发加速部署。
 	SetCDNService(cdn CDNService)
 	// SetRelayPathRepository 注入中继链路仓库，spec 绑定 relay_path_id 时校验存在性与启用状态。
@@ -776,6 +785,82 @@ func (s *inboundSpecService) ensureListenAvailable(ctx context.Context, agentHos
 		}
 		filter.Offset += filter.Limit
 	}
+}
+
+// BumpRevisionsForHost 推进该主机（可按 core 过滤）所有启用 spec 的修订号并重渲染。
+// 修订号取 max(spec 当前修订, 已渲染工件最新修订) + 1，保证单调且不与历史冲突；
+// 乐观锁冲突时重读一次重试（与 BindSpec 同策略）。返回推进的 spec 数量。
+func (s *inboundSpecService) BumpRevisionsForHost(ctx context.Context, agentHostID int64, coreType, note string) (int64, error) {
+	if s == nil || s.specs == nil {
+		return 0, nil
+	}
+	if agentHostID <= 0 {
+		return 0, fmt.Errorf("bump revisions: agent_host_id is required")
+	}
+	specs, err := s.specs.ListByAgentHost(ctx, agentHostID, repository.InboundSpecFilter{})
+	if err != nil {
+		return 0, fmt.Errorf("bump revisions: list specs: %w", err)
+	}
+	coreFilter := strings.ToLower(strings.TrimSpace(coreType))
+	note = firstNonEmpty(strings.TrimSpace(note), "auto: rendered output changed")
+	bumped := int64(0)
+	for _, spec := range specs {
+		if spec == nil || !spec.Enabled {
+			continue
+		}
+		if coreFilter != "" && strings.ToLower(spec.CoreType) != coreFilter {
+			continue
+		}
+		nextRevision := spec.DesiredRevision
+		if latest, latestErr := s.compiler.GetLatestRevision(ctx, agentHostID, spec.CoreType); latestErr == nil && latest > nextRevision {
+			nextRevision = latest
+		}
+		nextRevision++
+		prev := spec.DesiredRevision
+		spec.DesiredRevision = nextRevision
+		if err := s.specs.UpdateWithRevision(ctx, spec, prev); err != nil {
+			if errors.Is(err, repository.ErrConflict) {
+				reloaded, findErr := s.specs.FindByID(ctx, spec.ID)
+				if findErr != nil || reloaded == nil || !reloaded.Enabled {
+					continue
+				}
+				nextRevision = maxInt64(reloaded.DesiredRevision+1, nextRevision)
+				prev = reloaded.DesiredRevision
+				reloaded.DesiredRevision = nextRevision
+				if err := s.specs.UpdateWithRevision(ctx, reloaded, prev); err != nil {
+					slog.Warn("bump revisions: retry update failed", "spec_id", spec.ID, "error", err)
+					continue
+				}
+				spec = reloaded
+			} else {
+				return bumped, fmt.Errorf("bump revisions: update spec %d: %w", spec.ID, err)
+			}
+		}
+		if snapshot, snapErr := buildInboundSpecSnapshot(spec); snapErr == nil && s.revisions != nil {
+			if err := s.revisions.Create(ctx, &repository.InboundSpecRevision{
+				SpecID:     spec.ID,
+				Revision:   nextRevision,
+				Snapshot:   snapshot,
+				ChangeNote: note,
+			}); err != nil {
+				slog.Warn("bump revisions: record revision failed", "spec_id", spec.ID, "revision", nextRevision, "error", err)
+			}
+		}
+		if err := s.renderDesiredArtifacts(ctx, agentHostID, spec.CoreType, nextRevision); err != nil {
+			return bumped, fmt.Errorf("bump revisions: render host=%d core=%s rev=%d: %w", agentHostID, spec.CoreType, nextRevision, err)
+		}
+		bumped++
+		slog.Info("spec revision advanced for re-render", "agent_host_id", agentHostID,
+			"spec_id", spec.ID, "core_type", spec.CoreType, "revision", nextRevision, "note", note)
+	}
+	return bumped, nil
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (s *inboundSpecService) renderDesiredArtifacts(ctx context.Context, agentHostID int64, coreType string, desiredRevision int64) error {

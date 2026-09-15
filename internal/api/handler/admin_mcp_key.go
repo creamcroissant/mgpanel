@@ -22,7 +22,8 @@ func NewAdminMCPKeyHandler(svc service.MCPApiKeyService) *AdminMCPKeyHandler {
 // Create generates a new MCP API key.
 func (h *AdminMCPKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name string `json:"name"`
+		Name   string   `json:"name"`
+		Scopes []string `json:"scopes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
@@ -30,7 +31,7 @@ func (h *AdminMCPKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	claims := requestctx.AdminFromContext(r.Context())
 	userID, _ := strconv.ParseInt(claims.ID, 10, 64)
-	result, err := h.svc.Create(r.Context(), req.Name, userID)
+	result, err := h.svc.Create(r.Context(), req.Name, req.Scopes, userID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "create_mcp_api_key", err)
 		return

@@ -298,19 +298,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 				if rerr != nil || rev <= 0 {
 					continue // 该 host+core 尚无已渲染工件，无需联动
 				}
-				_, rerr = artifactCompilerService.RenderArtifacts(ctx, service.RenderArtifactsRequest{
-					AgentHostID:     h.ID,
-					CoreType:        sp.CoreType,
-					DesiredRevision: rev,
-				})
+				// 关键：必须**推进修订号**再重渲染。交付链路（面板 GetApplyBatch 与 agent
+				// SyncOnce）都要求 target_revision > current_revision，同号重渲染的内容
+				// 永远下发不到节点。
+				bumped, rerr := inboundSpecService.BumpRevisionsForHost(ctx, h.ID, sp.CoreType, "auto: routing policy / exit set changed")
 				if rerr != nil {
-					logger.Warn("policy-change re-render failed", "agent_host_id", h.ID, "core", sp.CoreType, "revision", rev, "error", rerr)
+					logger.Warn("policy-change revision bump failed", "agent_host_id", h.ID, "core", sp.CoreType, "error", rerr)
 					if firstErr == nil {
 						firstErr = rerr
 					}
-				} else {
-					logger.Info("policy-change re-render done", "agent_host_id", h.ID, "core", sp.CoreType, "revision", rev)
+					continue
 				}
+				logger.Info("policy-change re-render done", "agent_host_id", h.ID, "core", sp.CoreType, "bumped", bumped)
 			}
 		}
 		return firstErr
@@ -566,9 +565,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Initialize MCP API key service and MCP server
 	mcpAPIKeySvc := service.NewMCPApiKeyService(store.MCPApiKeys())
-	mcpKeyValidator := service.KeyCheckFunc(func(rawKey string) (bool, error) {
-		_, err := mcpAPIKeySvc.Validate(context.Background(), rawKey)
-		return err == nil, nil
+	mcpKeyValidator := service.KeyCheckFunc(func(rawKey string) ([]string, bool, error) {
+		res, err := mcpAPIKeySvc.Validate(context.Background(), rawKey)
+		if err != nil || res == nil {
+			return nil, false, err
+		}
+		return res.Scopes, true, nil
 	})
 	if cfg.MCP.Enabled {
 		mcpRegistry := tools.NewRegistry()
@@ -591,6 +593,20 @@ func runServe(cmd *cobra.Command, args []string) error {
 		mcpRegistry.Register(tools.NewServerLogHandler(cfg.Log.LogDir, cfg.MCP.ServerLogMaxLines))
 		mcpRegistry.Register(tools.NewConfigArtifactsHandler(driftAndDiffService))
 		mcpRegistry.Register(tools.NewServerLogTailHandler(cfg.Log.LogDir, cfg.MCP.ServerLogMaxLines))
+		// 写操作工具（scope=ops）：配置渲染/发布、出口集分发模式、策略与出口集维护
+		mcpRegistry.Register(tools.NewConfigRenderHandler(artifactCompilerService, driftAndDiffService, operationLogService))
+		mcpRegistry.Register(tools.NewConfigApplyHandler(applyOrchestratorService, artifactCompilerService, operationLogService))
+		mcpRegistry.Register(tools.NewConfigApplyStatusHandler(applyOrchestratorService))
+		mcpRegistry.Register(tools.NewEgressModeHandler(agentHostService, operationLogService))
+		mcpRegistry.Register(tools.NewRoutingPolicyHandler(routingPolicyService, operationLogService))
+		mcpRegistry.Register(tools.NewExitNodeSetHandler(exitNodeSetService, operationLogService))
+		mcpRegistry.Register(tools.NewEgressPairListHandler(store.EgressDispatchPairs()))
+		mcpRegistry.Register(tools.NewInboundSpecListHandler(inboundSpecService))
+		// 专用只读工具（与写工具职责分离，作用域标注与能力一致）
+		mcpRegistry.Register(tools.NewEgressModeGetHandler(agentHostService))
+		mcpRegistry.Register(tools.NewRoutingPolicyListHandler(routingPolicyService))
+		mcpRegistry.Register(tools.NewExitNodeSetListHandler(exitNodeSetService))
+		mcpRegistry.Register(tools.NewConfigSyncHandler(inboundSpecService, operationLogService))
 
 		mcpServer := mcp.NewServer(mcp.Config{
 			APIKey:            cfg.MCP.APIKey,

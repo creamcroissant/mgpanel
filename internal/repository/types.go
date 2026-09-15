@@ -567,11 +567,13 @@ type OperationLogEntry struct {
 
 // MCPApiKey represents a stored MCP API key for LLM access.
 type MCPApiKey struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Prefix     string `json:"prefix"`
-	KeyHash    string `json:"-"`
-	Enabled    bool   `json:"enabled"`
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Prefix  string `json:"prefix"`
+	KeyHash string `json:"-"`
+	Enabled bool   `json:"enabled"`
+	// Scopes 逗号分隔的权限集合：read（只读工具）/ ops（写操作工具）。
+	Scopes     string `json:"scopes"`
 	LastUsedAt int64  `json:"last_used_at,omitempty"`
 	CreatedBy  int64  `json:"created_by"`
 	CreatedAt  int64  `json:"created_at"`

@@ -99,4 +99,3 @@ func (h *AgentLogsFetchHandler) Handle(ctx context.Context, params any) (*ToolCa
 	}
 	return &ToolCallResult{Content: []ToolContent{{Type: "json", Data: entries}}}, nil
 }
-

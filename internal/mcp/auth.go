@@ -1,13 +1,17 @@
 package mcp
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
+
+	"github.com/creamcroissant/mgpanel/internal/mcp/tools"
 )
 
-// KeyValidator validates MCP API keys against stored keys.
+// KeyValidator validates MCP API keys against stored keys and returns the granted scopes.
+// scopes 为空表示拒绝；实现方负责校验哈希与启用状态。
 type KeyValidator interface {
-	Validate(rawKey string) (bool, error)
+	Validate(rawKey string) (scopes []string, ok bool, err error)
 }
 
 // AuthMiddleware validates MCP API key from Authorization header.
@@ -29,17 +33,17 @@ func AuthMiddleware(configKey string, validator KeyValidator) func(http.Handler)
 				token = strings.TrimSpace(auth[7:])
 			}
 
-			// Try config key first
-			if configKey != "" && token == configKey {
-				next.ServeHTTP(w, r)
+			// Try config key first：服务端静态密钥为完全信任，授予全部作用域
+			if configKey != "" && subtle.ConstantTimeCompare([]byte(token), []byte(configKey)) == 1 {
+				next.ServeHTTP(w, r.WithContext(tools.WithScopes(r.Context(), []string{tools.ScopeRead, tools.ScopeOps})))
 				return
 			}
 
 			// Try DB-backed validator
 			if validator != nil {
-				valid, err := validator.Validate(token)
+				scopes, valid, err := validator.Validate(token)
 				if err == nil && valid {
-					next.ServeHTTP(w, r)
+					next.ServeHTTP(w, r.WithContext(tools.WithScopes(r.Context(), scopes)))
 					return
 				}
 			}

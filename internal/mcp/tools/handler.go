@@ -17,6 +17,37 @@ type ToolContent struct {
 	Data any    `json:"data,omitempty"`
 }
 
+// ScopedHandler 可选实现：声明工具所需作用域（read / ops）。
+// 未实现者视为 read（只读工具）。
+type ScopedHandler interface {
+	RequiredScope() string
+}
+
+// SchemaHandler 可选实现：声明工具入参 JSON Schema（供 tools/list 输出）。
+type SchemaHandler interface {
+	InputSchema() map[string]any
+}
+
+// InputSchemaOf 返回工具入参 Schema，未声明时回落为空对象。
+func InputSchemaOf(h Handler) map[string]any {
+	if sh, ok := h.(SchemaHandler); ok {
+		if schema := sh.InputSchema(); schema != nil {
+			return schema
+		}
+	}
+	return map[string]any{"type": "object", "properties": map[string]any{}, "required": []string{}}
+}
+
+// RequiredScopeOf 返回处理器所需作用域，默认 read。
+func RequiredScopeOf(h Handler) string {
+	if sh, ok := h.(ScopedHandler); ok {
+		if sc := sh.RequiredScope(); sc != "" {
+			return sc
+		}
+	}
+	return ScopeRead
+}
+
 // Handler defines a tool call handler.
 type Handler interface {
 	// Name returns the tool name (JSON-RPC method).

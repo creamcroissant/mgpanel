@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 )
 
 // Parser 定义协议配置解析器接口。
@@ -40,24 +39,56 @@ func (r *Registry) Register(p Parser) {
 	r.parsers = append(r.parsers, p)
 }
 
-// stripComments 移除 JSON 中的 // 与 /* */ 风格注释。
+// stripComments 移除 JSON 中的 // 与 /* */ 注释，且**不触碰字符串字面量内部**。
+//
+// 背景（生产实测）：早先用正则在全局删除 //，会把字符串里的 URL（如 loadbalance 健康检查
+// "url": "https://..."）也删掉，导致含 URL 的配置片段被判为 invalid JSON，语义 diff 与
+// 清单解析随之失败（apply 时出现 semantic_diff_unavailable: invalid JSON in file）。
 func stripComments(content []byte) []byte {
-	// 移除单行注释（// ...）
-	singleLine := regexp.MustCompile(`(?m)^\s*//.*$`)
-	content = singleLine.ReplaceAll(content, []byte{})
-
-	// 移除行内注释
-	inlineComment := regexp.MustCompile(`//[^\n]*`)
-	content = inlineComment.ReplaceAll(content, []byte{})
-
-	// 移除多行注释（/* ... */）
-	multiLine := regexp.MustCompile(`/\*[\s\S]*?\*/`)
-	content = multiLine.ReplaceAll(content, []byte{})
-
-	// 去掉首尾空白与空行
-	content = bytes.TrimSpace(content)
-
-	return content
+	out := make([]byte, 0, len(content))
+	inString := false
+	escaped := false
+	for i := 0; i < len(content); i++ {
+		c := content[i]
+		if inString {
+			out = append(out, c)
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			out = append(out, c)
+			continue
+		}
+		if c == '/' && i+1 < len(content) {
+			if content[i+1] == '/' {
+				for i < len(content) && content[i] != '\n' {
+					i++
+				}
+				if i < len(content) {
+					out = append(out, content[i]) // 保留换行，维持行结构
+				}
+				continue
+			}
+			if content[i+1] == '*' {
+				i += 2
+				for i+1 < len(content) && !(content[i] == '*' && content[i+1] == '/') {
+					i++
+				}
+				i++ // 跳过结尾 '/'
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	return bytes.TrimSpace(out)
 }
 
 // Parse 依次尝试所有解析器，返回第一个成功结果。

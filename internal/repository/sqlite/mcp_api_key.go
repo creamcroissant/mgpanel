@@ -18,9 +18,9 @@ func newMCPApiKeyRepo(db *sql.DB) *mcpApiKeyRepo {
 }
 
 func (r *mcpApiKeyRepo) Create(ctx context.Context, key *repository.MCPApiKey) error {
-	query := `INSERT INTO mcp_api_keys (name, prefix, key_hash, enabled, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))`
-	result, err := execWithRetry(ctx, r.db, query, key.Name, key.Prefix, key.KeyHash, boolToInt(key.Enabled), key.CreatedBy)
+	query := `INSERT INTO mcp_api_keys (name, prefix, key_hash, enabled, scopes, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))`
+	result, err := execWithRetry(ctx, r.db, query, key.Name, key.Prefix, key.KeyHash, boolToInt(key.Enabled), key.Scopes, key.CreatedBy)
 	if err != nil {
 		return fmt.Errorf("create mcp api key: %w", err)
 	}
@@ -33,21 +33,21 @@ func (r *mcpApiKeyRepo) Create(ctx context.Context, key *repository.MCPApiKey) e
 }
 
 func (r *mcpApiKeyRepo) GetByID(ctx context.Context, id int64) (*repository.MCPApiKey, error) {
-	query := `SELECT id, name, prefix, key_hash, enabled, last_used_at, created_by, created_at, updated_at
+	query := `SELECT id, name, prefix, key_hash, enabled, scopes, last_used_at, created_by, created_at, updated_at
 		FROM mcp_api_keys WHERE id = ?`
 	row := r.db.QueryRowContext(ctx, query, id)
 	return scanMCPApiKey(row)
 }
 
 func (r *mcpApiKeyRepo) GetByPrefix(ctx context.Context, prefix string) (*repository.MCPApiKey, error) {
-	query := `SELECT id, name, prefix, key_hash, enabled, last_used_at, created_by, created_at, updated_at
+	query := `SELECT id, name, prefix, key_hash, enabled, scopes, last_used_at, created_by, created_at, updated_at
 		FROM mcp_api_keys WHERE prefix = ?`
 	row := r.db.QueryRowContext(ctx, query, prefix)
 	return scanMCPApiKey(row)
 }
 
 func (r *mcpApiKeyRepo) List(ctx context.Context) ([]*repository.MCPApiKey, error) {
-	query := `SELECT id, name, prefix, key_hash, enabled, last_used_at, created_by, created_at, updated_at
+	query := `SELECT id, name, prefix, key_hash, enabled, scopes, last_used_at, created_by, created_at, updated_at
 		FROM mcp_api_keys ORDER BY created_at DESC`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -70,8 +70,8 @@ func (r *mcpApiKeyRepo) List(ctx context.Context) ([]*repository.MCPApiKey, erro
 }
 
 func (r *mcpApiKeyRepo) Update(ctx context.Context, key *repository.MCPApiKey) error {
-	query := `UPDATE mcp_api_keys SET name = ?, enabled = ?, updated_at = strftime('%s','now') WHERE id = ?`
-	result, err := execWithRetry(ctx, r.db, query, key.Name, boolToInt(key.Enabled), key.ID)
+	query := `UPDATE mcp_api_keys SET name = ?, enabled = ?, scopes = ?, updated_at = strftime('%s','now') WHERE id = ?`
+	result, err := execWithRetry(ctx, r.db, query, key.Name, boolToInt(key.Enabled), key.Scopes, key.ID)
 	if err != nil {
 		return fmt.Errorf("update mcp api key: %w", err)
 	}
@@ -102,7 +102,7 @@ type scanner interface {
 func scanMCPApiKey(row scanner) (*repository.MCPApiKey, error) {
 	var key repository.MCPApiKey
 	var enabled int
-	err := row.Scan(&key.ID, &key.Name, &key.Prefix, &key.KeyHash, &enabled, &key.LastUsedAt, &key.CreatedBy, &key.CreatedAt, &key.UpdatedAt)
+	err := row.Scan(&key.ID, &key.Name, &key.Prefix, &key.KeyHash, &enabled, &key.Scopes, &key.LastUsedAt, &key.CreatedBy, &key.CreatedAt, &key.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, repository.ErrNotFound
 	}
