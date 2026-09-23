@@ -984,9 +984,10 @@ persist_agent_deploy_assets() {
     fi
     if [ -n "$script_source" ]; then
         if ! install_executable_file "$script_source" "${deploy_dir}/agent.sh"; then
-            echo "Error: failed to persist agent installer script."
-            return 1
+            echo "Warning: failed to persist agent installer script (pipe-mode rerun); continuing."
         fi
+    else
+        echo "Warning: installer script source not found (pipe-mode); skipping script persist."
     fi
 
     service_source=$(resolve_service_file "agent.service")
@@ -1454,11 +1455,20 @@ fi
 HEALTH_OK=1
 echo "---- install health summary ----"
 if [ "$SKIP_SYSTEMD" != "1" ]; then
-    if run_privileged systemctl is-active --quiet mgpanel-agent; then
-        echo "[OK] mgpanel-agent service: active"
-    else
-        echo "[FAIL] mgpanel-agent service: not active (check journalctl -u mgpanel-agent)"
-        HEALTH_OK=0
+    if is_systemd_available; then
+        if run_privileged systemctl is-active --quiet mgpanel-agent; then
+            echo "[OK] mgpanel-agent service: active"
+        else
+            echo "[FAIL] mgpanel-agent service: not active (check journalctl -u mgpanel-agent)"
+            HEALTH_OK=0
+        fi
+    elif is_openrc_available; then
+        if run_privileged "$OPENRC_SERVICE_CMD" mgpanel-agent status >/dev/null 2>&1; then
+            echo "[OK] mgpanel-agent service: active (openrc)"
+        else
+            echo "[FAIL] mgpanel-agent service: not active (check rc-service mgpanel-agent status)"
+            HEALTH_OK=0
+        fi
     fi
 fi
 if [ -x "${INSTALL_DIR}/agent" ]; then
