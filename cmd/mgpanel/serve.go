@@ -607,6 +607,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		mcpRegistry.Register(tools.NewRoutingPolicyListHandler(routingPolicyService))
 		mcpRegistry.Register(tools.NewExitNodeSetListHandler(exitNodeSetService))
 		mcpRegistry.Register(tools.NewConfigSyncHandler(inboundSpecService, operationLogService))
+		mcpRegistry.Register(tools.NewInboundSpecUpsertHandler(inboundSpecService, operationLogService))
 
 		mcpServer := mcp.NewServer(mcp.Config{
 			APIKey:            cfg.MCP.APIKey,

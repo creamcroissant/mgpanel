@@ -25,6 +25,7 @@ const (
 	ToolConfigApply       = "config_apply"
 	ToolConfigApplyStatus = "config_apply_status"
 	ToolConfigSync        = "config_sync"
+	ToolInboundSpecUpsert = "inbound_spec_upsert"
 	ToolEgressMode        = "egress_mode"
 	ToolRoutingPolicy     = "routing_policy"
 	ToolExitNodeSet       = "exit_node_set"
