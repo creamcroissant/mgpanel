@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Clock, FileText, Pencil, RotateCw } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, Pencil, RotateCw } from "lucide-react";
 import { AgentStatus, type AgentHost } from "@/types";
 import ResourceGauge from "./ResourceGauge";
 import { formatBytes } from "@/lib/format";
