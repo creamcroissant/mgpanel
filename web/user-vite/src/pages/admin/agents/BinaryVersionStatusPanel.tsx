@@ -157,7 +157,7 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
             {rows.map((state) => {
               const isRefreshing = refreshMutation.isPending && refreshMutation.variables === state.component;
               return (
-                <div key={state.component} className="rounded-md border border-border p-3">
+                <div key={state.component} className="rounded-none border border-border border-border p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold">{t(`admin.cores.binaryComponent.${state.component}`)}</div>
@@ -180,7 +180,7 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
                     </div>
                   </div>
                   {state.last_check_error && (
-                    <div className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground dark:text-warning">
+                    <div className="mt-3 rounded-none border border-border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground dark:text-warning">
                       {state.last_check_error}
                     </div>
                   )}

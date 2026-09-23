@@ -40,7 +40,7 @@ export function InboundTLSFields({ value, onChange, readOnly }: InboundTLSFields
   };
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-tls-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-tls-fields">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{t("admin.configCenter.inbound.security")}</h3>
         <Select value={tlsCertMode} onValueChange={handleModeChange as (v: string) => void} disabled={readOnly}>

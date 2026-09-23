@@ -98,9 +98,9 @@ export default function ForgotPassword() {
 
   return (
     <AuthShell>
-      <Card className="border border-border/80">
+      <Card className="border border-border">
         <CardHeader className="items-center space-y-2 pt-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10 text-primary font-semibold">
+          <div className="flex h-12 w-12 items-center justify-center rounded-none bg-primary/10 text-primary font-semibold">
             X
           </div>
           <div className="space-y-1">
@@ -210,7 +210,7 @@ export default function ForgotPassword() {
             </div>
 
             {resetPasswordMutation.error && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="rounded-none border border-border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {resetPasswordMutation.error.message}
               </div>
             )}

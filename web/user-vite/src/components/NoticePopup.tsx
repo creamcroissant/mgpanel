@@ -32,7 +32,7 @@ export default function NoticePopup({ notice, open, onClose }: NoticePopupProps)
         </DialogHeader>
         <div className="space-y-3">
           {notice.img_url ? (
-            <div className="overflow-hidden rounded-lg border border-border">
+            <div className="overflow-hidden rounded-none border border-border border-border">
               <img
                 src={notice.img_url}
                 alt={notice.title || t("notice.popup.imageAlt")}

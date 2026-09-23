@@ -203,7 +203,7 @@ export function TopologyCanvas({
           type: n.kind,
           position: { x: 0, y: 0 },
           // 校验高亮走外层 className，不动节点内部实现
-          className: hasError ? "ring-2 ring-destructive rounded-md" : undefined,
+          className: hasError ? "ring-2 ring-destructive rounded-none" : undefined,
           data: {
             ...n.data,
             kind: n.kind,
@@ -230,7 +230,7 @@ export function TopologyCanvas({
           ...n,
           className: [
             n.className ?? "",
-            matched ? "ring-2 ring-success rounded-md" : "opacity-30 saturate-50",
+            matched ? "ring-2 ring-success rounded-none" : "opacity-30 saturate-50",
           ]
             .filter(Boolean)
             .join(" "),
@@ -272,7 +272,7 @@ export function TopologyCanvas({
   );
 
   return (
-    <div id="topology-canvas" className="h-[560px] w-full overflow-hidden rounded-md border bg-background">
+    <div id="topology-canvas" className="h-[560px] w-full overflow-hidden rounded-none border border-border bg-background">
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}

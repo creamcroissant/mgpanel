@@ -70,7 +70,7 @@ export default function StatCard({
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-start gap-4">
           {icon && (
-            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md", styles.iconWrap)}>
+            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-none", styles.iconWrap)}>
               {icon}
             </div>
           )}

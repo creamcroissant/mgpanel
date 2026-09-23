@@ -90,11 +90,11 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch, nameById }: MeshP
                 {t("admin.agents.meshTable.offline")}: <strong className="text-muted-foreground">{peers.length - onlineCount}</strong>
               </span>
             </div>
-            <div className="flex items-center gap-1 rounded-md border p-0.5">
+            <div className="flex items-center gap-1 rounded-none border border-border p-0.5">
               <button
                 type="button"
                 onClick={() => setView("table")}
-                className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 rounded-none px-2 py-1 text-xs font-medium transition-colors ${
                   view === "table"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -106,7 +106,7 @@ export function MeshPeerTable({ open, onOpenChange, onRefetch, nameById }: MeshP
               <button
                 type="button"
                 onClick={() => setView("topo")}
-                className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1 rounded-none px-2 py-1 text-xs font-medium transition-colors ${
                   view === "topo"
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"

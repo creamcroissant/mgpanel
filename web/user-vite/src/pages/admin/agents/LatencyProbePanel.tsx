@@ -160,7 +160,7 @@ export default function LatencyProbePanel({ open, onOpenChange }: LatencyProbePa
                         ) : "-"}
                       </TableCell>
                       <TableCell className={`text-right font-mono font-medium ${latencyColor(item.avg_latency_ms)}`}>
-                        <span className={`inline-block rounded px-1.5 py-0.5 ${latencyBgColor(item.avg_latency_ms)}`}>
+                        <span className={`inline-block rounded-none px-1.5 py-0.5 ${latencyBgColor(item.avg_latency_ms)}`}>
                           {latencyLabel(item.avg_latency_ms)}
                         </span>
                       </TableCell>

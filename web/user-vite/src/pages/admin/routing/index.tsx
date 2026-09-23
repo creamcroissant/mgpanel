@@ -48,7 +48,7 @@ export default function RoutingPage() {
           <ViewSwitchLink direction="list" onSwitch={() => setTab("routing")} />
           <Suspense
             fallback={
-              <div className="h-[560px] w-full animate-pulse rounded-md border bg-muted/40" />
+              <div className="h-[560px] w-full animate-pulse rounded-none border border-border bg-muted/40" />
             }
           >
             <TopologyTab />

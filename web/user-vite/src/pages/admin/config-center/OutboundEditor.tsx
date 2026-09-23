@@ -264,7 +264,7 @@ export function OutboundEditor({ value, onChange, coreType }: OutboundEditorProp
 
       {protocol && (
         <>
-          <div className="rounded-md border bg-muted/20 p-4 space-y-4">
+          <div className="rounded-none border border-border bg-muted/20 p-4 space-y-4">
             <h3 className="text-sm font-semibold">{t("admin.configCenter.inbound.settings")}</h3>
             {renderSettings()}
           </div>
@@ -511,7 +511,7 @@ function WireGuardSettings({ settings, onChange }: { settings: Record<string, un
           <Input value={(settings.secretKey as string) ?? ""} onChange={(e) => onChange("secretKey", e.target.value || undefined)} />
         </div>
       </div>
-      <div className="rounded-md border border-border p-3 space-y-3">
+      <div className="rounded-none border border-border border-border p-3 space-y-3">
         <h4 className="text-sm font-medium">{t("admin.configCenter.outbound.peer")}</h4>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">

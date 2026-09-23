@@ -30,7 +30,7 @@ function MetricTile({
   value,
 }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-3">
+    <div className="rounded-none border border-border border-border bg-muted/20 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
         {value}
@@ -113,7 +113,7 @@ export default function SubscriptionSummaryPanel() {
         )}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="rounded-md border border-border p-4">
+          <div className="rounded-none border border-border border-border p-4">
             <h4 className="text-sm font-medium text-foreground">
               {t("admin.system.subscription.reasonDistribution")}
             </h4>
@@ -142,7 +142,7 @@ export default function SubscriptionSummaryPanel() {
             )}
           </div>
 
-          <div className="rounded-md border border-border p-4">
+          <div className="rounded-none border border-border border-border p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h4 className="text-sm font-medium text-foreground">
@@ -183,7 +183,7 @@ export default function SubscriptionSummaryPanel() {
                 )}
               />
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-md border border-border">
+              <div className="mt-4 overflow-x-auto rounded-none border border-border border-border">
                 <Table>
                   <TableHeader>
                     <TableRow>

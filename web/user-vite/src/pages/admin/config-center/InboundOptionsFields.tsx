@@ -49,7 +49,7 @@ export function InboundOptionsFields({
   };
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-options-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-options-fields">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{t("admin.configCenter.inbound.options", "协议选项")}</h3>
       </div>
@@ -105,7 +105,7 @@ export function InboundOptionsFields({
       </button>
 
       {showAllOptions && (
-        <div className="space-y-2 border-l-2 border-border/40 pl-3">
+        <div className="space-y-2 border-l-2 border-border pl-3">
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.extraOptions", "附加选项 JSON")}</label>
           <Textarea
             className="min-h-[100px] font-mono text-xs"

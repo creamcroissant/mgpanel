@@ -182,7 +182,7 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => setShowPasswords((value) => !value)}
-                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-none text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={showPasswords ? t("settings.hidePasswords") : t("settings.showPasswords")}
               >
                 {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -228,7 +228,7 @@ export default function Settings() {
           </div>
 
           {changePasswordMutation.error && (
-            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <div role="alert" className="rounded-none border border-border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
               {changePasswordMutation.error.message}
             </div>
           )}

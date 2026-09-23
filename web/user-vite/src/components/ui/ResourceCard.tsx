@@ -26,14 +26,14 @@ export function ResourceCard({
   return (
     <article
       className={cn(
-        "group min-w-0 rounded-md border bg-card p-4 text-card-foreground transition-colors hover:border-primary/30",
+        "group min-w-0 rounded-none border border-border border-border bg-card p-4 text-card-foreground transition-colors hover:border-primary/30",
         className
       )}
       {...props}
     >
       <div className="flex min-w-0 items-start gap-3">
         {icon && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none border border-border bg-muted/40 text-muted-foreground">
             {icon}
           </div>
         )}

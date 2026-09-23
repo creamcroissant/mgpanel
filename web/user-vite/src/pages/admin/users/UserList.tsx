@@ -294,7 +294,7 @@ export default function UserList() {
         </div>
 
         {users.length === 0 ? (
-          <div className="md:hidden rounded-md border bg-card">
+          <div className="md:hidden rounded-none border border-border bg-card">
             <EmptyState
               title={t("admin.users.empty")}
               description={t("admin.users.searchPlaceholder")}

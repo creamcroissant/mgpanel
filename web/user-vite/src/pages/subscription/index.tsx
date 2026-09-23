@@ -148,7 +148,7 @@ export default function SubscriptionWorkspace() {
         <SectionCard title={t("subscription.security")} description={t("subscription.securityHint")}>
           <div className="space-y-4">
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-              <div className="min-w-0 rounded-md border bg-muted/25 p-3">
+              <div className="min-w-0 rounded-none border border-border bg-muted/25 p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {t("subscription.tokenStatus")}
                 </div>
@@ -158,7 +158,7 @@ export default function SubscriptionWorkspace() {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{t("subscription.tokenProtected")}</p>
               </div>
-              <div className="min-w-0 rounded-md border bg-muted/25 p-3">
+              <div className="min-w-0 rounded-none border border-border bg-muted/25 p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {t("subscription.accountId")}
                 </div>

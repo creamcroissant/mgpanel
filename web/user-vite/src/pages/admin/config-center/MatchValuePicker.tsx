@@ -71,7 +71,7 @@ export function MatchValuePicker({ kind, values, onChange, placeholder, allowCus
             <span className="max-w-[200px] truncate font-mono">{v}</span>
             <button
               type="button"
-              className="ml-0.5 rounded px-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="ml-0.5 rounded-none px-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => removeValue(v)}
               aria-label={t("common.delete")}
             >
@@ -93,7 +93,7 @@ export function MatchValuePicker({ kind, values, onChange, placeholder, allowCus
 
       {/* 候选列表 */}
       {focused && candidates.length > 0 && (
-        <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-background shadow-sm">
+        <div className="max-h-48 overflow-y-auto rounded-none border border-border border-border bg-background shadow-sm">
           {candidates.map((c) => {
             const selected = values.includes(c.value);
             return (

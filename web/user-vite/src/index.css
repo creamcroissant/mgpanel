@@ -10,19 +10,19 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --background: 220 33% 98%;
+  --background: 220 20% 96%;
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 220 26% 95%;
   --secondary-foreground: 222 47% 11%;
   --muted: 220 25% 95%;
   --muted-foreground: 215 16% 40%;
-  --border: 220 22% 89%;
+  --border: 222 18% 78%;
   --destructive: 0 72.2% 50.6%;
   --destructive-foreground: 210 40% 98%;
   --success: 142.1 76.2% 36.3%;
@@ -34,17 +34,17 @@
   --sidebar-width: var(--sidebar-width-expanded);
   --header-height: 64px;
   /* focus ring：shadcn 组件 ring-ring 类依赖此令牌 */
-  --ring: 221 83% 53%;
+  --ring: 222 47% 11%;
 }
 
 .dark {
-  --background: 222 30% 10%;
-  --foreground: 210 40% 98%;
-  --card: 222 24% 13%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 24% 13%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217 91% 64%;
+  --background: 222 47% 11%;
+  --foreground: 0 0% 100%;
+  --card: 222 42% 17%;
+  --card-foreground: 0 0% 100%;
+  --popover: 222 42% 17%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 0 0% 100%;
   --primary-foreground: 222 47% 11%;
   --secondary: 222 19% 17%;
   --secondary-foreground: 210 40% 98%;
@@ -57,7 +57,7 @@
   --success-foreground: 222.2 47.4% 11.2%;
   --warning: 38 92% 50%;
   --warning-foreground: 222 47% 11%;
-  --ring: 217 91% 64%;
+  --ring: 0 0% 100%;
 }
 
 [data-sonner-toaster] {

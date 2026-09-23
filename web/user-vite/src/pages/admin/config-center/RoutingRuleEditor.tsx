@@ -150,13 +150,13 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
           <Button size="sm" onClick={openAdd}>{t("admin.configCenter.routing.addRule")}</Button>
         </div>
         {rules.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-none border border-border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             {t("admin.configCenter.routing.noRules")}
           </div>
         ) : (
           <div className="space-y-2">
             {rules.map((rule, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-md border border-border p-2 hover:bg-muted/20">
+              <div key={idx} className="flex items-center gap-2 rounded-none border border-border border-border p-2 hover:bg-muted/20">
                 <div className="flex flex-col gap-0.5">
                   <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => moveRule(idx, "up")} disabled={idx === 0}>↑</button>
                   <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => moveRule(idx, "down")} disabled={idx >= rules.length - 1}>↓</button>
@@ -182,7 +182,7 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
 
       {/* Rule Edit Dialog */}
       {dialogOpen && editRule && (
-        <div className="rounded-md border border-border p-4 space-y-4">
+        <div className="rounded-none border border-border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editIndex != null ? t("admin.configCenter.routing.editRule") : t("admin.configCenter.routing.addRule")}</h4>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">

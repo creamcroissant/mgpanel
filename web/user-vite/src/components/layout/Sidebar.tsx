@@ -46,7 +46,7 @@ function NavItem({
       aria-label={isCollapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
-          "flex h-10 items-center rounded-md text-sm font-medium transition-colors",
+          "flex h-10 items-center rounded-none text-sm font-medium transition-colors",
           isCollapsed ? "mx-auto w-10 justify-center px-0" : "w-full justify-start px-3 py-2.5",
           isActive
             ? "bg-muted text-foreground"
@@ -197,17 +197,17 @@ export default function Sidebar({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 rounded-md p-0 hover:bg-muted/70"
+                    className="h-10 w-10 rounded-none p-0 hover:bg-muted/70"
                     onClick={onToggleCollapsed}
                     aria-label={t("common.expand")}
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none bg-primary">
                       <span className="text-sm font-bold text-primary-foreground">M</span>
                     </div>
                   </Button>
                 ) : (
-                  <div className="flex items-center rounded-md px-2 py-2 transition-colors duration-200">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary">
+                  <div className="flex items-center rounded-none px-2 py-2 transition-colors duration-200">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-none bg-primary">
                       <span className="text-sm font-bold text-primary-foreground">M</span>
                     </div>
                     <span className="ml-3 max-w-[120px] overflow-hidden whitespace-nowrap text-lg font-semibold tracking-tight opacity-100 transition-all duration-300 ease-in-out">
@@ -297,7 +297,7 @@ export default function Sidebar({
 
             {portalSwitchItem && (
               <div className={cn("w-full", isCollapsed ? "pt-3" : "pt-5")}>
-                <div className={cn("border-t border-border/70", isCollapsed ? "mx-auto mb-3 w-10" : "mb-5")} />
+                <div className={cn("border-t border-border", isCollapsed ? "mx-auto mb-3 w-10" : "mb-5")} />
                 <ul className={cn("space-y-1", isCollapsed && "flex w-full flex-col items-center")}>
                   <li className={cn(isCollapsed && "flex w-full justify-center")}>
                     <NavItem
@@ -313,7 +313,7 @@ export default function Sidebar({
           </nav>
 
           <div
-            className={cn("shrink-0 border-t border-border/70 p-4 text-center", isCollapsed && "flex justify-center px-0")}
+            className={cn("shrink-0 border-t border-border p-4 text-center", isCollapsed && "flex justify-center px-0")}
           >
             <p
               className={cn(

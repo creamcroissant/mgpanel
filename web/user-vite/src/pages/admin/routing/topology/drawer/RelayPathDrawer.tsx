@@ -84,7 +84,7 @@ export function RelayPathDrawer({ target, agents, saving, onClose, onDraftChange
             {target.nodes.map((n, i) => {
               const a = agentById.get(n.agent_host_id);
               return (
-                <li key={`${n.agent_host_id}-${i}`} className="flex items-center gap-1.5 rounded-md border bg-card px-2 py-1.5 text-xs">
+                <li key={`${n.agent_host_id}-${i}`} className="flex items-center gap-1.5 rounded-none border border-border bg-card px-2 py-1.5 text-xs">
                   <span className="w-10 shrink-0 font-medium tabular-nums text-muted-foreground">
                     {i === 0 ? t("admin.topology.relay.entry") : i === target.nodes.length - 1 ? t("admin.topology.relay.exitLabel") : `#${i}`}
                   </span>

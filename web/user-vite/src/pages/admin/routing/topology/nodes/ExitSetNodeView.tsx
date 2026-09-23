@@ -63,7 +63,7 @@ function ExitSetNodeViewInner({ data }: NodeProps) {
         </span>
         {meta && (
           <span
-            className="ml-auto shrink-0 rounded-sm bg-success/10 px-1.5 py-px text-[11px] font-semibold text-success"
+            className="ml-auto shrink-0 rounded-none bg-success/10 px-1.5 py-px text-[11px] font-semibold text-success"
             title={meta.full}
           >
             {meta.short}

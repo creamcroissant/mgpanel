@@ -369,7 +369,7 @@ export default function AgentList() {
             size="lg"
           />
         ) : (
-          <ResponsiveGrid minColWidth={300} gap={18}>
+          <ResponsiveGrid minColWidth={240} gap={12}>
             {agents.map((agent) => (
               <AgentStatusCard key={agent.id} agent={agent} onClick={() => handleOpenCorePanel(agent)} onEdit={() => handleOpenEditDialog(agent)} onViewConfig={() => handleOpenConfigEditor(agent)} />
             ))}
@@ -479,12 +479,12 @@ export default function AgentList() {
           </DialogHeader>
           {deployCommand ? (
             <div className="space-y-3">
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm leading-6 text-muted-foreground">
+              <div className="rounded-none border border-border border-border bg-muted/30 p-3 text-sm leading-6 text-muted-foreground">
                 {t("admin.agents.deploy.tokenModel")}
               </div>
               {renderDeployDiagnosticsPanel()}
               <label className="text-sm font-medium">{t("admin.agents.deploy.command")}</label>
-              <pre className="max-h-72 overflow-x-auto whitespace-pre-wrap break-all rounded-md border bg-muted/40 p-4 text-xs font-mono leading-6">
+              <pre className="max-h-72 overflow-x-auto whitespace-pre-wrap break-all rounded-none border border-border bg-muted/40 p-4 text-xs font-mono leading-6">
                 {deployCommand}
               </pre>
             </div>

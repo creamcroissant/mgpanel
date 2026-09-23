@@ -47,7 +47,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
   return (
     <div className="space-y-4">
       {/* Log */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           {t("admin.configCenter.inbound.log")} — Log
         </summary>
@@ -84,7 +84,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
       </details>
 
       {/* API — Xray only */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           API
         </summary>
@@ -114,7 +114,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
       </details>
 
       {/* Stats — Xray only */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           {t("admin.configCenter.coreSettings.stats")}
         </summary>
@@ -127,7 +127,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
       </details>
 
       {/* Policy — Xray only */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           {t("admin.configCenter.coreSettings.policy")}
         </summary>
@@ -166,7 +166,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
       </details>
 
       {/* Experimental — sing-box only */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           Experimental
         </summary>
@@ -192,7 +192,7 @@ export function CoreSettingsEditor({ value, onChange }: CoreSettingsEditorProps)
       </details>
 
       {/* NTP — sing-box only */}
-      <details className="rounded-md border border-border">
+      <details className="rounded-none border border-border border-border">
         <summary className="cursor-pointer px-4 py-2 text-sm font-semibold hover:bg-muted/30">
           {t("admin.configCenter.coreSettings.ntp")}
         </summary>

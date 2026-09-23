@@ -51,7 +51,7 @@ export function InboundMultiplexFields({ value, onChange, readOnly }: InboundMul
   };
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-multiplex-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-multiplex-fields">
       <label className="flex items-center gap-2 text-sm font-medium cursor-pointer" onClick={() => !readOnly && handleToggle(!enabled)}>
         <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableMultiplex")}
@@ -80,7 +80,7 @@ export function InboundMultiplexFields({ value, onChange, readOnly }: InboundMul
           </div>
 
           {/* Brutal congestion control */}
-          <div className="space-y-3 rounded-md border border-border/60 bg-background p-3">
+          <div className="space-y-3 rounded-none border border-border border-border bg-background p-3">
             <label className="flex items-center gap-2 text-sm font-medium">
               <Switch checked={(brutalEnabled)} onCheckedChange={(value) => setBrutalEnabled(value)} disabled={readOnly} />
               {t("admin.configCenter.inbound.mpBrutal")}

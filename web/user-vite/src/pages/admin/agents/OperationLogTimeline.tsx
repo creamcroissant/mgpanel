@@ -136,7 +136,7 @@ export function OperationLogTimeline({
         ) : historicalQuery.isLoading && logs.length === 0 ? (
           <Loading />
         ) : historicalQuery.error && logs.length === 0 ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-none border border-border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             {t("admin.cores.timelineLoadError")}
           </div>
         ) : logs.length === 0 ? (
@@ -149,14 +149,14 @@ export function OperationLogTimeline({
         ) : (
           <div className="space-y-3">
             {stream.error && (
-              <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground dark:text-warning">
+              <div className="rounded-none border border-border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground dark:text-warning">
                 {t("admin.cores.timelineStreamError", { message: stream.error })}
               </div>
             )}
             {logs.map((entry) => {
               const payload = formatPayload(entry.payload);
               return (
-                <div key={entry.id} className="rounded-md border border-border p-3">
+                <div key={entry.id} className="rounded-none border border-border border-border p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={getLevelVariant(entry.level)}>{t(`admin.cores.logLevel.${entry.level}`)}</Badge>
@@ -169,7 +169,7 @@ export function OperationLogTimeline({
                   </div>
                   <div className="mt-2 text-sm text-foreground">{entry.message || "-"}</div>
                   {payload && (
-                    <pre className="mt-2 max-h-48 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                    <pre className="mt-2 max-h-48 overflow-auto rounded-none border border-border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
                       {payload}
                     </pre>
                   )}

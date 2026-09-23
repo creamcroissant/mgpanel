@@ -293,7 +293,7 @@ export function ExitNodeSetsSection() {
             </div>
             <div className="space-y-2">
               <label className="text-sm">{t("admin.exitNodeSets.selectMembers")}</label>
-              <div className="max-h-48 overflow-y-auto rounded border p-2">
+              <div className="max-h-48 overflow-y-auto rounded-none border border-border p-2">
                 {agents?.data?.map((a: AgentHost) => (
                   <label key={a.id} className="flex cursor-pointer items-center gap-2 py-1 text-sm">
                     <Checkbox

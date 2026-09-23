@@ -237,7 +237,7 @@ export default function SpecApplyDialog({ coreType, specLabel, defaultTargetRevi
         </DialogHeader>
 
         {/* Filters */}
-        <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+        <div className="space-y-3 rounded-none border border-border bg-muted/30 p-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -326,7 +326,7 @@ export default function SpecApplyDialog({ coreType, specLabel, defaultTargetRevi
               return (
                 <label
                   key={r.agent.id}
-                  className={`flex cursor-pointer items-center gap-3 rounded-md border p-2.5 transition-colors ${
+                  className={`flex cursor-pointer items-center gap-3 rounded-none border border-border p-2.5 transition-colors ${
                     checked ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/40"
                   }`}
                 >
@@ -358,7 +358,7 @@ export default function SpecApplyDialog({ coreType, specLabel, defaultTargetRevi
             {advanced ? t("common.collapse") : t("admin.configCenter.applyDialog.advanced")}
           </Button>
           {advanced && (
-            <div className="grid gap-3 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-none border border-border bg-muted/30 p-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   {t("admin.configCenter.applyDialog.targetRevision")}
@@ -391,7 +391,7 @@ export default function SpecApplyDialog({ coreType, specLabel, defaultTargetRevi
           </div>
         )}
         {results && (
-          <div className="space-y-1.5 rounded-md border bg-muted/30 p-3 text-sm">
+          <div className="space-y-1.5 rounded-none border border-border bg-muted/30 p-3 text-sm">
             <p className="text-success">{t("admin.configCenter.applyDialog.success", { count: results.success.length })}</p>
             {results.failed.length > 0 && (
               <p className="text-destructive">

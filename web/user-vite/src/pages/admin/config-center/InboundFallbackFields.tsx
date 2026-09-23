@@ -48,7 +48,7 @@ export function InboundFallbackFields({
   if (protocol !== "vless") return null;
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-fallback-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-fallback-fields">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{t("admin.configCenter.inbound.fallbacks", "Fallbacks 回落")}</h3>
         {!readOnly && (
@@ -67,7 +67,7 @@ export function InboundFallbackFields({
       {list.map((entry, i) => (
         <div
           key={i}
-          className="space-y-3 rounded-md border border-border/60 bg-background p-3"
+          className="space-y-3 rounded-none border border-border border-border bg-background p-3"
         >
           <div className="flex items-start justify-between gap-2">
             <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>

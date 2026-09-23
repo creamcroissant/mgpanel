@@ -53,7 +53,7 @@ function getUsagePercent(status: AgentTrafficPolicyStatus | undefined): number {
 
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-3">
+    <div className="rounded-none border border-border border-border bg-muted/20 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</div>
     </div>
@@ -63,7 +63,7 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 function ResetResultSummary({ result }: { result: AgentTrafficResetResult }) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success-foreground dark:text-success">
+    <div className="rounded-none border border-border border-success/30 bg-success/10 p-3 text-sm text-success-foreground dark:text-success">
       <div className="font-medium">{t("admin.cores.trafficResetResult")}</div>
       <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
         <span>{t("admin.cores.trafficResetAt")}: {formatDateTime(result.reset_at)}</span>
@@ -148,13 +148,13 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
             </div>
 
             {!trusted && (
-              <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
+              <div className="flex items-start gap-2 rounded-none border border-border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{t("admin.cores.trafficCountersUntrustedHint")}</span>
               </div>
             )}
 
-            <div className="rounded-md border border-border p-3">
+            <div className="rounded-none border border-border border-border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Gauge className="h-4 w-4 text-primary" />
@@ -175,7 +175,7 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
               <MetricTile label={t("admin.cores.trafficCycleTotal")} value={formatTrustedBytes(status.cycle_total_bytes, trusted, t)} />
               <MetricTile label={t("admin.cores.trafficNextResetAt")} value={nextResetAt} />
               <MetricTile label={t("admin.cores.trafficLastResetAt")} value={status.policy.last_reset_at ? formatDateTime(status.policy.last_reset_at) : "-"} />
-              <div className="rounded-md border border-border bg-muted/20 p-3">
+              <div className="rounded-none border border-border border-border bg-muted/20 p-3">
                 <div className="text-xs text-muted-foreground">{t("admin.cores.trafficBootId")}</div>
                 {trusted && status.state?.boot_id ? (
                   <div className="mt-1 flex items-center gap-2">

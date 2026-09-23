@@ -172,7 +172,7 @@ function getFilterReasonLabel(reason: string, t: (key: string) => string): strin
 
 function MetricTile({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-3">
+    <div className="rounded-none border border-border border-border bg-muted/20 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</p>
     </div>
@@ -309,7 +309,7 @@ function SubscriptionTabContent({ initialForm }: SubscriptionTabContentProps) {
         )}
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
             <div className="space-y-1">
               <p className="text-sm font-medium">
                 {t("admin.system.settings.fields.allowChange")}
@@ -324,7 +324,7 @@ function SubscriptionTabContent({ initialForm }: SubscriptionTabContentProps) {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
             <div className="space-y-1">
               <p className="text-sm font-medium">
                 {t("admin.system.settings.fields.injectMeta")}
@@ -339,7 +339,7 @@ function SubscriptionTabContent({ initialForm }: SubscriptionTabContentProps) {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
             <div className="space-y-1">
               <p className="text-sm font-medium">
                 {t("admin.system.settings.fields.injectProtocol")}
@@ -656,7 +656,7 @@ function SubscriptionSourcesPanel() {
                 />
               </div>
             )}
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
               <div>
                 <p className="text-sm font-medium">{t("admin.system.subscription.sourceEnabled")}</p>
                 <p className="text-xs text-muted-foreground">
@@ -771,7 +771,7 @@ function SubscriptionFilterDiagnosticsPanel() {
         )}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="rounded-md border border-border p-4">
+          <div className="rounded-none border border-border border-border p-4">
             <h4 className="text-sm font-medium text-foreground">
               {t("admin.system.subscription.reasonDistribution")}
             </h4>
@@ -793,7 +793,7 @@ function SubscriptionFilterDiagnosticsPanel() {
             )}
           </div>
 
-          <div className="rounded-md border border-border p-4">
+          <div className="rounded-none border border-border border-border p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h4 className="text-sm font-medium text-foreground">

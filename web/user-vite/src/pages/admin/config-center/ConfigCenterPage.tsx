@@ -455,7 +455,7 @@ export default function ConfigCenterPage() {
           ) : historyQuery.data?.data?.length ? (
             <div className="space-y-2">
               {historyQuery.data.data.map((rev: ConfigCenterSpecRevision) => (
-                <div key={rev.revision} className="rounded-md border border-border p-3 text-sm">
+                <div key={rev.revision} className="rounded-none border border-border border-border p-3 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">r{rev.revision}</span>
                     <span className="text-muted-foreground">{formatDateTime(rev.created_at)}</span>
@@ -501,7 +501,7 @@ function ConfigCenterTopologyHint() {
   return (
     <a
       href="/routing?tab=topology"
-      className="flex items-center gap-1.5 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+      className="flex items-center gap-1.5 rounded-none border border-border border-dashed px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
     >
       <Workflow className="h-3.5 w-3.5" aria-hidden />
       {t("admin.topology.config_center_hint")}

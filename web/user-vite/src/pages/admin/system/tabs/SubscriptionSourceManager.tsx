@@ -520,7 +520,7 @@ export default function SubscriptionSourceManager() {
                 />
               </div>
             )}
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
               <div>
                 <p className="text-sm font-medium">
                   {t("admin.system.subscription.sourceEnabled")}

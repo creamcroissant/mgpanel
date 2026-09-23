@@ -82,7 +82,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
       </div>
 
       {/* spec 摘要 */}
-      <p className="rounded-md bg-muted/50 px-2 py-1.5 font-mono text-xs text-muted-foreground">
+      <p className="rounded-none bg-muted/50 px-2 py-1.5 font-mono text-xs text-muted-foreground">
         {spec.tag} · {spec.protocol}:{spec.port}
       </p>
 
@@ -93,7 +93,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
             key={key}
             type="button"
             onClick={() => switchMode(key)}
-            className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] transition-colors ${
+            className={`flex flex-col items-center gap-1 rounded-none border border-border px-1 py-2 text-[11px] transition-colors ${
               mode === key
                 ? "border-primary bg-primary/10 font-medium text-primary"
                 : "border-border text-muted-foreground hover:bg-muted/50"
@@ -109,7 +109,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
       {/* 对应下拉 */}
       {mode === "agent" && (
         <select
-          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="w-full rounded-none border border-border bg-background px-2 py-1.5 text-sm"
           value={agentId ?? ""}
           onChange={(e) => setAgentId(e.target.value ? Number(e.target.value) : null)}
           aria-label={tf("admin.topology.relay.bind_fixed_agent", "固定 Agent")}
@@ -124,7 +124,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
       )}
       {mode === "set" && (
         <select
-          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="w-full rounded-none border border-border bg-background px-2 py-1.5 text-sm"
           value={setId ?? ""}
           onChange={(e) => setSetId(e.target.value ? Number(e.target.value) : null)}
           aria-label={tf("admin.topology.relay.bind_exit_set", "出口集")}
@@ -140,7 +140,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
       )}
       {mode === "relay" && (
         <select
-          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+          className="w-full rounded-none border border-border bg-background px-2 py-1.5 text-sm"
           value={pathId ?? ""}
           onChange={(e) => setPathId(e.target.value ? Number(e.target.value) : null)}
           aria-label={tf("admin.topology.relay.bind_relay", "中继链路")}
@@ -171,7 +171,7 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
             pathId: mode === "relay" ? pathId : null,
           })
         }
-        className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        className="w-full rounded-none bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
       >
         {saving ? tf("admin.topology.toolbar.exporting", "保存中…") : tf("admin.topology.relay.bind_save", "保存绑定")}
       </button>

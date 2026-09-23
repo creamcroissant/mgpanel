@@ -19,14 +19,14 @@ export function SideToolbar({ mode, onChange, hint }: SideToolbarProps) {
     { key: "delete", icon: Trash2, label: t("admin.topology.tools.delete") },
   ];
   return (
-    <div className="flex w-14 flex-col items-center gap-1 rounded-md border bg-card py-2">
+    <div className="flex w-14 flex-col items-center gap-1 rounded-none border border-border bg-card py-2">
       {items.map(({ key, icon: Icon, label }) => (
         <button
           key={key}
           type="button"
           title={`${label} — ${t(`admin.topology.tools.hint.${key}`)}`}
           onClick={() => onChange(key)}
-          className={`flex h-9 w-9 items-center justify-center rounded transition-colors ${
+          className={`flex h-9 w-9 items-center justify-center rounded-none transition-colors ${
             mode === key
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"

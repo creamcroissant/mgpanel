@@ -541,7 +541,7 @@ export function SpecEditorDialog({
                   {t("admin.configCenter.fields.agentHost")}
                 </label>
                 {specForm.is_template ? (
-                  <div className="flex h-10 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">
+                  <div className="flex h-10 items-center rounded-none border border-border border-border px-3 text-sm text-muted-foreground">
                     {t("admin.configCenter.template.templateSpec")}
                   </div>
                 ) : (
@@ -663,7 +663,7 @@ export function SpecEditorDialog({
 
             {/* ---- Advanced JSON ---- */}
             <div
-              className="space-y-4 rounded-md border bg-muted/20 p-4"
+              className="space-y-4 rounded-none border border-border bg-muted/20 p-4"
               data-testid="config-center-advanced-json"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -918,7 +918,7 @@ export function SpecEditorDialog({
                 <label className="text-sm font-medium">
                   {t("admin.configCenter.fields.enabled")}
                 </label>
-                <div className="flex h-10 items-center rounded-md border border-border px-3">
+                <div className="flex h-10 items-center rounded-none border border-border border-border px-3">
                   <Switch
                     checked={importForm.enabled}
                     onCheckedChange={(checked) =>

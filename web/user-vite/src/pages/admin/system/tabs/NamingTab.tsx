@@ -72,7 +72,7 @@ function NamingTabContent({ initialForm, onSave, isSaving }: NamingTabContentPro
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.system.naming.preview.title")}</label>
         <p className="text-xs text-muted-foreground">{t("admin.system.naming.preview.hint")}</p>
-        <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+        <div className="rounded-none border border-border bg-muted/30 p-3 space-y-1">
           {PREVIEW_EXAMPLES.map((example) => (
             <div key={example} className="text-sm font-mono">
               {form.enabled === "1"

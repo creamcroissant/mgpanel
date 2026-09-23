@@ -295,7 +295,7 @@ export default function UserFormDialog({
                       {name}
                       <button
                         type="button"
-                        className="rounded p-0.5 hover:bg-muted-foreground/20"
+                        className="rounded-none p-0.5 hover:bg-muted-foreground/20"
                         onClick={() => removeBannedServer(id)}
                         aria-label={t("common.remove")}
                       >
@@ -305,7 +305,7 @@ export default function UserFormDialog({
                   ))}
                 </div>
               ) : null}
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-none border border-border p-2">
                 {serverCandidates.length === 0 ? (
                   <p className="text-xs text-muted-foreground">{t("admin.users.bannedServersEmpty")}</p>
                 ) : (
@@ -314,7 +314,7 @@ export default function UserFormDialog({
                     return (
                       <label
                         key={server.id}
-                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
+                        className="flex cursor-pointer items-center gap-2 rounded-none px-1 py-1 text-sm hover:bg-muted"
                       >
                         <Checkbox
                           checked={checked}

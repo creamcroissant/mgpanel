@@ -323,7 +323,7 @@ export function ApplyRunTab({
           {applyRunsQuery.isLoading ? (
             <Loading />
           ) : applyRunsQuery.error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-none border border-border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               {t("admin.configCenter.messages.applyRunsLoadFailed")}
               <div className="mt-1 text-xs opacity-80">
                 {formatQueryErrorMessage(applyRunsQuery.error)}
@@ -427,7 +427,7 @@ export function ApplyRunTab({
               )}
 
               {selectedApplyRun ? (
-                <div className="space-y-4 rounded-md border border-border p-4">
+                <div className="space-y-4 rounded-none border border-border border-border p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant={formatApplyStatusVariant(selectedApplyRun.status)}
@@ -444,7 +444,7 @@ export function ApplyRunTab({
                   </div>
 
                   {selectedApplyRun.error_message ? (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    <div className="rounded-none border border-border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                       {selectedApplyRun.error_message}
                     </div>
                   ) : null}
@@ -452,7 +452,7 @@ export function ApplyRunTab({
                   {applyDetailQuery.isLoading ? (
                     <Loading />
                   ) : applyDetailQuery.error ? (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    <div className="rounded-none border border-border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                       {t("admin.configCenter.messages.applyDetailLoadFailed")}
                       <div className="mt-1 text-xs opacity-80">
                         {formatQueryErrorMessage(applyDetailQuery.error)}
@@ -472,7 +472,7 @@ export function ApplyRunTab({
                             {applyDetail.issues.map((item, index) => (
                               <div
                                 key={`${item.code}-${index}`}
-                                className="rounded-md border border-warning/30 bg-warning/5 p-3"
+                                className="rounded-none border border-border border-warning/30 bg-warning/5 p-3"
                               >
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Badge variant="warning">
@@ -587,7 +587,7 @@ export function ApplyRunTab({
                                     {applyDetail.text_diff.tag || "-"}
                                   </Badge>
                                 </div>
-                                <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border p-3 text-xs">
+                                <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-none border border-border border-border p-3 text-xs">
                                   {applyDetail.text_diff.unified_diff ||
                                     "-"}
                                 </pre>

@@ -6,6 +6,7 @@ interface ResourceGaugeProps {
   total: number;
   unit?: string;
   showPercentage?: boolean;
+  compact?: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -34,6 +35,7 @@ export default function ResourceGauge({
   total,
   unit,
   showPercentage = true,
+  compact = false,
 }: ResourceGaugeProps) {
   const { t } = useTranslation();
 
@@ -44,12 +46,12 @@ export default function ResourceGauge({
   const formattedTotal = unit === "bytes" ? formatBytes(total) : `${total.toFixed(1)}${unit || ""}`;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+    <div className={compact ? "space-y-1" : "space-y-2"}>
+      <div className={`flex items-center justify-between gap-3 text-muted-foreground ${compact ? "text-[11px]" : "text-xs"}`}>
         <span className="font-medium text-foreground">{label}</span>
         <span className="text-right">
           {formattedUsed} / {formattedTotal}
-          {showPercentage && ` (${percentage.toFixed(0)}%)`}
+          {showPercentage ? " (" + percentage.toFixed(0) + "%)" : ""}
         </span>
       </div>
       <div
@@ -58,7 +60,7 @@ export default function ResourceGauge({
         aria-valuenow={Math.round(percentage)}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-2.5 w-full overflow-hidden rounded-full bg-muted/80"
+        className={`w-full overflow-hidden rounded-full bg-muted/80 ${compact ? "h-1.5" : "h-2.5"}`}
       >
         <div className={`h-full rounded-full transition-all ${colorClasses[color]}`} style={{ width: `${percentage}%` }} />
       </div>

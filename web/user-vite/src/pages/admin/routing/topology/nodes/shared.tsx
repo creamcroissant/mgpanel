@@ -5,11 +5,11 @@ import { Ban } from "lucide-react";
 export const NODE_WIDTH = 208;
 
 /**
- * 统一扁平外壳：rounded-md 无 shadow（设计系统卡片规范），
+ * 统一扁平外壳：rounded-none 无 shadow（设计系统卡片规范），
  * 语义令牌配色，暗色模式随 CSS 变量自适应。
  */
 export const NODE_SHELL =
-  "rounded-md border bg-card px-3 py-2 text-card-foreground";
+  "rounded-none border border-border bg-card px-3 py-2 text-card-foreground";
 
 /** 停用态：整节点半透明降饱和（配合 DisabledBadge 使用） */
 export function disabledClass(enabled?: boolean): string {
@@ -38,7 +38,7 @@ export function nodeIssues(d: Record<string, unknown>): { severity: string; mess
 /** 右上角“已停用”角标；父容器需 relative 定位 */
 export function DisabledBadge({ label = "已停用" }: { label?: string }) {
   return (
-    <span className="absolute -right-2 -top-2 z-10 flex items-center gap-0.5 rounded-sm border bg-muted px-1 py-px text-[10px] font-medium leading-tight text-muted-foreground">
+    <span className="absolute -right-2 -top-2 z-10 flex items-center gap-0.5 rounded-none border border-border bg-muted px-1 py-px text-[10px] font-medium leading-tight text-muted-foreground">
       <Ban className="h-2.5 w-2.5" aria-hidden />
       {label}
     </span>

@@ -182,33 +182,33 @@ export default function DiffTab({ selectedHostId, selectedCoreType }: DiffTabPro
 
             <TabsContent value="text" className="space-y-3">
               {!((diffFilename || "").trim() || (diffTag || "").trim()) ? (
-                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                <div className="rounded-none border border-border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
                   {t("admin.configCenter.empty.selectTextDiffSelector")}
                 </div>
               ) : textDiffQuery.isLoading ? (
                 <Loading />
               ) : textDiffQuery.error ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <div className="rounded-none border border-border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   {t("admin.configCenter.messages.textDiffFailed")}
                   <div className="mt-1 text-xs opacity-80">{formatQueryErrorMessage(textDiffQuery.error)}</div>
                 </div>
               ) : textDiffQuery.data ? (
                 <>
                   <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-md border border-border p-3">
+                    <div className="rounded-none border border-border border-border p-3">
                       <p className="mb-2 text-xs text-muted-foreground">{t("admin.configCenter.diff.desired")}</p>
                       <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">
                         {textDiffQuery.data.desired_text}
                       </pre>
                     </div>
-                    <div className="rounded-md border border-border p-3">
+                    <div className="rounded-none border border-border border-border p-3">
                       <p className="mb-2 text-xs text-muted-foreground">{t("admin.configCenter.diff.applied")}</p>
                       <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-xs">
                         {textDiffQuery.data.applied_text}
                       </pre>
                     </div>
                   </div>
-                  <div className="rounded-md border border-border p-3">
+                  <div className="rounded-none border border-border border-border p-3">
                     <p className="mb-2 text-xs text-muted-foreground">{t("admin.configCenter.diff.unified")}</p>
                     <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs">
                       {textDiffQuery.data.unified_diff || "-"}
@@ -222,7 +222,7 @@ export default function DiffTab({ selectedHostId, selectedCoreType }: DiffTabPro
               {semanticDiffQuery.isLoading ? (
                 <Loading />
               ) : semanticDiffQuery.error ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <div className="rounded-none border border-border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   {t("admin.configCenter.messages.semanticDiffFailed")}
                 </div>
               ) : semanticDiffQuery.data ? (

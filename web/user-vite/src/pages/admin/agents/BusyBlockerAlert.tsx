@@ -11,7 +11,7 @@ interface BusyBlockerAlertProps {
 export function BusyBlockerAlert({ blocker, onDismiss }: BusyBlockerAlertProps) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-md border border-warning/30 bg-warning/10 p-4 text-sm">
+    <div className="rounded-none border border-border border-warning/30 bg-warning/10 p-4 text-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <div className="font-medium text-warning-foreground dark:text-warning">{t("admin.cores.busyTitle")}</div>

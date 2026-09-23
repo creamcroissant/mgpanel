@@ -47,7 +47,7 @@ function InboundNodeViewInner({ data }: NodeProps) {
       {off && <DisabledBadge />}
       <div className="flex items-center gap-1.5">
         {/* 分类色：入站=紫（见组件注释） */}
-        <span className="h-2 w-2 shrink-0 rounded-sm bg-violet-500" aria-hidden />
+        <span className="h-2 w-2 shrink-0 rounded-none bg-violet-500" aria-hidden />
         <span className="truncate text-sm font-medium" title={String(d.label)}>
           {d.label}
         </span>
@@ -55,13 +55,13 @@ function InboundNodeViewInner({ data }: NodeProps) {
       {/* 协议链路标签行：协议徽章 + TLS/Reality 徽章 + :port */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {protocol && (
-          <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium leading-none">
+          <span className="rounded-none border border-border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium leading-none">
             {protocol}
           </span>
         )}
         {isReality ? (
           <span
-            className="flex items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-violet-600 dark:text-violet-300"
+            className="flex items-center gap-1 rounded-none border border-border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-violet-600 dark:text-violet-300"
             title="Reality"
           >
             <ShieldCheck className="h-3 w-3" />
@@ -69,7 +69,7 @@ function InboundNodeViewInner({ data }: NodeProps) {
           </span>
         ) : hasTls ? (
           <span
-            className="flex items-center gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
+            className="flex items-center gap-1 rounded-none border border-border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
             title="TLS"
           >
             <Lock className="h-3 w-3" />
@@ -77,7 +77,7 @@ function InboundNodeViewInner({ data }: NodeProps) {
           </span>
         ) : null}
         {port != null && (
-          <span className="ml-auto rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] tabular-nums leading-none text-muted-foreground">
+          <span className="ml-auto rounded-none border border-border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] tabular-nums leading-none text-muted-foreground">
             :{port}
           </span>
         )}

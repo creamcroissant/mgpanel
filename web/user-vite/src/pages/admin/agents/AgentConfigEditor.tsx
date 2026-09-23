@@ -97,7 +97,7 @@ export default function AgentConfigEditor({
         )}
 
         {!isLoading && !isEmpty && (
-          <pre className="w-full max-h-[65vh] overflow-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed whitespace-pre">
+          <pre className="w-full max-h-[65vh] overflow-auto rounded-none border border-border bg-background p-3 font-mono text-xs leading-relaxed whitespace-pre">
             {configYAML}
           </pre>
         )}

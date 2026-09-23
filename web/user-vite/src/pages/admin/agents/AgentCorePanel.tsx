@@ -178,7 +178,7 @@ function BusyBlockerAlert({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-md border border-warning/30 bg-warning/10 p-4 text-sm">
+    <div className="rounded-none border border-border border-warning/30 bg-warning/10 p-4 text-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <div className="font-medium text-warning-foreground dark:text-warning">{t("admin.cores.busyTitle")}</div>
@@ -987,7 +987,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                         <button
                           type="button"
                           key={operation.id}
-                          className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
+                          className={`flex w-full flex-col gap-2 rounded-none border border-border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
                             selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
                           }`}
                           onClick={() => setSelectedOperationId(operation.id)}
@@ -1072,7 +1072,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
 
             <Pagination page={operationsPage} totalPages={operationsTotalPages} onPageChange={setOperationsPage} />
 
-            <details className="rounded-md border border-border">
+            <details className="rounded-none border border-border border-border">
               <summary className="cursor-pointer select-none p-3 text-sm font-medium text-muted-foreground hover:text-foreground">
                 {t("admin.cores.viewTimeline")}
               </summary>

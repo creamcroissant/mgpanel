@@ -155,7 +155,7 @@ function FieldRenderer({ field, error, value, onChange, matchValueKind }: { fiel
     <div className="mb-3">
       {label}
       {field.readOnly ? (
-        <div className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <div className="rounded-none border border-border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           {(value as string) || "—"}
         </div>
       ) : field.type === "matchValues" ? (
@@ -296,7 +296,7 @@ function SetForm({ set, agents, saving, onSave, onClose }: { set: TopologyExitSe
       ))}
 
       {/* 成员编辑器 */}
-      <div className="mb-3 rounded-md border border-border p-3">
+      <div className="mb-3 rounded-none border border-border border-border p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{tf("admin.topology.set.members", "成员（Agent 与权重）")}</span>
           <Button type="button" variant="outline" size="sm" onClick={addMember}>

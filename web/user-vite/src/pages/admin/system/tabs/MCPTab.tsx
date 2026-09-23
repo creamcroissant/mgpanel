@@ -42,7 +42,7 @@ function MCPTabContent({ initialForm, onSave, isSaving }: MCPTabContentProps) {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="flex items-center justify-between rounded-none border border-border p-4">
         <div className="space-y-0.5">
           <label className="text-sm font-medium" htmlFor="mcp-toggle">
             {t("admin.system.settings.fields.mcpEnabled")}

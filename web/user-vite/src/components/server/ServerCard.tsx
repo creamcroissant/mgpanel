@@ -43,12 +43,12 @@ export function ServerCard({ server, className, onClick }: ServerCardProps) {
     <div
       data-testid="server-compact-card"
       onClick={onClick}
-      className={`group relative flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 shadow-sm transition-all duration-200 hover:border-primary/40 hover:bg-muted/40 hover:shadow-md ${
+      className={`group relative flex items-center justify-between gap-3 rounded-none border border-border border-border bg-card p-3 shadow-sm transition-all duration-200 hover:border-primary/40 hover:bg-muted/40 hover:shadow-md ${
         className || ""
       }`}
     >
       {/* Left: Flag Emoji */}
-      <div className="flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-md bg-muted/60 text-2xl shadow-inner transition-transform group-hover:scale-105">
+      <div className="flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-none bg-muted/60 text-2xl shadow-inner transition-transform group-hover:scale-105">
         <span role="img" aria-label="flag">
           {flag}
         </span>

@@ -75,7 +75,7 @@ function AgentNodeViewInner({ data }: NodeProps) {
           {cores.map((c) => (
             <span
               key={c.core_type}
-              className={`rounded-sm px-1 py-px text-[10px] leading-tight ${
+              className={`rounded-none px-1 py-px text-[10px] leading-tight ${
                 c.active
                   ? "bg-primary/10 font-medium text-primary"
                   : "bg-muted text-muted-foreground"

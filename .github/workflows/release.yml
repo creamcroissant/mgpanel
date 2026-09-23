@@ -126,10 +126,28 @@ jobs:
             ./cmd/mgpanel
 
           echo "Building ${AGENT_BIN}"
+          # agent 静态链接：Alpine/musl 等无 glibc 机器直接可跑（modernc sqlite 纯 Go，无 cgo 依赖）。
+          # 仅 linux 静态化；darwin/windows 保持动态（静态在这些平台不支持或无意义）。
+          AGENT_TAGS=""
+          AGENT_EXTLDFLAGS=""
+          if [ "${GOOS}" = "linux" ]; then
+            AGENT_TAGS="osusergo netgo"
+            AGENT_EXTLDFLAGS="-static"
+          fi
           go build -trimpath \
-            -ldflags "-s -w -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
+            -tags "${AGENT_TAGS}" \
+            -ldflags "-s -w -extldflags=${AGENT_EXTLDFLAGS} -X main.Version=${{ steps.version.outputs.version }} -X main.Commit=${{ steps.version.outputs.commit }} -X main.BuildTime=${{ steps.version.outputs.build_time }}" \
             -o "dist/release/${AGENT_BIN}" \
             ./cmd/agent
+
+          # linux agent 必须是静态链接（file 输出含 statically linked），否则 Alpine 装完无法执行
+          if [ "${GOOS}" = "linux" ]; then
+            if ! file "dist/release/${AGENT_BIN}" | grep -q "statically linked"; then
+              echo "agent binary is not statically linked:" >&2
+              file "dist/release/${AGENT_BIN}" >&2
+              exit 1
+            fi
+          fi
 
           sha256sum "dist/release/${MGPANEL_BIN}" > "dist/release/${MGPANEL_BIN}.sha256"
           sha256sum "dist/release/${AGENT_BIN}" > "dist/release/${AGENT_BIN}.sha256"

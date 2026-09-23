@@ -30,7 +30,7 @@ export function ResponsiveListItem({ children, className }: ResponsiveListItemPr
   return (
     <article
       role="listitem"
-      className={cn("rounded-md border bg-card p-4", className)}
+      className={cn("rounded-none border border-border border-border bg-card p-4", className)}
     >
       {children}
     </article>

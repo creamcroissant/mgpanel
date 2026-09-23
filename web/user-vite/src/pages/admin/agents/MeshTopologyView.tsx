@@ -203,7 +203,7 @@ function MeshTopologyInner({ peers, nameById }: MeshTopologyViewProps) {
   }
 
   return (
-    <div ref={wrapRef} className="relative h-[480px] overflow-hidden rounded-md border">
+    <div ref={wrapRef} className="relative h-[480px] overflow-hidden rounded-none border border-border">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -224,7 +224,7 @@ function MeshTopologyInner({ peers, nameById }: MeshTopologyViewProps) {
         <Controls showInteractive={false} />
       </ReactFlow>
       {!selectedId && (
-        <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
+        <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-none bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           {t("admin.agents.meshTable.topologyHint")}
         </p>
       )}

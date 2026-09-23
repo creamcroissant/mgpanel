@@ -11,7 +11,7 @@ export function PageToolbar({ leading, filters, actions, children, className, ..
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 md:flex-row md:items-center md:justify-between",
+        "flex min-w-0 flex-col gap-3 rounded-none border border-border border-border bg-card p-3 md:flex-row md:items-center md:justify-between",
         className
       )}
       {...props}

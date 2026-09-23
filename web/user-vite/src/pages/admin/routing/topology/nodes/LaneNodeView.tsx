@@ -8,7 +8,7 @@ import { memo } from "react";
 function LaneNodeViewInner() {
   return (
     <div
-      className="h-full w-full rounded-lg border border-dashed border-border/60 bg-muted/25"
+      className="h-full w-full rounded-none border border-border border-dashed border-border bg-muted/25"
       title="物理层：agent 主机与 mesh 组网链路"
     />
   );

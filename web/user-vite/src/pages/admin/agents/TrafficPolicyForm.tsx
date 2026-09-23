@@ -206,7 +206,7 @@ function TrafficPolicyEditor({ agentHostId, status }: { agentHostId: number; sta
             <CardTitle className="text-sm">{t("admin.cores.trafficPolicyTitle")}</CardTitle>
             <CardDescription>{t("admin.cores.trafficPolicyDescription")}</CardDescription>
           </div>
-          <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+          <div className="flex items-center gap-3 rounded-none border border-border border-border px-3 py-2">
             <span className="text-sm text-muted-foreground">{t("admin.cores.trafficPolicyEnabled")}</span>
             <Switch
               checked={form.enabled}
@@ -342,7 +342,7 @@ function TrafficPolicyEditor({ agentHostId, status }: { agentHostId: number; sta
           )}
         </div>
 
-        <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-none border border-border border-border bg-muted/20 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <div>
             {t("admin.cores.trafficCurrentPolicySummary", {
               limit: formatBytes(status.policy.limit_bytes),

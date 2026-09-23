@@ -70,15 +70,21 @@ func (s *serverService) ListForUser(ctx context.Context, userID string) (*Server
 		return &ServerListResult{Nodes: []ServerNode{}, ETag: computeETag(nil)}, nil
 	}
 
-	// 用户直接通过分组访问节点
+	// 用户直接通过分组访问节点；
+	// 仅管理员默认看全部分组可见节点，普通用户未分配分组则返回空列表。
 	var nodes []*repository.Server
-	if user.GroupID > 0 {
+	if user.IsAdmin {
+		nodes, err = s.servers.FindAllVisible(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else if user.GroupID > 0 {
 		nodes, err = s.servers.FindByGroupIDs(ctx, []int64{user.GroupID})
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		// 若未分配分组则返回空列表
+		// 普通用户未分配分组：默认禁用所有节点，返回空列表
 		nodes = []*repository.Server{}
 	}
 	// 节点黑名单：被禁节点不展示给用户前台

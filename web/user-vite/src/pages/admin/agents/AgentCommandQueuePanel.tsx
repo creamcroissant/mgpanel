@@ -126,7 +126,7 @@ function getLatestQueueStats(operations: AgentLifecycleOperation[]): AgentComman
 
 function MetricTile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-3">
+    <div className="rounded-none border border-border border-border bg-muted/20 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</div>
     </div>
@@ -178,7 +178,7 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
               <MetricTile label={t("admin.cores.queueWorkers")} value={queueStats.workers} />
               <MetricTile label={t("admin.cores.queueAvailable")} value={queueStats.available} />
             </div>
-            <div className="rounded-md border border-border p-3 text-sm text-muted-foreground">
+            <div className="rounded-none border border-border border-border p-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-2 text-foreground">
                 <Activity className="h-4 w-4 text-primary" />
                 <span className="font-medium">{t("admin.cores.queueUpdatedAt")}</span>
@@ -205,11 +205,11 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="text-sm font-medium">{t("admin.cores.queueActiveOperations")}</div>
             <div className="mt-2 text-2xl font-semibold tabular-nums">{activeOperations.length}</div>
           </div>
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <AlertTriangle className="h-4 w-4 text-warning" />
               {t("admin.cores.queueRejections")}
@@ -219,14 +219,14 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
         </div>
 
         {rejectionOperations.length === 0 ? (
-          <div className="rounded-md border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+          <div className="rounded-none border border-border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
             {t("admin.cores.queueNoRejections")}
           </div>
         ) : (
           <div className="space-y-2">
             <div className="text-sm font-medium">{t("admin.cores.queueRecentRejections")}</div>
             {rejectionOperations.slice(0, 5).map((operation) => (
-              <div key={operation.id} className="rounded-md border border-border p-3">
+              <div key={operation.id} className="rounded-none border border-border border-border p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={getStatusVariant(operation.status)}>

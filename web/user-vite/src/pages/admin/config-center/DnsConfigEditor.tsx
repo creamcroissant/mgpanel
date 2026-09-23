@@ -140,13 +140,13 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
           <Button size="sm" onClick={openAddServer}>{t("admin.configCenter.dns.addServer")}</Button>
         </div>
         {servers.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-none border border-border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             {t("admin.configCenter.dns.noServers")}
           </div>
         ) : (
           <div className="space-y-1">
             {servers.map((srv, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-md border border-border p-2 hover:bg-muted/20">
+              <div key={idx} className="flex items-center gap-2 rounded-none border border-border border-border p-2 hover:bg-muted/20">
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-mono truncate block">
                     {srv.address}{srv.port ? `:${srv.port}` : ""} {srv.tag ? `[${srv.tag}]` : ""}
@@ -167,13 +167,13 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
           <Button size="sm" onClick={openAddRule}>{t("admin.configCenter.dns.addRule")}</Button>
         </div>
         {rules.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-none border border-border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             {t("admin.configCenter.dns.noRules")}
           </div>
         ) : (
           <div className="space-y-1">
             {rules.map((rule, idx) => (
-              <div key={idx} className="flex items-center gap-2 rounded-md border border-border p-2 hover:bg-muted/20">
+              <div key={idx} className="flex items-center gap-2 rounded-none border border-border border-border p-2 hover:bg-muted/20">
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-mono truncate block">
                     {rule.domain?.slice(0, 2).join(", ")}{(rule.domain?.length ?? 0) > 2 ? "..." : ""} → {rule.server || rule.action || "-"}
@@ -189,7 +189,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
 
       {/* Server Dialog */}
       {serverDialogOpen && editServer && (
-        <div className="rounded-md border border-border p-4 space-y-4">
+        <div className="rounded-none border border-border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editServerIdx != null ? t("common.edit") : t("admin.configCenter.dns.addServer")}</h4>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -231,7 +231,7 @@ export function DnsConfigEditor({ value, onChange }: DnsConfigEditorProps) {
 
       {/* DNS Rule Dialog */}
       {ruleDialogOpen && editRule && (
-        <div className="rounded-md border border-border p-4 space-y-4">
+        <div className="rounded-none border border-border border-border p-4 space-y-4">
           <h4 className="text-sm font-semibold">{editRuleIdx != null ? t("common.edit") : t("admin.configCenter.dns.addRule")}</h4>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">

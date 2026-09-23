@@ -63,9 +63,9 @@ export default function Login() {
 
   return (
     <AuthShell>
-      <Card className="border border-border/80">
+      <Card className="border border-border">
         <CardHeader className="items-center space-y-2 pt-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10 text-primary font-semibold">
+          <div className="flex h-12 w-12 items-center justify-center rounded-none bg-primary/10 text-primary font-semibold">
             X
           </div>
           <div className="space-y-1">
@@ -135,7 +135,7 @@ export default function Login() {
               <label className="flex items-center gap-2 text-muted-foreground">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border border-input text-primary focus:ring-2 focus:ring-primary"
+                  className="h-4 w-4 rounded-none border border-border border-input text-primary focus:ring-2 focus:ring-primary"
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.target.checked)}
                 />
@@ -147,7 +147,7 @@ export default function Login() {
             </div>
 
             {loginMutation.error && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="rounded-none border border-border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {loginMutation.error.message}
               </div>
             )}

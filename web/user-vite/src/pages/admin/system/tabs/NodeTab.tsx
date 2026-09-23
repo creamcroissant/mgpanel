@@ -216,7 +216,7 @@ function NodeTabContent({ initialForm }: NodeTabContentProps) {
           <p className="text-xs text-muted-foreground">{t("admin.system.settings.tooltips.agentGrpcAddress")}</p>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="flex items-center justify-between rounded-none border border-border p-4">
           <label className="text-sm font-medium" htmlFor="grpc-tls-toggle">
             {t("admin.system.settings.fields.grpcTlsEnabled")}
           </label>
@@ -275,7 +275,7 @@ function NodeTabContent({ initialForm }: NodeTabContentProps) {
             <DialogTitle>{t("common.confirm")}</DialogTitle>
             <DialogDescription>{t("admin.system.settings.messages.resetConfirm")}</DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
+          <div className="rounded-none border border-border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
             {t("admin.system.settings.messages.resetImpact")}
           </div>
           <DialogFooter>

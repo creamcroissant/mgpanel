@@ -274,7 +274,7 @@ function EmailTabContent({ initialForm }: EmailTabContentProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-6 max-w-2xl">
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
               <div className="space-y-1">
                 <p className="text-sm font-medium">
                   {t("admin.system.settings.fields.alertTrafficEnabled")}
@@ -306,7 +306,7 @@ function EmailTabContent({ initialForm }: EmailTabContentProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
               <div className="space-y-1">
                 <p className="text-sm font-medium">
                   {t("admin.system.settings.fields.alertExpireEnabled")}

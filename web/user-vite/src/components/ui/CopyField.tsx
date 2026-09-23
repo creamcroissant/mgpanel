@@ -56,7 +56,7 @@ export function CopyField({
           {copied ? copiedLabel : copyLabel}
         </Button>
       </div>
-      <div className="min-w-0 rounded-md border bg-muted/30 p-3 text-sm text-foreground">
+      <div className="min-w-0 rounded-none border border-border bg-muted/30 p-3 text-sm text-foreground">
         {displayValue ? (
           <span className="block break-all font-mono leading-6">{displayValue}</span>
         ) : (

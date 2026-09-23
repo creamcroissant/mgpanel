@@ -97,7 +97,7 @@ export function CreateRelayPathDialog({
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <div className="flex items-center gap-2 rounded-none border border-border bg-muted/40 px-3 py-2 text-sm">
               <span className="font-medium">{sourceName}</span>
               <span aria-hidden>→</span>
               <span className="font-medium">{targetName}</span>

@@ -41,7 +41,7 @@ import {
 
 function MetricTile({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-md border bg-muted/25 p-3">
+    <div className="rounded-none border border-border bg-muted/25 p-3">
       <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
       <div className="mt-1 break-words text-lg font-semibold leading-tight text-foreground">{value}</div>
     </div>
@@ -237,19 +237,19 @@ export default function Dashboard() {
             <MetricTile label={t("dashboard.failedJobs")} value={queueStats?.failedJobs ?? 0} />
           </ResponsiveGrid>
           <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+            <span className="inline-flex items-center gap-2 rounded-none border border-border bg-muted/25 px-3 py-2">
               <Database className="h-4 w-4" />
               {t("dashboard.environment")}: {systemStatus.environment || "-"}
             </span>
-            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+            <span className="inline-flex items-center gap-2 rounded-none border border-border bg-muted/25 px-3 py-2">
               <MonitorDot className="h-4 w-4" />
               {t("admin.system.version")}: {systemStatus.version || "go-dev"}
             </span>
-            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+            <span className="inline-flex items-center gap-2 rounded-none border border-border bg-muted/25 px-3 py-2">
               <Users className="h-4 w-4" />
               {t("dashboard.jobsPerMinute")}: {(queueStats?.jobsPerMinute ?? 0).toFixed(1)}
             </span>
-            <span className="inline-flex items-center gap-2 rounded-md border bg-muted/25 px-3 py-2">
+            <span className="inline-flex items-center gap-2 rounded-none border border-border bg-muted/25 px-3 py-2">
               <Wifi className="h-4 w-4" />
               {t("dashboard.maxThroughputQueue")}: {queueStats?.queueWithMaxThroughput?.name || "-"}
             </span>

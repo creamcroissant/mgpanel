@@ -45,7 +45,7 @@ export function InboundSockoptFields({
   };
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-sockopt-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-sockopt-fields">
       <label
         className="flex items-center gap-2 text-sm font-medium cursor-pointer"
         onClick={() => !readOnly && handleToggle(!enabled)}

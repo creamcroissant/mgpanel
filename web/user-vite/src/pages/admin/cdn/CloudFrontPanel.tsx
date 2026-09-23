@@ -139,7 +139,7 @@ export default function CloudFrontPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Credential status */}
-          <div className="flex items-center gap-2 rounded-md border px-4 py-3">
+          <div className="flex items-center gap-2 rounded-none border border-border px-4 py-3">
             <span className="text-sm font-medium">{t("admin.cdn.cloudfront.credentialStatus")}:</span>
             {hasCredentials ? (
               <>

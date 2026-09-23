@@ -171,7 +171,7 @@ export default function AccessLogList() {
 
   const statsCards = (
     <div className="grid gap-3 sm:grid-cols-3">
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="rounded-none border border-border border-border bg-card p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
             <ClipboardList className="h-4 w-4" />
@@ -182,7 +182,7 @@ export default function AccessLogList() {
           </div>
         </div>
       </div>
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="rounded-none border border-border border-border bg-card p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success/15 text-success">
             <Filter className="h-4 w-4" />
@@ -193,7 +193,7 @@ export default function AccessLogList() {
           </div>
         </div>
       </div>
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="rounded-none border border-border border-border bg-card p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Filter className="h-4 w-4" />
@@ -208,7 +208,7 @@ export default function AccessLogList() {
   );
 
   const toolbar = (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-none border border-border border-border bg-card p-4">
       <div className="flex flex-col gap-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="space-y-2">
@@ -371,7 +371,7 @@ export default function AccessLogList() {
   } else if (!agentHostsQuery.isLoading && !logsQuery.isLoading) {
     content = (
       <div className="space-y-4">
-        <Table aria-label={t("admin.accessLogs.title")} className="rounded-md border">
+        <Table aria-label={t("admin.accessLogs.title")} className="rounded-none border border-border">
             <TableHeader>
               <TableRow>
                 <TableHead>{t("admin.accessLogs.table.time")}</TableHead>

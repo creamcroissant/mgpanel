@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
+	"github.com/creamcroissant/mgpanel/internal/agent/initsys"
 	"github.com/creamcroissant/mgpanel/internal/agent/transport"
 	agentv1 "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,19 +28,29 @@ type Manager struct {
 	// singboxConfigDir 是 sing-box 配置目录，用于注入 experimental.clash_api 段
 	singboxConfigDir string
 
-	collectors []Collector
+	// initSys 是 init 系统抽象（systemd/openrc/runit 自动探测），reload 走它而非硬编码 systemctl
+	initSys initsys.InitSystem
+
+	collectors  []Collector
 	uploadQueue *UploadQueue
-	stopCh     chan struct{}
-	stopOnce   sync.Once
+	stopCh      chan struct{}
+	stopOnce    sync.Once
 }
 
-func NewManager(client *transport.GRPCClient, coreManager *core.Manager, singboxConfigDir string, logger *slog.Logger) *Manager {
+func NewManager(client *transport.GRPCClient, coreManager *core.Manager, singboxConfigDir string, logger *slog.Logger, initSys ...initsys.InitSystem) *Manager {
+	var is initsys.InitSystem
+	if len(initSys) > 0 && initSys[0] != nil {
+		is = initSys[0]
+	} else {
+		is = initsys.Detect()
+	}
 	return &Manager{
 		client:           client,
 		manager:          coreManager,
 		logger:           logger,
 		singboxConfigDir: singboxConfigDir,
 		stopCh:           make(chan struct{}),
+		initSys:          is,
 	}
 }
 
@@ -55,8 +65,8 @@ func (m *Manager) Start() {
 		}
 		m.logger.Info("sing-box clash_api config ensured", "dir", m.singboxConfigDir)
 
-	// 创建有界上报队列（worker 限速批量上报）
-	m.uploadQueue = NewUploadQueue(m.report, m.logger)
+		// 创建有界上报队列（worker 限速批量上报）
+		m.uploadQueue = NewUploadQueue(m.report, m.logger)
 	}
 
 	// Register collectors
@@ -96,7 +106,7 @@ func (m *Manager) ensureClashAPIConfig() error {
 		"experimental": map[string]any{
 			"clash_api": map[string]any{
 				"external_controller": "127.0.0.1:19090",
-				"secret":             secret,
+				"secret":              secret,
 			},
 		},
 	}
@@ -135,15 +145,20 @@ func (m *Manager) Stop() {
 
 // reloadSingBox 让 sing-box 重新加载配置（含 experimental.json）。
 // start-if-inactive：服务未运行时 reload 必然失败，改为直接 start（B2）。
+// 经 initsys 抽象走当前 init 系统（systemd/openrc/runit），Alpine 等无 systemctl 机器不再报错。
 func (m *Manager) reloadSingBox(ctx context.Context) error {
-	// 测试模式下禁止操作宿主 systemd 服务（曾因此触发宿主 sing-box 重启）
+	// 测试模式下禁止操作宿主服务（曾因此触发宿主 sing-box 重启）
 	if testing.Testing() {
 		return nil
 	}
-	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "sing-box").Run(); err != nil {
-		return exec.CommandContext(ctx, "systemctl", "start", "sing-box").Run()
+	is := m.initSys
+	if is == nil {
+		is = initsys.Detect()
 	}
-	return exec.CommandContext(ctx, "systemctl", "reload", "sing-box").Run()
+	if running, err := is.Status(ctx, "sing-box"); err == nil && running {
+		return is.Reload(ctx, "sing-box")
+	}
+	return is.Start(ctx, "sing-box")
 }
 
 func (m *Manager) run() {

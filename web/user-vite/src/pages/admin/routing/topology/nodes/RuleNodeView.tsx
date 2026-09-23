@@ -64,7 +64,7 @@ function RuleNodeViewInner({ data }: NodeProps) {
         </span>
         {typeof d.specId === "number" && (
           <span
-            className="shrink-0 rounded-sm bg-warning/15 px-1 py-px text-[11px] text-warning-foreground dark:text-warning"
+            className="shrink-0 rounded-none bg-warning/15 px-1 py-px text-[11px] text-warning-foreground dark:text-warning"
             title={`仅对入站 #${d.specId} 生效（优先于全局规则）`}
           >
             🔒
@@ -72,7 +72,7 @@ function RuleNodeViewInner({ data }: NodeProps) {
         )}
         {typeof seq === "number" && (
           <span
-            className="ml-auto shrink-0 rounded-sm bg-primary/10 px-1.5 py-px text-[11px] font-semibold tabular-nums text-primary"
+            className="ml-auto shrink-0 rounded-none bg-primary/10 px-1.5 py-px text-[11px] font-semibold tabular-nums text-primary"
             title={`优先级 ${d.priority ?? seq}`}
           >
             #{seq}

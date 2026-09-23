@@ -112,7 +112,7 @@ function formatBoolean(value: boolean, yes: string, no: string): string {
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-3">
+    <div className="rounded-none border border-border border-border bg-muted/20 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 min-h-5 break-all text-sm font-medium text-foreground">{value || "-"}</div>
     </div>
@@ -204,7 +204,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {hasActiveUpdate && (
-          <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
+          <div className="rounded-none border border-border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground dark:text-warning">
             {t("admin.cores.updateActiveDescription")}
           </div>
         )}
@@ -228,7 +228,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
         )}
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <CheckCircle2 className="h-4 w-4 text-success" />
               {t("admin.cores.updateCheckResult")}
@@ -244,7 +244,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Clock className="h-4 w-4 text-primary" />
               {t("admin.cores.updateHealthConfirmation")}
@@ -254,7 +254,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <RotateCcw className="h-4 w-4 text-warning" />
               {t("admin.cores.updateRollback")}
@@ -267,7 +267,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-border p-3">
+          <div className="rounded-none border border-border border-border p-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <ShieldAlert className="h-4 w-4 text-destructive" />
               {t("admin.cores.updateSafetyState")}
@@ -283,7 +283,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
           </div>
         </div>
 
-        <div className="rounded-md border border-border p-3">
+        <div className="rounded-none border border-border border-border p-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.cores.updateTargetVersion")}</label>
@@ -328,7 +328,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
               <button
                 key={operation.id}
                 type="button"
-                className={`flex w-full flex-col gap-2 rounded-md border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
+                className={`flex w-full flex-col gap-2 rounded-none border border-border p-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between ${
                   selectedOperation?.id === operation.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
                 }`}
                 onClick={() => setSelectedOperationId(operation.id)}
@@ -350,7 +350,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
         )}
 
         {selectedOperation?.error_message && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-none border border-border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             <div className="flex items-center gap-2 font-medium">
               <AlertTriangle className="h-4 w-4" />
               {t("admin.cores.updateErrorMessage")}

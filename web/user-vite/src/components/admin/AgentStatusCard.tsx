@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Clock, Cpu, FileText, HardDrive, MemoryStick, Pencil, RotateCw } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, FileText, Pencil, RotateCw } from "lucide-react";
 import { AgentStatus, type AgentHost } from "@/types";
 import ResourceGauge from "./ResourceGauge";
 import { formatBytes } from "@/lib/format";
@@ -75,9 +75,9 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
       tabIndex={onClick ? 0 : undefined}
       data-testid={onClick ? "admin-agent-card" : undefined}
     >
-      <CardHeader className="gap-4 pb-0">
+      <CardHeader className="gap-2 p-4 pb-2 sm:p-4 sm:pb-2">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <span
                 className={`h-2.5 w-2.5 rounded-full ${
@@ -88,13 +88,13 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
                       : "bg-muted-foreground"
                 }`}
               />
-              <span className="truncate text-base font-semibold text-foreground">{agent.name}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{agent.name}</span>
             </div>
-            <span className="block truncate text-sm text-muted-foreground">{hostLabel}</span>
-            <span className="block truncate text-xs text-muted-foreground/80">
+            <span className="block truncate text-xs text-muted-foreground">
+              {hostLabel}
               {agent.country || agent.region
-                ? [agent.country, agent.region].filter(Boolean).join(" · ")
-                : t("admin.agents.unknown")}
+                ? ` · ${[agent.country, agent.region].filter(Boolean).join(" · ")}`
+                : ""}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -133,85 +133,58 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5 pt-5">
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 rounded-md bg-muted/40 p-3">
-            <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <ResourceGauge label={t("admin.agents.cpu")} used={agent.cpu_used} total={100} unit="%" showPercentage={false} />
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 rounded-md bg-muted/40 p-3">
-            <MemoryStick className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <ResourceGauge label={t("admin.agents.memory")} used={agent.mem_used} total={agent.mem_total} unit="bytes" />
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 rounded-md bg-muted/40 p-3">
-            <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <ResourceGauge label={t("admin.agents.disk")} used={agent.disk_used} total={agent.disk_total} unit="bytes" />
-            </div>
-          </div>
+      <CardContent className="space-y-3 px-4 pb-4 pt-2 sm:px-4 sm:pb-4">
+        <div className="space-y-2 rounded-none bg-muted/40 p-2.5">
+          <ResourceGauge compact label={t("admin.agents.cpu")} used={agent.cpu_used} total={100} unit="%" showPercentage={false} />
+          <ResourceGauge compact label={t("admin.agents.memory")} used={agent.mem_used} total={agent.mem_total} unit="bytes" />
+          <ResourceGauge compact label={t("admin.agents.disk")} used={agent.disk_used} total={agent.disk_total} unit="bytes" />
         </div>
 
-        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+        <div className="space-y-2 rounded-none border border-border bg-muted/20 p-2.5">
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs font-medium text-muted-foreground">{t("admin.agents.realtimeTraffic")}</span>
             <Badge variant={hasRealtime ? "success" : "outline"}>{realtimeLabel}</Badge>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md border bg-background p-3">
-              <div className="flex items-center gap-2 text-success">
-                <ArrowUp className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-[0.08em]">{t("traffic.upload")}</span>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-none border border-border bg-background p-2">
+              <div className="flex items-center gap-1.5 text-success">
+                <ArrowUp className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">{t("traffic.upload")}</span>
               </div>
-              <p className="mt-2 font-semibold text-foreground">{formatRate(agent.upload_rate_bps, hasRealtime, t)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("admin.agents.totalTraffic", { value: formatBytes(agent.upload_total) })}</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatRate(agent.upload_rate_bps, hasRealtime, t)}</p>
+              <p className="text-[11px] text-muted-foreground">{t("admin.agents.totalTraffic", { value: formatBytes(agent.upload_total) })}</p>
             </div>
-            <div className="rounded-md border bg-background p-3">
-              <div className="flex items-center gap-2 text-primary">
-                <ArrowDown className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-[0.08em]">{t("traffic.download")}</span>
+            <div className="rounded-none border border-border bg-background p-2">
+              <div className="flex items-center gap-1.5 text-primary">
+                <ArrowDown className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">{t("traffic.download")}</span>
               </div>
-              <p className="mt-2 font-semibold text-foreground">{formatRate(agent.download_rate_bps, hasRealtime, t)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("admin.agents.totalTraffic", { value: formatBytes(agent.download_total) })}</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{formatRate(agent.download_rate_bps, hasRealtime, t)}</p>
+              <p className="text-[11px] text-muted-foreground">{t("admin.agents.totalTraffic", { value: formatBytes(agent.download_total) })}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-            <span>
-              {t("admin.agents.lastRealtimeReport")}: {formatRelativeTime(agent.last_realtime_report_at ?? 0, t)}
-            </span>
-          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {t("admin.agents.lastRealtimeReport")}: {formatRelativeTime(agent.last_realtime_report_at ?? 0, t)} · {t("admin.agents.lastHeartbeat")}: {formatRelativeTime(agent.last_heartbeat_at, t)}
+          </p>
         </div>
 
-        <div className="grid gap-2 rounded-md border bg-background p-3 text-sm sm:grid-cols-2">
+        <div className="grid gap-1.5 rounded-none border border-border bg-background p-2.5 text-sm sm:grid-cols-2">
           <div>
-            <p className="text-xs text-muted-foreground">{t("admin.agents.agentVersion")}</p>
-            <p className="mt-1 truncate font-medium text-foreground">{agentVersion}</p>
+            <p className="text-[11px] text-muted-foreground">{t("admin.agents.agentVersion")}</p>
+            <p className="mt-0.5 truncate text-sm font-medium text-foreground">{agentVersion}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">{t("admin.agents.currentCore")}</p>
-            <p className="mt-1 truncate font-medium text-foreground">{coreSummary}</p>
+            <p className="text-[11px] text-muted-foreground">{t("admin.agents.currentCore")}</p>
+            <p className="mt-0.5 truncate text-sm font-medium text-foreground">{coreSummary}</p>
           </div>
         </div>
 
         {agent.last_restart_at != null && agent.last_restart_at > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground/90 dark:text-warning">
+          <div className="flex items-center gap-2 rounded-none border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning-foreground/90 dark:text-warning">
             <RotateCw className="h-3.5 w-3.5" />
             <span>{t("admin.agents.restartDetected", { time: formatRelativeTime(agent.last_restart_at, t) })}</span>
           </div>
         )}
-
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="h-3.5 w-3.5" />
-          <span>
-            {t("admin.agents.lastHeartbeat")}: {formatRelativeTime(agent.last_heartbeat_at, t)}
-          </span>
-        </div>
       </CardContent>
     </Card>
   );

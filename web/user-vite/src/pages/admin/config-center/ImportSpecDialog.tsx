@@ -94,7 +94,7 @@ export function ImportSpecDialog({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.configCenter.fields.enabled")}</label>
-              <div className="flex h-10 items-center rounded-md border border-border px-3">
+              <div className="flex h-10 items-center rounded-none border border-border border-border px-3">
                 <Switch
                   checked={importForm.enabled}
                   onCheckedChange={(checked) =>

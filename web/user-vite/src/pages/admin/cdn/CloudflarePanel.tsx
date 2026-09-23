@@ -231,7 +231,7 @@ export default function CloudflarePanel() {
                                 {t("admin.cdn.cloudflare.noDNSRecords")}
                               </p>
                             ) : (
-                              <div className="overflow-x-auto rounded-md border">
+                              <div className="overflow-x-auto rounded-none border border-border">
                                 <table className="w-full text-xs">
                                   <thead className="bg-muted/50">
                                     <tr>
@@ -256,7 +256,7 @@ export default function CloudflarePanel() {
                                     {dnsRecords.map((record, idx) => (
                                       <tr
                                         key={record.id ?? idx}
-                                        className="border-t border-border/40"
+                                        className="border-t border-border"
                                         data-testid={`cdn-cloudflare-dns-record-${idx}`}
                                       >
                                         <td className={`px-3 py-2 font-mono font-medium ${dnsTypeColors[record.type] ?? "text-foreground"}`}>

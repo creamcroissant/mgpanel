@@ -83,7 +83,7 @@ function GeneralTabContent({ initialForm, onSave, isSaving }: GeneralTabContentP
         />
       </div>
 
-      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+      <div className="flex items-center justify-between rounded-none border border-border border-border px-3 py-2">
         <div className="space-y-1">
           <p className="text-sm font-medium">{t("admin.system.settings.fields.forceHttps")}</p>
           <p className="text-xs text-muted-foreground">{t("admin.system.settings.tooltips.forceHttps")}</p>

@@ -362,11 +362,11 @@ export function TopologyTab() {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {/* 画布切换：规则分流 / 入站路由 */}
-          <div className="flex items-center gap-1 rounded-md border bg-muted/40 p-0.5">
+          <div className="flex items-center gap-1 rounded-none border border-border bg-muted/40 p-0.5">
             <button
               type="button"
               onClick={() => setCanvasMode("rules")}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-none px-2 py-1 text-xs font-medium transition-colors ${
                 canvasMode === "rules"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -377,7 +377,7 @@ export function TopologyTab() {
             <button
               type="button"
               onClick={() => setCanvasMode("inbounds")}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-none px-2 py-1 text-xs font-medium transition-colors ${
                 canvasMode === "inbounds"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -388,7 +388,7 @@ export function TopologyTab() {
             <button
               type="button"
               onClick={() => setCanvasMode("agents")}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-none px-2 py-1 text-xs font-medium transition-colors ${
                 canvasMode === "agents"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -475,7 +475,7 @@ export function TopologyTab() {
       </div>
 
       {isLoading && (
-        <div className="h-[560px] w-full animate-pulse rounded-md border bg-muted/40" aria-busy />
+        <div className="h-[560px] w-full animate-pulse rounded-none border border-border bg-muted/40" aria-busy />
       )}
       {isError && (
         <ErrorBanner
@@ -704,7 +704,7 @@ function EmptyGuide({
   const { t } = useTranslation();
   const isRules = canvasMode === "rules";
   return (
-    <div className="flex h-[560px] items-center justify-center rounded-md border border-dashed">
+    <div className="flex h-[560px] items-center justify-center rounded-none border border-border border-dashed">
       <EmptyState
         icon={<Plus className="h-10 w-10 text-muted-foreground" />}
         title={

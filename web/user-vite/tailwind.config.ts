@@ -5,6 +5,21 @@ const config: Config = {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      borderRadius: {
+        none: "0px",
+        sm: "0px",
+        DEFAULT: "0px",
+        md: "0px",
+        lg: "0px",
+        xl: "0px",
+        "2xl": "0px",
+        "3xl": "0px",
+      },
+      // bare `border` / `border-t` / `border-b` 无颜色后缀时，默认用 --border 令牌，
+      // 否则回退到 tailwind 默认灰（#e5e7eb），在白卡片上就是一圈白线。
+      borderColor: {
+        DEFAULT: "hsl(var(--border))",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

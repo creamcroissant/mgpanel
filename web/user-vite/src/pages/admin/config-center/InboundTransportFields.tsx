@@ -74,7 +74,7 @@ export function InboundTransportFields({ value, onChange, readOnly }: InboundTra
   };
 
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-4" data-testid="inbound-transport-fields">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-transport-fields">
       <label className="flex items-center gap-2 text-sm font-medium cursor-pointer" onClick={() => !readOnly && handleToggle(!enabled)}>
         <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableTransport")}
@@ -111,7 +111,7 @@ export function InboundTransportFields({ value, onChange, readOnly }: InboundTra
           </button>
 
           {showAdvanced && (
-            <div className="space-y-3 border-l-2 border-border/40 pl-3">
+            <div className="space-y-3 border-l-2 border-border pl-3">
               {showHeaders && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">{t("admin.configCenter.inbound.headers")}</label>

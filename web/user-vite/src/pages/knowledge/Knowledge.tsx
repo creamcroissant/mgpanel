@@ -212,7 +212,7 @@ export default function Knowledge() {
                   {selectedArticle.updated_at ? ` · ${t("knowledge.updatedAt", { date: formatDate(selectedArticle.updated_at) })}` : ""}
                 </DialogDescription>
               </DialogHeader>
-              <div className="mt-4 max-h-[60dvh] space-y-4 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 text-foreground">
+              <div className="mt-4 max-h-[60dvh] space-y-4 overflow-y-auto rounded-none border border-border bg-muted/20 p-4 text-sm leading-7 text-foreground">
                 {selectedArticleParagraphs.length > 0 ? (
                   selectedArticleParagraphs.map((paragraph, index) => (
                     <p key={index} className="whitespace-pre-wrap break-words">

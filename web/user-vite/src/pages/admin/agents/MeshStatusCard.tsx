@@ -84,7 +84,7 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
         ) : (
           <>
             {/* Joined status */}
-            <div className="flex items-center justify-between rounded-md bg-muted/40 p-3">
+            <div className="flex items-center justify-between rounded-none bg-muted/40 p-3">
               <div className="flex items-center gap-2">
                 <Wifi className="h-4 w-4 text-success" />
                 <span className="text-sm font-medium">{t("admin.agents.mesh.joined")}</span>
@@ -93,13 +93,13 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
             </div>
 
             {/* WG IP */}
-            <div className="space-y-1 rounded-md bg-muted/40 p-3">
+            <div className="space-y-1 rounded-none bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("admin.agents.mesh.wgIp")}</p>
               <p className="font-mono text-sm font-medium">{peer.wg_ip || "-"}</p>
             </div>
 
             {/* WG Public Key (truncated) */}
-            <div className="space-y-1 rounded-md bg-muted/40 p-3">
+            <div className="space-y-1 rounded-none bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("admin.agents.mesh.publicKey")}</p>
               <p className="truncate font-mono text-xs" title={peer.wg_public_key}>
                 {peer.wg_public_key || "-"}
@@ -107,14 +107,14 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
             </div>
 
             {/* Listen Port */}
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2">
+            <div className="flex items-center justify-between rounded-none bg-muted/40 px-3 py-2">
               <span className="text-xs text-muted-foreground">{t("admin.agents.mesh.listenPort")}</span>
               <span className="font-mono text-sm">{peer.wg_listen_port || 51820}</span>
             </div>
 
             {/* Network peers */}
             <div
-              className="flex cursor-pointer items-center justify-between rounded-md bg-muted/40 px-3 py-2 transition-colors hover:bg-muted/60"
+              className="flex cursor-pointer items-center justify-between rounded-none bg-muted/40 px-3 py-2 transition-colors hover:bg-muted/60"
               onClick={() => {
                 // Could open a peer list dialog in the future
               }}

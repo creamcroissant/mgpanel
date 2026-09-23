@@ -73,7 +73,7 @@ export function ConfirmDialog({
           )}
         </DialogHeader>
         {summary && (
-          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p className="rounded-none border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
             {summary}
           </p>
         )}
@@ -134,7 +134,7 @@ export function CreateRuleDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p className="rounded-none border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
             {summary}
           </p>
           <Select value={setId} onValueChange={setSetId}>
@@ -259,7 +259,7 @@ export function ReorderLane({
   return (
     <aside
       aria-label={tf(t, "admin.topology.lane.title", "求值顺序")}
-      className="flex w-52 shrink-0 flex-col overflow-hidden rounded-md border bg-card"
+      className="flex w-52 shrink-0 flex-col overflow-hidden rounded-none border border-border bg-card"
     >
       <p className="border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
         {tf(t, "admin.topology.lane.title", "求值顺序")}
@@ -286,7 +286,7 @@ export function ReorderLane({
               setDraggingId(null);
               setOverIndex(null);
             }}
-            className={`group flex cursor-grab items-center gap-1 rounded-sm border px-1.5 py-1 text-xs transition-colors ${
+            className={`group flex cursor-grab items-center gap-1 rounded-none border border-border px-1.5 py-1 text-xs transition-colors ${
               overIndex === i && draggingId !== null && draggingId !== p.id
                 ? "border-primary bg-primary/10"
                 : "bg-background"
@@ -295,7 +295,7 @@ export function ReorderLane({
             }`}
             onClick={() => onSelect(p.id)}
           >
-            <span className="shrink-0 rounded-sm bg-primary/10 px-1 font-semibold tabular-nums text-primary">
+            <span className="shrink-0 rounded-none bg-primary/10 px-1 font-semibold tabular-nums text-primary">
               #{i + 1}
             </span>
             <span className="truncate" title={`${p.name} · ${p.match_type}:${p.match_value}`}>
@@ -306,7 +306,7 @@ export function ReorderLane({
                 <button
                   type="button"
                   aria-label="上移"
-                  className="rounded-sm px-0.5 hover:bg-muted disabled:opacity-30"
+                  className="rounded-none px-0.5 hover:bg-muted disabled:opacity-30"
                   disabled={i === 0}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -318,7 +318,7 @@ export function ReorderLane({
                 <button
                   type="button"
                   aria-label="下移"
-                  className="rounded-sm px-0.5 hover:bg-muted disabled:opacity-30"
+                  className="rounded-none px-0.5 hover:bg-muted disabled:opacity-30"
                   disabled={i === order.length - 1}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -382,7 +382,7 @@ export function IssuesStrip({ issues, onClose, onSelectEntity }: IssuesStripProp
   return (
     <div
       role="alert"
-      className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+      className="flex items-start gap-2 rounded-none border border-border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
       <div className="min-w-0 flex-1 space-y-0.5">
@@ -410,7 +410,7 @@ export function IssuesStrip({ issues, onClose, onSelectEntity }: IssuesStripProp
         type="button"
         aria-label={tf(t, "admin.topology.validate.dismiss", "关闭")}
         onClick={onClose}
-        className="shrink-0 rounded-sm p-0.5 hover:bg-muted"
+        className="shrink-0 rounded-none p-0.5 hover:bg-muted"
       >
         <X className="h-3.5 w-3.5" />
       </button>
