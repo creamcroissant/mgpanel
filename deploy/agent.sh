@@ -767,6 +767,10 @@ EOF
         return 1
     fi
 
+    # 重装场景服务可能残留 crashed 状态（pidfile 指向已死进程），直接 start 只会报
+    # already started 而不拉起新进程；先 zap 重置状态再停（失败都忽略），最后起，新装重装两条路都覆盖。
+    run_privileged "$OPENRC_SERVICE_CMD" "$service_name" zap >/dev/null 2>&1 || true
+    run_privileged "$OPENRC_SERVICE_CMD" "$service_name" stop >/dev/null 2>&1 || true
     if ! run_privileged "$OPENRC_SERVICE_CMD" "$service_name" start; then
         echo "Error: failed to start OpenRC service ${service_name}."
         return 1
