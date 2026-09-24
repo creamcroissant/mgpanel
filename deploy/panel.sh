@@ -929,8 +929,27 @@ EOF
         return 1
     fi
 
-    # 重装场景服务可能残留 crashed 状态（pidfile 指向已死进程），直接 start 只会报
-    # already started 而不拉起新进程；先 zap 重置状态再停（失败都忽略），最后起。
+    # OpenRC 后台进程与 pidfile 可能脱节（旧进程仍在跑但状态 stopped/crashed，
+    # start 报 already running 却不接管）。重装必须先杀掉残留进程再起：
+    # 1) 按 pidfile 杀残留（zap 只清状态不杀进程，必须先杀）；2) zap+stop 清状态；3) start。
+    stale_pid=""
+    if [ -f "/run/${service_name}.pid" ]; then
+        stale_pid=$(cat "/run/${service_name}.pid" 2>/dev/null | tr -d ' \t\r\n')
+    fi
+    case "$stale_pid" in
+        ''|*[!0-9]*) ;;
+        *)
+            if kill -0 "$stale_pid" >/dev/null 2>&1; then
+                run_privileged kill "$stale_pid" >/dev/null 2>&1 || true
+                sleep 2
+                if kill -0 "$stale_pid" >/dev/null 2>&1; then
+                    run_privileged kill -9 "$stale_pid" >/dev/null 2>&1 || true
+                    sleep 1
+                fi
+            fi
+            ;;
+    esac
+    run_privileged rm -f "/run/${service_name}.pid" >/dev/null 2>&1 || true
     run_privileged "$OPENRC_SERVICE_CMD" "$service_name" zap >/dev/null 2>&1 || true
     run_privileged "$OPENRC_SERVICE_CMD" "$service_name" stop >/dev/null 2>&1 || true
     if ! run_privileged "$OPENRC_SERVICE_CMD" "$service_name" start; then
