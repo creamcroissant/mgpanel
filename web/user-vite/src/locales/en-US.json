@@ -1796,10 +1796,12 @@
         "description": "Configure auto-naming rules for agent-reported nodes",
         "fields": {
           "enabled": "Enable Auto Naming",
-          "template": "Naming Template"
+          "template": "Naming Template",
+          "relayTemplate": "Relay naming template"
         },
         "descriptions": {
-          "template": "Variables: {flag} emoji, {region} country code, {agent_name} server name, {serial} sequence, {type} protocol type"
+          "template": "Variables: {flag} emoji, {region} country code, {agent_name} server name, {serial} sequence, {type} protocol type",
+          "relayTemplate": "Template for relayed nodes (entries bound to a relay path). Variables: {exit_flag} exit flag, {exit_region} exit region, {exit_name} exit server, {entry_name} entry server, {fwd} transit regions (empty without mid hops, e.g. \" fwd hk jp\"). Default: {exit_flag} {exit_name} via {entry_name}{fwd}"
         },
         "preview": {
           "title": "Preview",

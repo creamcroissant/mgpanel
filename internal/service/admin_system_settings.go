@@ -642,6 +642,19 @@ func validateNamingSettings(settings map[string]string) error {
 		}
 	}
 
+	if relayTmpl, ok := settings["node_naming_relay_template"]; ok && strings.TrimSpace(relayTmpl) != "" {
+		hasRelayVar := false
+		for _, v := range []string{"{exit_flag}", "{exit_region}", "{exit_name}", "{entry_name}", "{fwd}"} {
+			if strings.Contains(relayTmpl, v) {
+				hasRelayVar = true
+				break
+			}
+		}
+		if !hasRelayVar {
+			validationErr.add("node_naming_relay_template", "relay template must contain at least one variable like {exit_flag}, {exit_name}, {entry_name} / 中转模板至少包含一个变量如 {exit_flag}、{exit_name}、{entry_name}")
+		}
+	}
+
 	if enabled, ok := settings["node_naming_enabled"]; ok {
 		enabled = strings.TrimSpace(enabled)
 		if enabled != "0" && enabled != "1" {

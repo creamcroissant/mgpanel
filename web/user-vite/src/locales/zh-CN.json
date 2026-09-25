@@ -1796,10 +1796,12 @@
         "description": "配置 Agent 上报节点的自动命名规则",
         "fields": {
           "enabled": "启用自动命名",
-          "template": "命名模板"
+          "template": "命名模板",
+          "relayTemplate": "中转命名模板"
         },
         "descriptions": {
-          "template": "可用变量：{flag} 国旗表情、{region} 地区代码、{agent_name} 服务器名称、{serial} 序号、{type} 协议类型"
+          "template": "可用变量：{flag} 国旗表情、{region} 地区代码、{agent_name} 服务器名称、{serial} 序号、{type} 协议类型",
+          "relayTemplate": "中转节点（绑定中继链路的入口）专用模板。可用变量：{exit_flag} 落地国旗、{exit_region} 落地地区、{exit_name} 落地服务器名、{entry_name} 入口服务器名、{fwd} 中转地域（无中间跳为空，有则如“ fwd hk jp”）。默认：{exit_flag} {exit_name} via {entry_name}{fwd}"
         },
         "preview": {
           "title": "预览示例",

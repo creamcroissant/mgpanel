@@ -242,7 +242,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return service.ResolveRouteRuleSetBaseURL(raw)
 	})
 
-	nodeNamer := service.NewNodeNamer(adminSystemSettingsService)
+	nodeNamer := service.NewNodeNamer(adminSystemSettingsService).WithRelay(store.InboundSpecs(), store.RelayPaths(), store.AgentHosts())
 
 	agentHostService := service.NewAgentHostServiceWithOptions(store.AgentHosts(), store.Servers(), store.ServerClientConfigs(), store.ConfigTemplates(), store.Users(), store.Settings(), service.AgentHostServiceOptions{Cache: infra.Cache, Logger: logger, GeoIP: geoipReader, Namer: nodeNamer})
 	agentService := service.NewAgentService(store.Servers(), store.Users(), userDenyService)

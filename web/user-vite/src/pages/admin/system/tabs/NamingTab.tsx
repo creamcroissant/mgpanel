@@ -22,17 +22,24 @@ const CATEGORY = "naming";
 interface NamingForm {
   enabled: string;
   template: string;
+  relayTemplate: string;
 }
 
 const DEFAULT_VALUES: NamingForm = {
   enabled: "1",
   template: "{flag}{region}_{agent_name}{serial}",
+  relayTemplate: "{exit_flag} {exit_name} via {entry_name}{fwd}",
 };
 
 const PREVIEW_EXAMPLES = [
   "🇭🇰HK_datawave-hk",
   "🇯🇵JP_datawave-jps-02",
   "🇸🇬SG_datawave-sg",
+];
+
+const RELAY_PREVIEW_EXAMPLES = [
+  "🇹🇼 datawave-tw via datawave-hk",
+  "🇺🇸 dedirock-us via datawave-hk fwd jp",
 ];
 
 type NamingTabContentProps = {
@@ -70,6 +77,16 @@ function NamingTabContent({ initialForm, onSave, isSaving }: NamingTabContentPro
       </div>
 
       <div className="space-y-2">
+        <label className="text-sm font-medium">{t("admin.system.naming.fields.relayTemplate")}</label>
+        <p className="text-xs text-muted-foreground">{t("admin.system.naming.descriptions.relayTemplate")}</p>
+        <Input
+          value={form.relayTemplate}
+          onChange={(e) => setForm((prev) => ({ ...prev, relayTemplate: e.target.value }))}
+          placeholder="{exit_flag} {exit_name} via {entry_name}{fwd}"
+        />
+      </div>
+
+      <div className="space-y-2">
         <label className="text-sm font-medium">{t("admin.system.naming.preview.title")}</label>
         <p className="text-xs text-muted-foreground">{t("admin.system.naming.preview.hint")}</p>
         <div className="rounded-none border border-border bg-muted/30 p-3 space-y-1">
@@ -83,6 +100,11 @@ function NamingTabContent({ initialForm, onSave, isSaving }: NamingTabContentPro
                     .replace("{serial}", example.includes("-02") ? "-02" : "")
                     .replace("{type}", "vless")
                 : example}
+            </div>
+          ))}
+          {RELAY_PREVIEW_EXAMPLES.map((example) => (
+            <div key={example} className="text-sm font-mono text-muted-foreground">
+              {form.enabled === "1" ? example : example}
             </div>
           ))}
         </div>
@@ -110,6 +132,7 @@ export default function NamingTab() {
     () => ({
       enabled: data?.["node_naming_enabled"] ?? DEFAULT_VALUES.enabled,
       template: data?.["node_naming_template"] ?? DEFAULT_VALUES.template,
+      relayTemplate: data?.["node_naming_relay_template"] ?? DEFAULT_VALUES.relayTemplate,
     }),
     [data]
   );
@@ -119,6 +142,7 @@ export default function NamingTab() {
       saveSettings(CATEGORY, {
         node_naming_enabled: payload.enabled,
         node_naming_template: payload.template,
+        node_naming_relay_template: payload.relayTemplate,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
