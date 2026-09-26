@@ -32,8 +32,12 @@ const (
 	AgentLifecycleOperationTypeCDNRemoveSite    = "remove_cdn_site"
 	AgentLifecycleOperationTypeSetRoutingTable  = "set_routing_table"
 	AgentLifecycleOperationTypeUnlockProbe      = "unlock_probe"
-	AgentLifecycleOperationTypeGeoRefresh      = "geo_refresh"
-	AgentLifecycleOperationTypeSyncUsers       = "sync_users"
+	AgentLifecycleOperationTypeGeoRefresh       = "geo_refresh"
+	AgentLifecycleOperationTypeSyncUsers        = "sync_users"
+	// AgentLifecycleOperationTypePushConfig 下发全量 agent 配置 YAML，agent 侧 handler 在并行实现。
+	AgentLifecycleOperationTypePushConfig = "push_config"
+	// AgentLifecycleOperationTypeReportConfig 触发 agent 重读本地配置并上报。
+	AgentLifecycleOperationTypeReportConfig = "report_config"
 
 	agentLifecycleOperationTypeAgentUpdate      = AgentLifecycleOperationTypeAgentUpdate
 	agentLifecycleOperationTypeAgentUpdateCheck = AgentLifecycleOperationTypeAgentUpdateCheck
@@ -41,12 +45,14 @@ const (
 	agentLifecycleOperationTypeThresholdAction  = AgentLifecycleOperationTypeThresholdAction
 	agentLifecycleOperationTypeResetLinks       = AgentLifecycleOperationTypeResetLinks
 
-	agentLifecycleOperationTypeCDNDeploySite    = AgentLifecycleOperationTypeCDNDeploySite
-	agentLifecycleOperationTypeCDNRemoveSite    = AgentLifecycleOperationTypeCDNRemoveSite
-	agentLifecycleOperationTypeSetRoutingTable  = AgentLifecycleOperationTypeSetRoutingTable
-	agentLifecycleOperationTypeUnlockProbe      = AgentLifecycleOperationTypeUnlockProbe
+	agentLifecycleOperationTypeCDNDeploySite   = AgentLifecycleOperationTypeCDNDeploySite
+	agentLifecycleOperationTypeCDNRemoveSite   = AgentLifecycleOperationTypeCDNRemoveSite
+	agentLifecycleOperationTypeSetRoutingTable = AgentLifecycleOperationTypeSetRoutingTable
+	agentLifecycleOperationTypeUnlockProbe     = AgentLifecycleOperationTypeUnlockProbe
 	agentLifecycleOperationTypeGeoRefresh      = AgentLifecycleOperationTypeGeoRefresh
 	agentLifecycleOperationTypeSyncUsers       = AgentLifecycleOperationTypeSyncUsers
+	agentLifecycleOperationTypePushConfig      = AgentLifecycleOperationTypePushConfig
+	agentLifecycleOperationTypeReportConfig    = AgentLifecycleOperationTypeReportConfig
 
 	agentLifecycleOperationStatusPending           = "pending"
 	agentLifecycleOperationStatusClaimed           = "claimed"
@@ -68,7 +74,6 @@ const (
 	agentLifecycleOperationDefaultLimit = 100
 	agentLifecycleOperationMaxLimit     = 200
 	agentLifecycleOperationMaxClaim     = 20
-
 
 	agentLifecycleOperationCreatedAuditKind   = "admin.agent_lifecycle_operation.created"
 	agentLifecycleOperationForbiddenAuditKind = "agent.agent_lifecycle_operation.forbidden"
@@ -388,6 +393,10 @@ func normalizeAgentLifecycleOperationType(operationType string) (string, error) 
 		return agentLifecycleOperationTypeGeoRefresh, nil
 	case agentLifecycleOperationTypeSyncUsers:
 		return agentLifecycleOperationTypeSyncUsers, nil
+	case agentLifecycleOperationTypePushConfig:
+		return agentLifecycleOperationTypePushConfig, nil
+	case agentLifecycleOperationTypeReportConfig:
+		return agentLifecycleOperationTypeReportConfig, nil
 	default:
 		return "", ErrAgentLifecycleOperationInvalidRequest
 	}
@@ -552,7 +561,8 @@ func isDestructiveAgentLifecycleOperationType(operationType string) bool {
 	case agentLifecycleOperationTypeAgentUpdate,
 		agentLifecycleOperationTypeTrafficReset,
 		agentLifecycleOperationTypeThresholdAction,
-		agentLifecycleOperationTypeResetLinks:
+		agentLifecycleOperationTypeResetLinks,
+		agentLifecycleOperationTypePushConfig:
 		return true
 	default:
 		return false

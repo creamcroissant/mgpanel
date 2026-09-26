@@ -12,6 +12,16 @@ export async function getAgentConfigYAML(agentHostId: number): Promise<string> {
 }
 
 /**
+ * Push edited config YAML to Panel, which forwards it to Agent.
+ * Backend contract: PUT /agent-hosts/{id}/config with body {config_yaml}.
+ */
+export async function updateAgentConfig(agentHostId: number, configYAML: string): Promise<void> {
+  await adminApi.put(`/agent-hosts/${agentHostId}/config`, {
+    config_yaml: configYAML,
+  });
+}
+
+/**
  * Request agent to re-read and report its config.yml immediately.
  */
 export async function reportAgentConfig(agentHostId: number): Promise<void> {

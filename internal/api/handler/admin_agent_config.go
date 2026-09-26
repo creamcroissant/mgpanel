@@ -1,25 +1,30 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/creamcroissant/mgpanel/internal/api/requestctx"
 	"github.com/creamcroissant/mgpanel/internal/service"
 	"github.com/creamcroissant/mgpanel/internal/support/i18n"
 	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 )
 
 // AdminAgentConfigHandler handles agent configuration endpoints.
 type AdminAgentConfigHandler struct {
 	agentHosts service.AgentHostService
+	operations service.AgentLifecycleOperationService
 	i18n       *i18n.Manager
 }
 
 // NewAdminAgentConfigHandler creates a new config handler.
-func NewAdminAgentConfigHandler(agentHosts service.AgentHostService, i18nMgr *i18n.Manager) *AdminAgentConfigHandler {
-	return &AdminAgentConfigHandler{agentHosts: agentHosts, i18n: i18nMgr}
+func NewAdminAgentConfigHandler(agentHosts service.AgentHostService, operations service.AgentLifecycleOperationService, i18nMgr *i18n.Manager) *AdminAgentConfigHandler {
+	return &AdminAgentConfigHandler{agentHosts: agentHosts, operations: operations, i18n: i18nMgr}
 }
 
 func (h *AdminAgentConfigHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -74,13 +79,137 @@ func (h *AdminAgentConfigHandler) GetConfig(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusOK, map[string]any{"data": sanitizeConfigYAML(configYAML)})
 }
 
-// ReportConfig handles POST /agent-hosts/{id}/report-config
-// Triggers the agent to re-read and report its config.yml.
-// Currently acknowledges the request; actual gRPC command dispatch
-// is pending agent communication infrastructure.
-func (h *AdminAgentConfigHandler) ReportConfig(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.requireAdmin(w, r); !ok {
+// agentConfigPushRequest 收敛 PUT /agent-hosts/{id}/config 的请求体。
+type agentConfigPushRequest struct {
+	ConfigYAML string `json:"config_yaml"`
+}
+
+// agentConfigPushPayload 是 push_config operation 下发给 agent 的载荷。
+type agentConfigPushPayload struct {
+	ConfigYAML string `json:"config_yaml"`
+}
+
+// UpdateConfig handles PUT /agent-hosts/{id}/config
+// 校验全量 YAML（含 panel 段）后创建 push_config lifecycle operation，
+// agent 通过已有 claim/report 通道拉取并应用。
+func (h *AdminAgentConfigHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agents.config.update"
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]bool{"triggered": true}})
+	if !h.ensureOperations(w, r, action) {
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, action, "error.bad_request", h.i18n)
+		return
+	}
+	var req agentConfigPushRequest
+	if err := decodeOptionalJSON(r, &req); err != nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, action, "error.bad_request", h.i18n)
+		return
+	}
+	if err := validateAgentConfigYAML(req.ConfigYAML); err != nil {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, action, "error.bad_request", h.i18n)
+		return
+	}
+	body, err := json.Marshal(agentConfigPushPayload{ConfigYAML: req.ConfigYAML})
+	if err != nil {
+		h.respondConfigServiceError(r, w, action, err)
+		return
+	}
+	operation, err := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+		AgentHostID:    id,
+		OperationType:  service.AgentLifecycleOperationTypePushConfig,
+		RequestPayload: body,
+		OperatorID:     &adminID,
+		Source:         "admin",
+	})
+	if err != nil {
+		h.respondConfigServiceError(r, w, action, err)
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]any{"data": operation})
+}
+
+// validateAgentConfigYAML 校验全量配置 YAML：非空、可解析、必须含顶层 panel 段。
+func validateAgentConfigYAML(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return service.ErrBadRequest
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(raw), &doc); err != nil {
+		return err
+	}
+	panel, ok := doc["panel"]
+	if !ok || panel == nil {
+		return service.ErrBadRequest
+	}
+	if _, ok := panel.(map[string]any); !ok {
+		return service.ErrBadRequest
+	}
+	return nil
+}
+
+func (h *AdminAgentConfigHandler) ensureOperations(w http.ResponseWriter, r *http.Request, action string) bool {
+	if h.operations != nil {
+		return true
+	}
+	RespondErrorI18nAction(r.Context(), w, http.StatusServiceUnavailable, action, "error.service_unavailable", h.i18n)
+	return false
+}
+
+func (h *AdminAgentConfigHandler) respondConfigServiceError(r *http.Request, w http.ResponseWriter, action string, err error) {
+	if respondAgentOperationBusy(r.Context(), w, action, err, h.i18n) {
+		return
+	}
+	status := http.StatusInternalServerError
+	key := "error.internal_server_error"
+	switch {
+	case errors.Is(err, service.ErrAgentLifecycleOperationNotConfigured):
+		status = http.StatusServiceUnavailable
+		key = "error.service_unavailable"
+	case errors.Is(err, service.ErrAgentLifecycleOperationInvalidRequest), errors.Is(err, service.ErrBadRequest):
+		status = http.StatusBadRequest
+		key = "error.bad_request"
+	case errors.Is(err, service.ErrAgentLifecycleOperationNotFound), errors.Is(err, service.ErrNotFound):
+		status = http.StatusNotFound
+		key = "error.not_found"
+	case errors.Is(err, service.ErrAgentLifecycleOperationForbidden):
+		status = http.StatusForbidden
+		key = "error.forbidden"
+	}
+	RespondErrorI18nAction(r.Context(), w, status, action, key, h.i18n)
+}
+
+// ReportConfig handles POST /agent-hosts/{id}/report-config
+// 创建 report_config lifecycle operation，agent 通过已有 claim/report 通道拉取并重读上报。
+// 响应保持 {data:{triggered:true}} 兼容，另附 operation_id 供轮询。
+func (h *AdminAgentConfigHandler) ReportConfig(w http.ResponseWriter, r *http.Request) {
+	const action = "admin.agents.config.report"
+	adminID, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+	if !h.ensureOperations(w, r, action) {
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		RespondErrorI18nAction(r.Context(), w, http.StatusBadRequest, action, "error.bad_request", h.i18n)
+		return
+	}
+	operation, err := h.operations.Create(r.Context(), service.CreateAgentLifecycleOperationRequest{
+		AgentHostID:   id,
+		OperationType: service.AgentLifecycleOperationTypeReportConfig,
+		OperatorID:    &adminID,
+		Source:        "admin",
+	})
+	if err != nil {
+		h.respondConfigServiceError(r, w, action, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"triggered": true, "operation_id": operation.ID}})
 }

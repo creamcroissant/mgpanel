@@ -489,6 +489,9 @@ func New(cfg *config.Config) (*Agent, error) {
 	if err := agent.registerReportConfigHandler(); err != nil {
 		return nil, fmt.Errorf("register report config handler: %w", err)
 	}
+	if err := agent.registerPushConfigHandler(); err != nil {
+		return nil, fmt.Errorf("register push config handler: %w", err)
+	}
 
 	// ctx will be set in Run() with the agent lifecycle context
 

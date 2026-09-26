@@ -10,6 +10,10 @@ export const LAYOUT_GAP = {
   branchX: 96,
   /** 分支列内纵向最小间距 */
   branchY: 28,
+  /** 主干过长时折列：超过此节点数按多列蛇形排布（正方形收敛） */
+  spineWrapAt: 8,
+  /** 折列后列间距 */
+  columnX: 96,
 } as const;
 
 const MARGIN = 24;
@@ -94,15 +98,29 @@ export function layoutTopology(nodes: Node[], edges: Edge[]): Node[] {
     ...nodes.filter((n) => (n.type ?? "") === "rule" && !visited.has(n.id)).map((n) => n.id),
   ];
 
-  // ---- 主干定位 ----
+  // ---- 主干定位：过长时折列蛇形排布（正方形收敛，新节点不再无脑向右堆）----
   const positions = new Map<string, Placed>();
-  let cursorY = MARGIN;
-  for (const id of spineOrder) {
-    const h = heights.get(id) ?? 64;
-    positions.set(id, { id, x: MARGIN, y: cursorY, h });
-    cursorY += h + LAYOUT_GAP.rank;
+  const wrapAt = LAYOUT_GAP.spineWrapAt;
+  const columns: string[][] = [];
+  for (let i = 0; i < spineOrder.length; i += wrapAt) {
+    columns.push(spineOrder.slice(i, i + wrapAt));
   }
-  const spineBottom = cursorY;
+  const laneBottoms: number[] = [];
+  columns.forEach((col, colIdx) => {
+    let cursorY = MARGIN;
+    for (const id of col) {
+      const h = heights.get(id) ?? 64;
+      positions.set(id, {
+        id,
+        x: MARGIN + colIdx * (NODE_WIDTH + LAYOUT_GAP.columnX),
+        y: cursorY,
+        h,
+      });
+      cursorY += h + LAYOUT_GAP.rank;
+    }
+    laneBottoms.push(cursorY);
+  });
+  const spineBottom = Math.max(...laneBottoms, MARGIN);
 
   // ---- 分支定位：目标节点右移一列，与首个源节点垂直居中 ----
   const branchIds = new Set<string>();
@@ -128,7 +146,9 @@ export function layoutTopology(nodes: Node[], edges: Edge[]): Node[] {
     const src = positions.get(srcId);
     const h = heights.get(id) ?? 64;
     const srcCenter = src ? src.y + src.h / 2 : MARGIN;
-    desired.push({ id, x: MARGIN + NODE_WIDTH + LAYOUT_GAP.branchX, y: srcCenter - h / 2, h });
+    // 分支列跟随源节点所在列向右展开，而非固定第二列
+    const srcX = src ? src.x : MARGIN;
+    desired.push({ id, x: srcX + NODE_WIDTH + LAYOUT_GAP.branchX, y: srcCenter - h / 2, h });
   }
   // 纵向避让：按期望 y 排序后向下顺延
   desired.sort((a, b) => a.y - b.y);
@@ -158,18 +178,25 @@ export function layoutTopology(nodes: Node[], edges: Edge[]): Node[] {
     islandY += h + LAYOUT_GAP.rank;
   }
 
-  // ---- 物理层泳道：agent 节点水平排布在画布底部独立色带内 ----
+  // ---- 物理层泳道：agent 节点按正方形网格排布（多行多列，而非一字长蛇） ----
   const agentNodes = nodes.filter((n) => n.type === "agent");
   const laneTop = islandY + 48;
   const AGENT_GAP = 32;
+  // 网格列数取 ceil(sqrt(N))，整体接近正方形
+  const agentCols = Math.max(1, Math.ceil(Math.sqrt(agentNodes.length)));
+  // 先算最大高度再排布（同循环内边算边用会导致前几行行高偏小）
   let maxAgentH = 64;
+  for (const n of agentNodes) {
+    maxAgentH = Math.max(maxAgentH, heights.get(n.id) ?? 64);
+  }
   agentNodes.forEach((n, i) => {
     const h = heights.get(n.id) ?? 64;
-    maxAgentH = Math.max(maxAgentH, h);
+    const row = Math.floor(i / agentCols);
+    const col = i % agentCols;
     positions.set(n.id, {
       id: n.id,
-      x: MARGIN + i * (NODE_WIDTH + AGENT_GAP),
-      y: laneTop,
+      x: MARGIN + col * (NODE_WIDTH + AGENT_GAP),
+      y: laneTop + row * (maxAgentH + LAYOUT_GAP.branchY),
       h,
     });
   });

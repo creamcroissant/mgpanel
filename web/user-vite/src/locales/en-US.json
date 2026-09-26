@@ -507,7 +507,14 @@
         "loadError": "Failed to load configuration",
         "noReport": "No configuration reported yet",
         "noReportHint": "Agent is online, try refreshing from agent",
-        "refreshError": "Failed to refresh config"
+        "refreshError": "Failed to refresh config",
+        "edit": "Edit",
+        "save": "Save",
+        "cancel": "Cancel",
+        "restartWarn": "Saving will restart the agent with about 5 seconds of interruption",
+        "saveSuccess": "Configuration saved",
+        "saveError": "Failed to save configuration",
+        "pollTimeout": "Save was submitted, but no updated configuration was reported within 60 seconds"
       }
     },
     "probe": {
