@@ -27,3 +27,24 @@ export async function updateAgentConfig(agentHostId: number, configYAML: string)
 export async function reportAgentConfig(agentHostId: number): Promise<void> {
   await adminApi.post(`/agent-hosts/${agentHostId}/report-config`);
 }
+
+export interface BatchConfigResult {
+  success: number[];
+  failed: { agent_id: number; error: string }[];
+}
+
+/**
+ * Batch update whitelisted config fields on multiple agents.
+ * Backend merges fields into each agent's reported YAML (untouched keys preserved).
+ * Backend contract: PATCH /agent-hosts/batch-config with body {agent_ids, fields}.
+ */
+export async function batchUpdateAgentConfig(
+  agentIds: number[],
+  fields: Record<string, string | number | boolean>,
+): Promise<BatchConfigResult> {
+  const response = await adminApi.patch<{ data: BatchConfigResult }>(
+    "/agent-hosts/batch-config",
+    { agent_ids: agentIds, fields },
+  );
+  return response.data.data;
+}

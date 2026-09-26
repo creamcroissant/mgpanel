@@ -435,7 +435,31 @@
         "updateSuccess": "Agent update submitted for {{count}} servers",
         "updateFailed": "Agent update failed for {{count}} servers",
         "updatePartial": "Agent update succeeded {{ok}} / failed {{fail}}",
-        "updateError": "Batch agent update failed"
+        "updateError": "Batch agent update failed",
+        "batchConfig": "Batch Config",
+        "configTitle": "Batch Edit Agent Config",
+        "configDesc": "Push selected fields to {{count}} agents; unchecked/blank fields keep per-agent values",
+        "configRestartWarn": "Agents restart one by one after push, ~5s interruption each",
+        "configLeaveBlank": "Blank = leave unchanged",
+        "configConfirm": "Push to {{count}} agents",
+        "configSuccess": "Config push submitted for {{count}} agents",
+        "configFailed": "Config push failed for {{count}} agents",
+        "configPartial": "Config push succeeded {{ok}} / failed {{fail}}",
+        "configError": "Batch config failed",
+        "configFields": {
+          "interval_sync": "Sync interval (s)",
+          "interval_report": "Report interval (s)",
+          "log_max_days": "Log retention days",
+          "log_upload_enabled": "Log upload",
+          "log_upload_max_lines": "Log upload batch lines",
+          "log_upload_interval_seconds": "Log upload interval (s)",
+          "mesh_enabled": "Mesh networking",
+          "unlock_enabled": "Unlock check",
+          "unlock_interval_hours": "Unlock check interval (h)",
+          "forwarding_enabled": "Forwarding sync",
+          "traffic_type": "Traffic collector",
+          "traffic_interface": "Traffic interface (empty=all)"
+        }
       },
       "stats": {
         "total": "Total Agents",

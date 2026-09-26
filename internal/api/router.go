@@ -484,6 +484,8 @@ func registerV2AdminRoutes(v2 chi.Router, configService service.ConfigService, a
 		admin.Get("/agent-hosts/{id}/config", adminAgentConfigHandler.GetConfig)
 		admin.Put("/agent-hosts/{id}/config", adminAgentConfigHandler.UpdateConfig)
 		admin.Post("/agent-hosts/{id}/report-config", adminAgentConfigHandler.ReportConfig)
+		// 批量改配置：白名单字段合并后走 PUT 全量下发通道（必须在 {id} 路由前，避免 batch 被当成 id）。
+		admin.Patch("/agent-hosts/batch-config", adminAgentConfigHandler.BatchUpdateConfig)
 
 		// Subscription source and filter observability endpoints
 		admin.Get("/subscription/sources", adminSubscriptionHandler.ListSources)

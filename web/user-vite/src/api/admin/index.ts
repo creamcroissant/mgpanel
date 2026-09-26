@@ -154,7 +154,8 @@ export {
 } from "./configCenter";
 
 // Agent config API
-export { getAgentConfigYAML, reportAgentConfig } from "./agentConfig";
+export { batchUpdateAgentConfig, getAgentConfigYAML, reportAgentConfig } from "./agentConfig";
+export type { BatchConfigResult } from "./agentConfig";
 
 // CDN API
 export {

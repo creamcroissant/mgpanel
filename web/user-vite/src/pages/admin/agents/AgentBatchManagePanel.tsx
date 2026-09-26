@@ -6,16 +6,19 @@ import {
   Cpu,
   Download,
   RefreshCw,
+  Settings2,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import {
+  batchUpdateAgentConfig,
   createAgentUpdateOperation,
   deleteAgentHost,
   installAgentCore,
   refreshAgentHosts,
 } from "@/api/admin";
+import AgentBatchConfigDialog from "./AgentBatchConfigDialog";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   Badge,
@@ -84,6 +87,11 @@ export default function AgentBatchManagePanel({
     coreType: string;
   } | null>(null);
   const [isCoreDialogOpen, setIsCoreDialogOpen] = useState(false);
+  const [isBatchConfigOpen, setIsBatchConfigOpen] = useState(false);
+  const [batchConfigResult, setBatchConfigResult] = useState<{
+    success: number[];
+    failed: { agent_id: number; error: string }[];
+  } | null>(null);
 
   const allSelected = agents.length > 0 && selectedIds.size === agents.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -257,10 +265,41 @@ export default function AgentBatchManagePanel({
     });
   };
 
+  const batchConfigMutation = useMutation({
+    mutationFn: (fields: Record<string, string | number | boolean>) =>
+      batchUpdateAgentConfig([...selectedIds], fields),
+    onSuccess: (result) => {
+      setBatchConfigResult(result);
+      invalidateAgentQueries(queryClient, [...selectedIds]);
+      const okNames = agents
+        .filter((a) => result.success.includes(a.id))
+        .map((a) => a.name);
+      const failNames = result.failed.map((f) => {
+        const a = agents.find((x) => x.id === f.agent_id);
+        return `${a?.name ?? f.agent_id}: ${f.error}`;
+      });
+      if (result.failed.length === 0) {
+        toast.success(t("admin.agents.batch.configSuccess", { count: okNames.length }));
+      } else if (okNames.length === 0) {
+        toast.error(t("admin.agents.batch.configFailed", { count: failNames.length }), {
+          description: failNames.slice(0, 3).join("\n"),
+        });
+      } else {
+        toast.warning(t("admin.agents.batch.configPartial", { ok: okNames.length, fail: failNames.length }), {
+          description: failNames.slice(0, 3).join("\n"),
+        });
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(t("admin.agents.batch.configError"), { description: err.message });
+    },
+  });
+
   const isDeleting = deleteMutation.isPending;
   const isRefreshing = refreshMutation.isPending;
   const isCoreBusy = coreMutation.isPending;
   const isUpdateBusy = updateMutation.isPending;
+  const isBatchConfigBusy = batchConfigMutation.isPending;
   const hasSelection = selectedIds.size > 0;
 
   const getStatusBadgeVariant = (status: number): "success" | "warning" | "danger" => {
@@ -398,6 +437,21 @@ export default function AgentBatchManagePanel({
                 <Cpu className="mr-1 h-3.5 w-3.5" />
                 {isUpdateBusy ? t("common.loading") : t("admin.agents.batch.updateAgent")}
               </Button>
+
+              <span className="mx-1 h-5 w-px bg-border" />
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBatchConfigResult(null);
+                  setIsBatchConfigOpen(true);
+                }}
+                disabled={isBatchConfigBusy}
+              >
+                <Settings2 className="mr-1 h-3.5 w-3.5" />
+                {t("admin.agents.batch.batchConfig")}
+              </Button>
             </div>
           )}
 
@@ -494,6 +548,17 @@ export default function AgentBatchManagePanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ---- Batch config dialog ---- */}
+      <AgentBatchConfigDialog
+        open={isBatchConfigOpen}
+        onOpenChange={setIsBatchConfigOpen}
+        count={selectedIds.size}
+        agentNames={agents.filter((a) => selectedIds.has(a.id)).map((a) => a.name)}
+        busy={isBatchConfigBusy}
+        result={batchConfigResult}
+        onConfirm={(fields) => batchConfigMutation.mutate(fields)}
+      />
     </>
   );
 }

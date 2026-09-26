@@ -435,7 +435,31 @@
         "updateSuccess": "成功对 {{count}} 个服务器提交 Agent 更新任务",
         "updateFailed": "{{count}} 个服务器 Agent 更新提交失败",
         "updatePartial": "Agent 更新成功 {{ok}} / 失败 {{fail}}",
-        "updateError": "Agent 批量更新失败"
+        "updateError": "Agent 批量更新失败",
+        "batchConfig": "批量改配置",
+        "configTitle": "批量修改 Agent 配置",
+        "configDesc": "对 {{count}} 台服务器按字段下发，未勾选/留空的字段保持各台原值不变",
+        "configRestartWarn": "下发后各 Agent 将逐台重启生效，每台中断约 5 秒",
+        "configLeaveBlank": "留空=不改此字段",
+        "configConfirm": "下发到 {{count}} 台",
+        "configSuccess": "成功对 {{count}} 台提交配置下发",
+        "configFailed": "{{count}} 台配置下发失败",
+        "configPartial": "配置下发成功 {{ok}} / 失败 {{fail}}",
+        "configError": "批量改配置失败",
+        "configFields": {
+          "interval_sync": "上报间隔（秒）",
+          "interval_report": "状态上报间隔（秒）",
+          "log_max_days": "日志保留天数",
+          "log_upload_enabled": "日志上传开关",
+          "log_upload_max_lines": "日志上传批量行数",
+          "log_upload_interval_seconds": "日志上传间隔（秒）",
+          "mesh_enabled": "Mesh 组网开关",
+          "unlock_enabled": "解锁检测开关",
+          "unlock_interval_hours": "解锁检测间隔（小时）",
+          "forwarding_enabled": "转发同步开关",
+          "traffic_type": "流量采集方式",
+          "traffic_interface": "流量采集网卡（空=全部）"
+        }
       },
       "stats": {
         "total": "总节点数",
