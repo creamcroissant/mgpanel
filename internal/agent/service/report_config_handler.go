@@ -42,6 +42,20 @@ func (a *Agent) checkConfigFile() bool {
 	return true
 }
 
+// currentConfigYAML 返回本次上报应携带的运行配置全文：优先重读磁盘（push_config
+// 刚写盘的场景靠它透出最新值），失败则回退内存缓存，再失败返回空（panel跳过落库）。
+func (a *Agent) currentConfigYAML() string {
+	if a == nil {
+		return ""
+	}
+	if fresh, err := a.readConfigFile(); err == nil && fresh != "" {
+		return fresh
+	}
+	a.configFileMu.RLock()
+	defer a.configFileMu.RUnlock()
+	return a.configFileContent
+}
+
 func (a *Agent) SetConfigFilePath(path string) {
 	a.configFileMu.Lock()
 	a.configFilePath = path

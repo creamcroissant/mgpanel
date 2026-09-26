@@ -355,6 +355,10 @@ type AgentHostMetrics struct {
 	LastRestartAt         int64
 	AgentVersion          string
 	CurrentCoreType       string
+	// ConfigYAML 随上报携带的 agent 运行配置全文；空=本次未携带。
+	// ConfigYAMLPresent 区分"未携带"与"携带空内容"，未携带时调用方必须跳过落库。
+	ConfigYAML        string
+	ConfigYAMLPresent bool
 }
 
 // ServerClientConfigRepository 管理客户端订阅配置。

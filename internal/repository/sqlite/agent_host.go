@@ -189,8 +189,8 @@ func (r *agentHostRepo) ListAll(ctx context.Context) ([]*repository.AgentHost, e
 	return hosts, nil
 }
 
-	// NOTE: no RowsAffected check -- this is a periodic heartbeat update;
-	// the host may have been deleted concurrently, which is acceptable.
+// NOTE: no RowsAffected check -- this is a periodic heartbeat update;
+// the host may have been deleted concurrently, which is acceptable.
 func (r *agentHostRepo) UpdateStatus(ctx context.Context, id int64, status int, heartbeatAt int64) error {
 	return bootstrap.WithSQLiteBusyRetry(func() error {
 		_, err := execWithRetry(ctx, r.db, `
@@ -207,6 +207,37 @@ func (r *agentHostRepo) UpdateStatus(ctx context.Context, id int64, status int, 
 func (r *agentHostRepo) UpdateMetrics(ctx context.Context, id int64, metrics repository.AgentHostMetrics) error {
 	return bootstrap.WithSQLiteBusyRetry(func() error {
 		updatedAt := time.Now().Unix()
+		if metrics.ConfigYAMLPresent {
+			// 配置上报同通道落库：高频上报每次都带全文（~KB级），与指标同事务写入。
+			_, err := execWithRetry(ctx, r.db, `
+				UPDATE agent_hosts SET
+					cpu_total = ?, cpu_used = ?,
+					mem_total = ?, mem_used = ?,
+					disk_total = ?, disk_used = ?,
+					upload_total = ?, download_total = ?,
+					upload_rate_bps = ?, download_rate_bps = ?,
+					raw_upload_total_bytes = ?, raw_download_total_bytes = ?,
+					boot_id = ?, last_realtime_report_at = ?, last_restart_at = ?,
+					agent_version = ?, current_core_type = ?,
+					config_yaml = ?,
+					last_heartbeat_at = ?,
+					status = 1,
+					updated_at = ?
+				WHERE id = ?
+			`,
+				metrics.CPUTotal, metrics.CPUUsed,
+				metrics.MemTotal, metrics.MemUsed,
+				metrics.DiskTotal, metrics.DiskUsed,
+				metrics.UploadTotal, metrics.DownloadTotal,
+				metrics.UploadRateBps, metrics.DownloadRateBps,
+				metrics.RawUploadTotalBytes, metrics.RawDownloadTotalBytes,
+				metrics.BootID, metrics.LastRealtimeReportAt, metrics.LastRestartAt,
+				metrics.AgentVersion, metrics.CurrentCoreType,
+				metrics.ConfigYAML,
+				updatedAt, updatedAt, id,
+			)
+			return err
+		}
 		_, err := execWithRetry(ctx, r.db, `
 			UPDATE agent_hosts SET
 				cpu_total = ?, cpu_used = ?,

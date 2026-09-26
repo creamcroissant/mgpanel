@@ -169,6 +169,10 @@ type AgentHostMetricsReport struct {
 	ReportedAt            int64
 	AgentVersion          string
 	CurrentCoreType       string
+	// ConfigYAML 是 agent 上报的运行配置全文（>StatusReport.agent_config_yaml），
+	// 空表示本次未携带（调用方需跳过落库，避免覆盖已有值）。
+	ConfigYAML        string
+	ConfigYAMLPresent bool
 }
 
 // ClientConfigInfo represents a client configuration reported by the agent.
@@ -506,6 +510,11 @@ func (s *agentHostService) UpdateMetrics(ctx context.Context, token string, metr
 	if metrics.CurrentCoreType != "" {
 		repoMetrics.CurrentCoreType = metrics.CurrentCoreType
 		repoMetrics.LastRealtimeReportAt = reportAt
+	}
+	// 配置上报与指标同通道：仅携带时落库（本地文件小变更也透出，判据=前端轮询GET变化）。
+	if metrics.ConfigYAMLPresent {
+		repoMetrics.ConfigYAML = metrics.ConfigYAML
+		repoMetrics.ConfigYAMLPresent = true
 	}
 
 	if s.metricsBuffer != nil {

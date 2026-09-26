@@ -1124,6 +1124,9 @@ func (a *Agent) reportGRPC(ctx context.Context, stat api.StatusPayload, caps *ca
 		UpdateStatus:      a.updateStatusProto(),
 		OriginLatencies:   originLatencies,
 		MeshPeerLatencies: a.meshPeerLatenciesProto(),
+		// 运行配置随每次上报携带（~KB级）：panel落库后前端可看、push_config成功判据靠它。
+		// 重读失败仅告警不阻断上报（上次缓存值仍有效）。
+		AgentConfigYaml: a.currentConfigYAML(),
 	}
 
 	// Add core instances

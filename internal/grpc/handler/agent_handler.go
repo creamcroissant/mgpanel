@@ -919,6 +919,12 @@ func buildAgentHostMetricsReport(report *agentv1.StatusReport) service.AgentHost
 		metrics.AgentVersion = systemMetrics.GetAgentVersion()
 		metrics.CurrentCoreType = systemMetrics.GetCurrentCoreType()
 	}
+	// agent运行配置随上报同通道落库：字段存在（proto3 string 无法区分空与未设，
+	// 以"本次上报是否携带"为准——agent每次上报都重读文件并填写，缺字段的老版本则跳过）。
+	if yaml := report.GetAgentConfigYaml(); yaml != "" {
+		metrics.ConfigYAML = yaml
+		metrics.ConfigYAMLPresent = true
+	}
 	if networkMetrics := report.GetNetwork(); networkMetrics != nil {
 		if uploadRate := networkMetrics.GetUploadRateBps(); uploadRate != nil {
 			value := uploadRate.GetValue()
@@ -939,7 +945,6 @@ func buildAgentHostMetricsReport(report *agentv1.StatusReport) service.AgentHost
 	}
 	return metrics
 }
-
 
 // warnLogCacheUnavailable 首次未装配日志缓存时告警一次，后续静默。
 func (h *AgentHandler) warnLogCacheUnavailable() {

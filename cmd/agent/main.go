@@ -62,6 +62,9 @@ func main() {
 		slog.Error("Failed to initialize agent", "error", err)
 		os.Exit(1)
 	}
+	// 配置上报链：agent每次StatusReport携带config.yml全文，panel落库后前端可看、
+	// push_config成功判据靠它。路径不注入则上报字段为空（panel跳过落库）。
+	agent.SetConfigFilePath(configFile)
 
 	// Context with cancel
 	ctx, cancel := context.WithCancel(context.Background())
