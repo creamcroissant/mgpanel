@@ -87,13 +87,13 @@ type singBoxTLS struct {
 }
 
 type singBoxReality struct {
-	Enabled    bool              `json:"enabled"`
-	Handshake  *singBoxHandshake `json:"handshake"`
-	PrivateKey string            `json:"private_key"`
-	PublicKey  string            `json:"public_key"`
-	ShortID    []string          `json:"short_id"`
-	ServerName string            `json:"server_name"`
-	Fingerprint string           `json:"fingerprint"`
+	Enabled     bool              `json:"enabled"`
+	Handshake   *singBoxHandshake `json:"handshake"`
+	PrivateKey  string            `json:"private_key"`
+	PublicKey   string            `json:"public_key"`
+	ShortID     []string          `json:"short_id"`
+	ServerName  string            `json:"server_name"`
+	Fingerprint string            `json:"fingerprint"`
 }
 
 type singBoxHandshake struct {
@@ -110,11 +110,11 @@ type singBoxTransport struct {
 }
 
 type singBoxMultiplex struct {
-	Enabled   bool            `json:"enabled"`
-	Protocol  string          `json:"protocol"`
+	Enabled    bool           `json:"enabled"`
+	Protocol   string         `json:"protocol"`
 	MaxStreams int            `json:"max_streams"`
-	Padding   bool            `json:"padding"`
-	Brutal    *singBoxBrutal `json:"brutal"`
+	Padding    bool           `json:"padding"`
+	Brutal     *singBoxBrutal `json:"brutal"`
 }
 
 type singBoxBrutal struct {
@@ -124,11 +124,11 @@ type singBoxBrutal struct {
 }
 
 type singBoxSniff struct {
-	Enabled        bool     `json:"enabled"`
-	DestOverride   []string `json:"dest_override"`
-	MetadataOnly   bool     `json:"metadata_only"`
+	Enabled         bool     `json:"enabled"`
+	DestOverride    []string `json:"dest_override"`
+	MetadataOnly    bool     `json:"metadata_only"`
 	DomainsExcluded []string `json:"domains_excluded"`
-	RouteOnly      bool     `json:"route_only"`
+	RouteOnly       bool     `json:"route_only"`
 }
 
 func buildSingBoxInbound(inbound UnifiedInbound) map[string]any {
@@ -302,6 +302,11 @@ func buildSingBoxInbound(inbound UnifiedInbound) map[string]any {
 		result["sniff"] = sniffing
 	}
 
+	// sockopt 透明代理选项直通（tproxy/mark/interface 等）。
+	if len(inbound.Sockopt) > 0 {
+		result["sockopt"] = inbound.Sockopt
+	}
+
 	return result
 }
 
@@ -435,15 +440,15 @@ func parseSingBoxInbound(inbound singBoxInbound) UnifiedInbound {
 
 	if inbound.Multiplex != nil && inbound.Multiplex.Enabled {
 		m := &UnifiedMultiplex{
-			Enabled: true,
-			Protocol: inbound.Multiplex.Protocol,
+			Enabled:    true,
+			Protocol:   inbound.Multiplex.Protocol,
 			MaxStreams: inbound.Multiplex.MaxStreams,
-			Padding: inbound.Multiplex.Padding,
+			Padding:    inbound.Multiplex.Padding,
 		}
 		if inbound.Multiplex.Brutal != nil {
 			m.Brutal = &UnifiedBrutal{
-				Enabled: inbound.Multiplex.Brutal.Enabled,
-				UpMbps: inbound.Multiplex.Brutal.UpMbps,
+				Enabled:  inbound.Multiplex.Brutal.Enabled,
+				UpMbps:   inbound.Multiplex.Brutal.UpMbps,
 				DownMbps: inbound.Multiplex.Brutal.DownMbps,
 			}
 		}
@@ -452,11 +457,11 @@ func parseSingBoxInbound(inbound singBoxInbound) UnifiedInbound {
 
 	if inbound.Sniff != nil {
 		result.Sniffing = &UnifiedSniffing{
-			Enabled: inbound.Sniff.Enabled,
-			DestOverride: inbound.Sniff.DestOverride,
-			MetadataOnly: inbound.Sniff.MetadataOnly,
+			Enabled:         inbound.Sniff.Enabled,
+			DestOverride:    inbound.Sniff.DestOverride,
+			MetadataOnly:    inbound.Sniff.MetadataOnly,
 			DomainsExcluded: inbound.Sniff.DomainsExcluded,
-			RouteOnly: inbound.Sniff.RouteOnly,
+			RouteOnly:       inbound.Sniff.RouteOnly,
 		}
 	}
 

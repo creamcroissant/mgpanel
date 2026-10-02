@@ -42,7 +42,10 @@ func (r *singBoxArtifactRenderer) Render(
 		"tls":       {},
 		"transport": {},
 		"multiplex": {},
-		"sniffing": {},
+		"sniffing":  {},
+		"users":     {},
+		"options":   {},
+		"sockopt":   {},
 	})...)
 
 	section, sectionWarnings, err := artifactExtractCoreSection(spec, r.CoreType(), coreSpecific, "sing-box", "singbox")

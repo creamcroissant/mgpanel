@@ -8,6 +8,10 @@ import { InboundTLSFields } from "./InboundTLSFields";
 import { InboundTransportFields } from "./InboundTransportFields";
 import { InboundMultiplexFields } from "./InboundMultiplexFields";
 import { InboundSniffingFields } from "./InboundSniffingFields";
+import { ProtocolUserFields } from "./ProtocolUserFields";
+import { InboundOptionsFields } from "./InboundOptionsFields";
+import { InboundFallbackFields } from "./InboundFallbackFields";
+import { InboundSockoptFields } from "./InboundSockoptFields";
 
 interface ConfigCenterInboundEditorProps {
   value: InboundSemanticSpec;
@@ -39,6 +43,15 @@ export function ConfigCenterInboundEditor({
   const editTLS = (tls: InboundSemanticSpec["tls"]) => set({ tls });
   const editMultiplex = (multiplex: InboundSemanticSpec["multiplex"]) => set({ multiplex });
   const editSniffing = (sniffing: InboundSemanticSpec["sniffing"]) => set({ sniffing });
+  const editUsers = (users: Array<Record<string, unknown>> | undefined) => set({ users });
+  const editOptions = (options: Record<string, unknown> | undefined) => set({ options });
+  // fallbacks/sockopt 暂存 _raw：后端编译器接线后直通渲染（见 coding 记录）。
+  const rawMap = (value._raw ?? {}) as Record<string, unknown>;
+  const editRawKey = (key: string) => (next: unknown) => {
+    const raw = { ...(value._raw ?? {}) } as Record<string, unknown>;
+    if (next === undefined) delete raw[key]; else raw[key] = next;
+    set({ _raw: Object.keys(raw).length ? raw : undefined });
+  };
 
   return (
     <div className="space-y-5" data-testid="config-center-inbound-editor">
@@ -135,6 +148,37 @@ export function ConfigCenterInboundEditor({
       <InboundSniffingFields
         value={value.sniffing}
         onChange={editSniffing}
+        readOnly={readOnly}
+      />
+
+      {/* Users section (UUID/flow incl. vision, passwords, etc.) */}
+      <ProtocolUserFields
+        protocol={value.protocol}
+        users={value.users}
+        onChange={editUsers}
+        readOnly={readOnly}
+      />
+
+      {/* Protocol-specific options (decryption, method, etc.) */}
+      <InboundOptionsFields
+        protocol={value.protocol}
+        value={value.options}
+        onChange={editOptions}
+        readOnly={readOnly}
+      />
+
+      {/* Xray VLESS fallbacks */}
+      <InboundFallbackFields
+        protocol={value.protocol}
+        values={(rawMap.fallbacks as Array<Record<string, unknown>>) ?? null}
+        onChange={editRawKey("fallbacks") as (fallbacks: Array<Record<string, unknown>> | undefined) => void}
+        readOnly={readOnly}
+      />
+
+      {/* Transparent proxy / sockopt */}
+      <InboundSockoptFields
+        value={(rawMap.sockopt as Record<string, unknown>) ?? null}
+        onChange={editRawKey("sockopt") as (sockopt: Record<string, unknown> | undefined) => void}
         readOnly={readOnly}
       />
     </div>

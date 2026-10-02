@@ -12,6 +12,10 @@ type UnifiedInbound struct {
 	Options   map[string]any    `json:"options,omitempty"`
 	Multiplex *UnifiedMultiplex `json:"multiplex,omitempty"`
 	Sniffing  *UnifiedSniffing  `json:"sniffing,omitempty"`
+	// Sockopt 透明代理选项（tproxy/mark/interface 等），双核心直通。
+	Sockopt map[string]any `json:"sockopt,omitempty"`
+	// Fallbacks 仅 Xray VLESS 有效；sing-box 渲染器忽略并告警。
+	Fallbacks []map[string]any `json:"fallbacks,omitempty"`
 }
 
 // UnifiedTransport 描述跨核心的传输配置。
@@ -56,14 +60,13 @@ type UnifiedUser struct {
 	Method   string `json:"method,omitempty"`
 }
 
-
 // UnifiedMultiplex 描述跨核心的多路复用配置。
 type UnifiedMultiplex struct {
-	Enabled   bool            `json:"enabled"`
-	Protocol  string          `json:"protocol,omitempty"`
+	Enabled    bool           `json:"enabled"`
+	Protocol   string         `json:"protocol,omitempty"`
 	MaxStreams int            `json:"max_streams,omitempty"`
-	Padding   bool            `json:"padding,omitempty"`
-	Brutal    *UnifiedBrutal  `json:"brutal,omitempty"`
+	Padding    bool           `json:"padding,omitempty"`
+	Brutal     *UnifiedBrutal `json:"brutal,omitempty"`
 }
 
 // UnifiedBrutal 描述 TCP Brutal 拥塞控制。
@@ -75,9 +78,9 @@ type UnifiedBrutal struct {
 
 // UnifiedSniffing 描述跨核心的连接嗅探配置。
 type UnifiedSniffing struct {
-	Enabled        bool     `json:"enabled"`
-	DestOverride   []string `json:"dest_override,omitempty"`
-	MetadataOnly   bool     `json:"metadata_only,omitempty"`
+	Enabled         bool     `json:"enabled"`
+	DestOverride    []string `json:"dest_override,omitempty"`
+	MetadataOnly    bool     `json:"metadata_only,omitempty"`
 	DomainsExcluded []string `json:"domains_excluded,omitempty"`
-	RouteOnly      bool     `json:"route_only,omitempty"`
+	RouteOnly       bool     `json:"route_only,omitempty"`
 }

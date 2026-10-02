@@ -41,7 +41,11 @@ func (r *xrayArtifactRenderer) Render(
 		"tls":       {},
 		"transport": {},
 		"multiplex": {},
-		"sniffing": {},
+		"sniffing":  {},
+		"users":     {},
+		"options":   {},
+		"sockopt":   {},
+		"fallbacks": {},
 	})...)
 
 	section, sectionWarnings, err := artifactExtractCoreSection(spec, r.CoreType(), coreSpecific, "xray")

@@ -102,11 +102,11 @@ type xrayTLSCertificate struct {
 }
 
 type xraySniffing struct {
-	Enabled        bool     `json:"enabled"`
-	DestOverride   []string `json:"destOverride"`
-	MetadataOnly   bool     `json:"metadataOnly"`
+	Enabled         bool     `json:"enabled"`
+	DestOverride    []string `json:"destOverride"`
+	MetadataOnly    bool     `json:"metadataOnly"`
 	DomainsExcluded []string `json:"domainsExcluded"`
-	RouteOnly      bool     `json:"routeOnly"`
+	RouteOnly       bool     `json:"routeOnly"`
 }
 
 type xrayRealitySettings struct {
@@ -171,6 +171,16 @@ func buildXrayInbound(inbound UnifiedInbound) map[string]any {
 			sniffing["routeOnly"] = true
 		}
 		result["sniffing"] = sniffing
+	}
+
+	// sockopt 透明代理选项直通。
+	if len(inbound.Sockopt) > 0 {
+		result["sockopt"] = inbound.Sockopt
+	}
+
+	// fallbacks 仅 Xray VLESS 有效。
+	if len(inbound.Fallbacks) > 0 {
+		result["fallbacks"] = inbound.Fallbacks
 	}
 
 	return result

@@ -1580,6 +1580,21 @@ func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec, 
 				inbound.Options = optionsMap
 			}
 		}
+		// sockopt/fallbacks 经 _raw 透传：前端可视化填写后直通渲染器。
+		if sockoptRaw, ok := semanticObject["sockopt"]; ok {
+			if sockoptMap, ok := sockoptRaw.(map[string]any); ok && len(sockoptMap) > 0 {
+				inbound.Sockopt = sockoptMap
+			}
+		}
+		if fbRaw, ok := semanticObject["fallbacks"]; ok {
+			if fbArr, ok := fbRaw.([]any); ok {
+				for _, item := range fbArr {
+					if m, ok := item.(map[string]any); ok && len(m) > 0 {
+						inbound.Fallbacks = append(inbound.Fallbacks, m)
+					}
+				}
+			}
+		}
 	}
 
 	return inbound, nil
