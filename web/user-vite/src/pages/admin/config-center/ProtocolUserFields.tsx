@@ -101,7 +101,7 @@ export function ProtocolUserFields({
       newUser.uuid = generateCompactUUID();
     }
     if (protocol === "vless") {
-      newUser.flow = "";
+      newUser.flow = "xtls-rprx-vision";
     }
     if (protocol === "vmess") {
       newUser.security = "auto";
