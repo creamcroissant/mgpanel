@@ -1143,7 +1143,10 @@
         "createSpec": "新建 Spec",
         "createTemplate": "模板 Spec",
         "apply": "发布到 Agent",
-        "history": "历史"
+        "history": "历史",
+        "disable": "停用",
+        "enable": "启用",
+        "toggleEnabledHint": "停用后需 Apply 下发才在 Agent 生效，配置保留"
       },
       "generator": {
         "actions": {
@@ -1538,7 +1541,9 @@
         "applyCompleted": "发布任务成功",
         "applyRunFailed": "发布任务失败",
         "applyRolledBack": "发布已回滚",
-        "applyFailed": "创建发布任务失败"
+        "applyFailed": "创建发布任务失败",
+        "specDisabled": "Spec 已停用，Apply 下发后在 Agent 停用",
+        "specEnabled": "Spec 已启用，Apply 下发后在 Agent 启用"
       },
       "allHosts": "全部主机",
       "applyDialog": {

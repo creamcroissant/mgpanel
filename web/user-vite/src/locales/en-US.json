@@ -1143,7 +1143,10 @@
         "createSpec": "Create Spec",
         "createTemplate": "Template Spec",
         "apply": "Apply to Agent",
-        "history": "History"
+        "history": "History",
+        "disable": "Disable",
+        "enable": "Enable",
+        "toggleEnabledHint": "Apply is required for the change to take effect on Agent; config is kept"
       },
       "generator": {
         "actions": {
@@ -1538,7 +1541,9 @@
         "applyCompleted": "Apply completed",
         "applyRunFailed": "Apply failed",
         "applyRolledBack": "Apply rolled back",
-        "applyFailed": "Failed to create apply run"
+        "applyFailed": "Failed to create apply run",
+        "specDisabled": "Spec disabled, takes effect on Agent after Apply",
+        "specEnabled": "Spec enabled, takes effect on Agent after Apply"
       },
       "allHosts": "All Hosts",
       "applyDialog": {

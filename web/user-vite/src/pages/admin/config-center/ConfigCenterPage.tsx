@@ -179,6 +179,28 @@ export default function ConfigCenterPage() {
     onError: (err: Error) => toast.error(t("admin.configCenter.messages.deleteFailed"), { description: err.message }),
   });
 
+  // 停用/启用：只翻 enabled 位，其余原样回传；停用后需 Apply 下发才在 agent 生效。
+  const toggleSpecEnabledMutation = useMutation({
+    mutationFn: (spec: ConfigCenterSpec) =>
+      updateConfigCenterSpec(spec.id, {
+        core_type: spec.core_type,
+        tag: spec.tag,
+        enabled: !spec.enabled,
+        semantic_spec: spec.semantic_spec as Record<string, unknown>,
+        core_specific: (spec.core_specific ?? {}) as Record<string, unknown>,
+        agent_host_id: spec.agent_host_id ?? 0,
+      }),
+    onSuccess: (_data, spec) => {
+      invalidateSpecs();
+      toast.success(
+        spec.enabled
+          ? t("admin.configCenter.messages.specDisabled")
+          : t("admin.configCenter.messages.specEnabled"),
+      );
+    },
+    onError: (err: Error) => toast.error(t("admin.configCenter.messages.saveFailed"), { description: err.message }),
+  });
+
 
   const applyMutation = useMutation({
     mutationFn: (payload: Parameters<typeof createConfigCenterApplyRun>[0]) => createConfigCenterApplyRun(payload),
@@ -387,6 +409,8 @@ export default function ConfigCenterPage() {
             onCreateSpec={openCreateDialog}
             onEditSpec={openEditDialog}
             onDeleteSpec={handleDeleteSpec}
+            onToggleSpecEnabled={(spec) => toggleSpecEnabledMutation.mutate(spec)}
+            toggleSpecPending={toggleSpecEnabledMutation.isPending}
             onHistorySpec={openHistoryDialog}
             applyForm={applyForm}
             onApplyFormChange={setApplyForm}

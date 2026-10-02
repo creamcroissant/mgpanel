@@ -38,6 +38,8 @@ interface SpecsTabProps {
   onCreateSpec: () => void;
   onEditSpec: (spec: ConfigCenterSpec) => void;
   onDeleteSpec: (id: number) => void;
+  onToggleSpecEnabled: (spec: ConfigCenterSpec) => void;
+  toggleSpecPending?: boolean;
   onHistorySpec: (spec: ConfigCenterSpec) => void;
   applyForm: ApplyFormState;
   onApplyFormChange: React.Dispatch<React.SetStateAction<ApplyFormState>>;
@@ -76,6 +78,8 @@ export default function SpecsTab({
   onCreateSpec,
   onEditSpec,
   onDeleteSpec,
+  onToggleSpecEnabled,
+  toggleSpecPending = false,
   onHistorySpec,
   applyForm,
   onApplyFormChange,
@@ -98,6 +102,17 @@ export default function SpecsTab({
     <div className={layout === "mobile" ? "mt-4 grid grid-cols-2 gap-2" : "flex flex-nowrap items-center gap-1"}>
       <Button size={layout === "mobile" ? "default" : "sm"} variant="outline" onClick={() => onEditSpec(spec)}>
         {t("common.edit")}
+      </Button>
+      <Button
+        size={layout === "mobile" ? "default" : "sm"}
+        variant="outline"
+        onClick={() => onToggleSpecEnabled(spec)}
+        disabled={toggleSpecPending}
+        title={t("admin.configCenter.actions.toggleEnabledHint")}
+      >
+        {spec.enabled
+          ? t("admin.configCenter.actions.disable")
+          : t("admin.configCenter.actions.enable")}
       </Button>
       <Button size={layout === "mobile" ? "default" : "sm"} variant="ghost" onClick={() => onHistorySpec(spec)}>
         <History className="mr-1 h-3 w-3" />
