@@ -110,6 +110,7 @@ export function parseSemanticSpec(raw: Record<string, unknown>): InboundSemantic
     tls: raw.tls && typeof raw.tls === "object" ? parseTLSSpec(raw.tls as Record<string, unknown>) : null,
     transport: raw.transport && typeof raw.transport === "object" ? parseTransportSpec(raw.transport as Record<string, unknown>) : null,
     multiplex: raw.multiplex && typeof raw.multiplex === "object" ? parseMultiplexSpec(raw.multiplex as Record<string, unknown>) : null,
+    sniffing: raw.sniffing && typeof raw.sniffing === "object" ? parseSniffingSpec(raw.sniffing as Record<string, unknown>) : null,
     users: Array.isArray(raw.users) ? raw.users.filter((u): u is Record<string, unknown> => typeof u === "object" && u !== null) : undefined,
     options: raw.options && typeof raw.options === "object" && !Array.isArray(raw.options) ? raw.options as Record<string, unknown> : undefined,
     _raw: Object.keys(extras).length > 0 ? extras : undefined,
@@ -156,6 +157,16 @@ function parseTransportSpec(raw: Record<string, unknown>): InboundTransportSpec 
   };
 }
 
+function parseSniffingSpec(raw: Record<string, unknown>): InboundSniffingSpec {
+  return {
+    enabled: raw.enabled !== false,
+    dest_override: Array.isArray(raw.dest_override) ? raw.dest_override.map(String) : undefined,
+    metadata_only: typeof raw.metadata_only === "boolean" ? raw.metadata_only : undefined,
+    domains_excluded: Array.isArray(raw.domains_excluded) ? raw.domains_excluded.map(String) : undefined,
+    route_only: typeof raw.route_only === "boolean" ? raw.route_only : undefined,
+  };
+}
+
 function parseMultiplexSpec(raw: Record<string, unknown>): InboundMultiplexSpec {
   return {
     enabled: raw.enabled !== false,
@@ -180,6 +191,7 @@ export function serializeSemanticSpec(spec: InboundSemanticSpec): Record<string,
   if (spec.tls) result.tls = serializeTLSSpec(spec.tls);
   if (spec.transport) result.transport = serializeTransportSpec(spec.transport);
   if (spec.multiplex) result.multiplex = serializeMultiplexSpec(spec.multiplex);
+  if (spec.sniffing) result.sniffing = serializeSniffingSpec(spec.sniffing);
   if (spec.users) result.users = spec.users;
   if (spec.options) result.options = spec.options;
   if (spec._raw) {
@@ -215,6 +227,8 @@ function serializeRealitySpec(rl: InboundRealitySpec): Record<string, unknown> |
 }
 
 function serializeTransportSpec(tp: InboundTransportSpec): Record<string, unknown> | undefined {
+  // 空对象也保留（只含 type: tcp）：开关打开即代表用户意图，
+  // 后端 compiler 空对象转 nil、渲染器 nil 转默认，两边都安全。
   const r: Record<string, unknown> = { type: tp.type };
   if (tp.path) r.path = tp.path;
   if (tp.host) r.host = tp.host;
@@ -226,7 +240,7 @@ function serializeTransportSpec(tp: InboundTransportSpec): Record<string, unknow
   if (tp.seed) r.seed = tp.seed;
   if (tp.congestion_control) r.congestion_control = tp.congestion_control;
   if (tp.packet_encoding) r.packet_encoding = tp.packet_encoding;
-  return Object.keys(r).length > 1 ? r : undefined;
+  return r;
 }
 
 function serializeMultiplexSpec(mp: InboundMultiplexSpec): Record<string, unknown> | undefined {
@@ -242,5 +256,15 @@ function serializeMultiplexSpec(mp: InboundMultiplexSpec): Record<string, unknow
     if (mp.brutal.down_mbps) br.down_mbps = mp.brutal.down_mbps;
     if (Object.keys(br).length) r.brutal = br;
   }
+  return Object.keys(r).length ? r : undefined;
+}
+
+function serializeSniffingSpec(sn: InboundSniffingSpec): Record<string, unknown> | undefined {
+  const r: Record<string, unknown> = {};
+  r.enabled = sn.enabled !== false;
+  if (sn.dest_override?.length) r.dest_override = sn.dest_override;
+  if (sn.metadata_only === true) r.metadata_only = true;
+  if (sn.domains_excluded?.length) r.domains_excluded = sn.domains_excluded;
+  if (sn.route_only === true) r.route_only = true;
   return Object.keys(r).length ? r : undefined;
 }

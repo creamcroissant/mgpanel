@@ -7,6 +7,7 @@ import type { ConfigCenterCoreType } from "@/types/configCenter";
 import { InboundTLSFields } from "./InboundTLSFields";
 import { InboundTransportFields } from "./InboundTransportFields";
 import { InboundMultiplexFields } from "./InboundMultiplexFields";
+import { InboundSniffingFields } from "./InboundSniffingFields";
 
 interface ConfigCenterInboundEditorProps {
   value: InboundSemanticSpec;
@@ -37,6 +38,7 @@ export function ConfigCenterInboundEditor({
   const editTransport = (transport: InboundSemanticSpec["transport"]) => set({ transport });
   const editTLS = (tls: InboundSemanticSpec["tls"]) => set({ tls });
   const editMultiplex = (multiplex: InboundSemanticSpec["multiplex"]) => set({ multiplex });
+  const editSniffing = (sniffing: InboundSemanticSpec["sniffing"]) => set({ sniffing });
 
   return (
     <div className="space-y-5" data-testid="config-center-inbound-editor">
@@ -46,7 +48,7 @@ export function ConfigCenterInboundEditor({
           <label className="text-sm font-medium">{t("admin.configCenter.inbound.protocol")}</label>
           <Select
             value={value.protocol}
-            onValueChange={(v) => set({ protocol: v, transport: null })}
+            onValueChange={(v) => set({ protocol: v })}
             disabled={readOnly}
           >
             <SelectTrigger data-testid="inbound-protocol-select">
@@ -126,6 +128,13 @@ export function ConfigCenterInboundEditor({
       <InboundMultiplexFields
         value={value.multiplex}
         onChange={editMultiplex}
+        readOnly={readOnly}
+      />
+
+      {/* Sniffing section */}
+      <InboundSniffingFields
+        value={value.sniffing}
+        onChange={editSniffing}
         readOnly={readOnly}
       />
     </div>

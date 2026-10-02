@@ -40,7 +40,7 @@ export function InboundSniffingFields({ value, onChange, readOnly }: InboundSnif
     <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="inbound-sniffing-fields">
       <label
         className="flex items-center gap-2 text-sm font-medium cursor-pointer"
-        onClick={() => !readOnly && handleToggle(!enabled)}
+        onClick={(e) => { if ((e.target as HTMLElement).closest('[role="switch"]')) return; if (!readOnly) handleToggle(!enabled); }}
       >
         <Switch checked={(enabled)} onCheckedChange={(value) => handleToggle(value)} disabled={readOnly} />
         {t("admin.configCenter.inbound.enableSniffing", "启用嗅探")}
