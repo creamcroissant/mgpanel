@@ -43,7 +43,6 @@ export function ConfigCenterInboundEditor({
   const editTLS = (tls: InboundSemanticSpec["tls"]) => set({ tls });
   const editMultiplex = (multiplex: InboundSemanticSpec["multiplex"]) => set({ multiplex });
   const editSniffing = (sniffing: InboundSemanticSpec["sniffing"]) => set({ sniffing });
-  const editUsers = (users: Array<Record<string, unknown>> | undefined) => set({ users });
   const editOptions = (options: Record<string, unknown> | undefined) => set({ options });
   // fallbacks/sockopt 暂存 _raw：后端编译器接线后直通渲染（见 coding 记录）。
   const rawMap = (value._raw ?? {}) as Record<string, unknown>;
@@ -151,11 +150,11 @@ export function ConfigCenterInboundEditor({
         readOnly={readOnly}
       />
 
-      {/* Users section (UUID/flow incl. vision, passwords, etc.) */}
+      {/* User defaults (flow/security/method; per-user UUIDs come from sync) */}
       <ProtocolUserFields
         protocol={value.protocol}
-        users={value.users}
-        onChange={editUsers}
+        value={value.options}
+        onChange={editOptions}
         readOnly={readOnly}
       />
 

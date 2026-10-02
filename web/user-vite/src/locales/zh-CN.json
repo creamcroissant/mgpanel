@@ -1319,7 +1319,9 @@
         "fallbacks": "回落（Fallbacks）",
         "addFallback": "添加回落",
         "noFallbacks": "暂无回落：可把未匹配流量转到其他端口或伪装站",
-        "dest": "回落目标（端口或 socket 路径）"
+        "dest": "回落目标（端口或 socket 路径）",
+        "userDefaults": "用户默认值",
+        "userDefaultsHint": "真实用户由面板用户表经同步下发（UUID 全局唯一不重复）；这里只配新建用户的通用默认值"
       },
       "xhttp": {
         "title": "XHTTP 传输",

@@ -1319,7 +1319,9 @@
         "fallbacks": "Fallbacks",
         "addFallback": "Add Fallback",
         "noFallbacks": "No fallbacks: unmatched traffic can be forwarded to another port or decoy site",
-        "dest": "Fallback Dest (port or socket path)"
+        "dest": "Fallback Dest (port or socket path)",
+        "userDefaults": "User Defaults",
+        "userDefaultsHint": "Real users sync from the panel user table (globally unique UUIDs); only common defaults for new users here"
       },
       "xhttp": {
         "title": "XHTTP Transport",

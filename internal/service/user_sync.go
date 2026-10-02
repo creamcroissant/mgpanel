@@ -108,7 +108,7 @@ func (s *userSyncService) ComputeForHost(ctx context.Context, hostID int64) ([]I
 		if spec == nil || !spec.Enabled {
 			continue
 		}
-		protocol, staticUsers, err := s.parseSpecUsers(spec)
+		protocol, staticUsers, defaults, err := s.parseSpecUsers(spec)
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +118,7 @@ func (s *userSyncService) ComputeForHost(ctx context.Context, hostID int64) ([]I
 		target := InboundUserTarget{
 			Tag:      spec.Tag,
 			CoreType: spec.CoreType,
-			Users:    mergeSyncUsers(projectUsersByProtocol(activeUsers, protocol), staticUsers),
+			Users:    mergeSyncUsers(projectUsersByProtocol(activeUsers, protocol, defaults), staticUsers),
 		}
 		targets = append(targets, target)
 	}
@@ -212,12 +212,14 @@ func (s *userSyncService) listActiveUsers(ctx context.Context) ([]*repository.Us
 	return all, nil
 }
 
-// parseSpecUsers extracts the inbound protocol and the inline static users from
-// a spec's semantic_spec. Static users reuse the pipeline's unified-user parser.
-func (s *userSyncService) parseSpecUsers(spec *repository.InboundSpec) (string, []SyncUser, error) {
+// parseSpecUsers extracts the inbound protocol, inline static users and user
+// defaults from a spec's semantic_spec. Static users reuse the pipeline's
+// unified-user parser; defaults come from semantic_spec.options
+// (default_flow / default_security / default_method, set by the spec editor).
+func (s *userSyncService) parseSpecUsers(spec *repository.InboundSpec) (string, []SyncUser, map[string]string, error) {
 	semanticObject, err := decodeSpecSemanticObject(spec.SemanticSpec)
 	if err != nil {
-		return "", nil, fmt.Errorf("decode semantic_spec (spec_id=%d tag=%s): %w", spec.ID, spec.Tag, err)
+		return "", nil, nil, fmt.Errorf("decode semantic_spec (spec_id=%d tag=%s): %w", spec.ID, spec.Tag, err)
 	}
 	protocol := artifactStringByKeys(semanticObject, "protocol")
 	unified := artifactBuildUnifiedUsers(semanticObject)
@@ -230,7 +232,17 @@ func (s *userSyncService) parseSpecUsers(spec *repository.InboundSpec) (string, 
 			Flow:     u.Flow,
 		})
 	}
-	return protocol, static, nil
+	defaults := map[string]string{}
+	if optionsRaw, ok := semanticObject["options"]; ok {
+		if optionsMap, ok := optionsRaw.(map[string]any); ok {
+			for _, key := range []string{"default_flow", "default_security", "default_method"} {
+				if v, ok := optionsMap[key].(string); ok && v != "" {
+					defaults[key] = v
+				}
+			}
+		}
+	}
+	return protocol, static, defaults, nil
 }
 
 // decodeSpecSemanticObject unmarshals a spec semantic_spec JSON into an object.
@@ -257,8 +269,10 @@ func isUserSyncProtocol(protocol string) bool {
 }
 
 // projectUsersByProtocol projects global enabled users onto the credential
-// shape expected by the inbound's protocol.
-func projectUsersByProtocol(users []*repository.User, protocol string) []SyncUser {
+// shape expected by the inbound's protocol. Spec-level defaults (from
+// semantic_spec.options) fill flow for vless; unset flow falls back to the
+// renderer-side vision default.
+func projectUsersByProtocol(users []*repository.User, protocol string, defaults map[string]string) []SyncUser {
 	out := make([]SyncUser, 0, len(users))
 	for _, u := range users {
 		if u == nil {
@@ -269,6 +283,9 @@ func projectUsersByProtocol(users []*repository.User, protocol string) []SyncUse
 			su.UUID = u.UUID
 		} else {
 			su.Password = u.Password
+		}
+		if protocol == "vless" {
+			su.Flow = defaults["default_flow"]
 		}
 		out = append(out, su)
 	}
