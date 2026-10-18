@@ -78,6 +78,7 @@ export const QUERY_KEYS = {
   ADMIN_SUBSCRIPTION_SOURCES: ["admin", "subscription", "sources"],
   ADMIN_CONFIG_CENTER_SPECS: ["admin", "config-center", "specs"],
   ADMIN_CONFIG_CENTER_SPEC_HISTORY: ["admin", "config-center", "specs", "history"],
+  ADMIN_CONFIG_CENTER_SPEC_BINDINGS: ["admin", "config-center", "specs", "bindings"],
   ADMIN_CONFIG_CENTER_ARTIFACTS: ["admin", "config-center", "artifacts"],
   ADMIN_CONFIG_CENTER_DIFF_TEXT: ["admin", "config-center", "diff", "text"],
   ADMIN_CONFIG_CENTER_DIFF_SEMANTIC: ["admin", "config-center", "diff", "semantic"],

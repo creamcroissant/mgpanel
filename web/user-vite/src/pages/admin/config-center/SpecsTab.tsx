@@ -39,6 +39,7 @@ interface SpecsTabProps {
   onEditSpec: (spec: ConfigCenterSpec) => void;
   onDeleteSpec: (id: number) => void;
   onToggleSpecEnabled: (spec: ConfigCenterSpec) => void;
+  onBindSpec: (spec: ConfigCenterSpec) => void;
   toggleSpecPending?: boolean;
   onHistorySpec: (spec: ConfigCenterSpec) => void;
   applyForm: ApplyFormState;
@@ -79,6 +80,7 @@ export default function SpecsTab({
   onEditSpec,
   onDeleteSpec,
   onToggleSpecEnabled,
+  onBindSpec,
   toggleSpecPending = false,
   onHistorySpec,
   applyForm,
@@ -103,6 +105,16 @@ export default function SpecsTab({
       <Button size={layout === "mobile" ? "default" : "sm"} variant="outline" onClick={() => onEditSpec(spec)}>
         {t("common.edit")}
       </Button>
+      {spec.agent_host_id == null ? (
+        <Button
+          size={layout === "mobile" ? "default" : "sm"}
+          variant="outline"
+          onClick={() => onBindSpec(spec)}
+          title={t("admin.configCenter.bind.buttonHint")}
+        >
+          {t("admin.configCenter.bind.button")}
+        </Button>
+      ) : null}
       <Button
         size={layout === "mobile" ? "default" : "sm"}
         variant="outline"

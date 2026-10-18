@@ -1544,7 +1544,11 @@
         "applyRolledBack": "Apply rolled back",
         "applyFailed": "Failed to create apply run",
         "specDisabled": "Spec disabled, takes effect on Agent after Apply",
-        "specEnabled": "Spec enabled, takes effect on Agent after Apply"
+        "specEnabled": "Spec enabled, takes effect on Agent after Apply",
+        "bindSuccess": "Binding saved; Apply is required to take effect",
+        "bindFailed": "Bind failed",
+        "unbindSuccess": "Unbound",
+        "unbindFailed": "Unbind failed"
       },
       "allHosts": "All Hosts",
       "applyDialog": {
@@ -1582,6 +1586,17 @@
         "empty": "No match values",
         "search": "Type to search preset match values…",
         "custom": "(add as custom value, press Enter)"
+      },
+      "bind": {
+        "title": "Bind hosts",
+        "button": "Bind hosts",
+        "buttonHint": "Choose agents to receive this config; Apply is required to deliver",
+        "description": "Choose target agents for {{tag}} (multi-select supported)",
+        "noHosts": "No agents available",
+        "selectAll": "Select all",
+        "clearAll": "Clear all",
+        "selectedCount": "{{selected}} / {{total}} selected",
+        "bound": "Bound"
       }
     },
     "system": {

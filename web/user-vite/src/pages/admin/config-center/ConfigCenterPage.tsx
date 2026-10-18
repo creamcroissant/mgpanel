@@ -10,7 +10,10 @@ import {
   createConfigCenterSpec,
   deleteConfigCenterSpec,
   getConfigCenterSpecHistory,
+  bindConfigCenterSpec,
+  listConfigCenterSpecBoundHosts,
   listConfigCenterSpecs,
+  unbindConfigCenterSpec,
   updateConfigCenterSpec,
 } from "@/api/admin";
 import { getAgentHosts } from "@/api/admin/agentHost";
@@ -61,6 +64,7 @@ import DiffTab from "./DiffTab";
 import DriftTab from "./DriftTab";
 import SnapshotTab from "./SnapshotTab";
 import { SpecEditorDialog } from "./SpecEditorDialog";
+import SpecBindDialog from "./SpecBindDialog";
 
 export default function ConfigCenterPage() {
   const { t } = useTranslation();
@@ -97,6 +101,8 @@ export default function ConfigCenterPage() {
   const [specForm, setSpecForm] = useState<SpecFormState>(defaultSpecFormState);
   const [applyForm, setApplyForm] = useState<ApplyFormState>(defaultApplyFormState);
   const [historyTarget, setHistoryTarget] = useState<ConfigCenterSpec | null>(null);
+  const [bindTarget, setBindTarget] = useState<ConfigCenterSpec | null>(null);
+  const [isBindDialogOpen, setIsBindDialogOpen] = useState(false);
 
   // ---- Diff / Apply shared state ----
   const [diffFilename] = useState("");
@@ -303,6 +309,30 @@ export default function ConfigCenterPage() {
     deleteSpecMutation.mutate(deleteSpecId);
   };
 
+  const boundHostsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.ADMIN_CONFIG_CENTER_SPEC_BINDINGS, bindTarget?.id],
+    queryFn: () => listConfigCenterSpecBoundHosts(bindTarget?.id ?? 0),
+    enabled: Boolean(bindTarget?.id) && isBindDialogOpen,
+  });
+
+  const invalidateBindings = () =>
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ADMIN_CONFIG_CENTER_SPEC_BINDINGS });
+
+  // 绑定模板 spec 到主机：绑定后后端会自动重渲染该主机的产物并推进修订号。
+  const bindSpecMutation = useMutation({
+    mutationFn: ({ specId, hostId }: { specId: number; hostId: number }) =>
+      bindConfigCenterSpec(specId, { agent_host_id: hostId }),
+    onSuccess: () => { invalidateSpecs(); invalidateBindings(); toast.success(t("admin.configCenter.messages.bindSuccess")); },
+    onError: (err: Error) => toast.error(t("admin.configCenter.messages.bindFailed"), { description: err.message }),
+  });
+
+  const unbindSpecMutation = useMutation({
+    mutationFn: ({ specId, hostId }: { specId: number; hostId: number }) =>
+      unbindConfigCenterSpec(specId, hostId),
+    onSuccess: () => { invalidateSpecs(); invalidateBindings(); toast.success(t("admin.configCenter.messages.unbindSuccess")); },
+    onError: (err: Error) => toast.error(t("admin.configCenter.messages.unbindFailed"), { description: err.message }),
+  });
+
   // ---- Derived data ----
   const hosts = useMemo(() => {
     return hostQuery.data && 'data' in hostQuery.data
@@ -412,6 +442,10 @@ export default function ConfigCenterPage() {
             onToggleSpecEnabled={(spec) => toggleSpecEnabledMutation.mutate(spec)}
             toggleSpecPending={toggleSpecEnabledMutation.isPending}
             onHistorySpec={openHistoryDialog}
+            onBindSpec={(spec) => {
+              setBindTarget(spec);
+              setIsBindDialogOpen(true);
+            }}
             applyForm={applyForm}
             onApplyFormChange={setApplyForm}
             applyPending={applyMutation.isPending}
@@ -455,6 +489,24 @@ export default function ConfigCenterPage() {
       </Tabs>
 
       {/* Spec Editor Dialog */}
+      <SpecBindDialog
+        open={isBindDialogOpen}
+        onOpenChange={setIsBindDialogOpen}
+        spec={bindTarget}
+        hosts={hostOptions}
+        boundHostIds={boundHostsQuery.data ?? []}
+        isLoading={boundHostsQuery.isLoading}
+        isPending={bindSpecMutation.isPending || unbindSpecMutation.isPending}
+        onBind={(hostIds) => {
+          if (!bindTarget) return;
+          hostIds.forEach((hostId) => bindSpecMutation.mutate({ specId: bindTarget.id, hostId }));
+        }}
+        onUnbind={(hostId) => {
+          if (!bindTarget) return;
+          unbindSpecMutation.mutate({ specId: bindTarget.id, hostId });
+        }}
+      />
+
       <SpecEditorDialog
         open={isSpecDialogOpen}
         onOpenChange={handleSpecDialogOpenChange}

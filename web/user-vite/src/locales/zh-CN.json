@@ -1544,7 +1544,11 @@
         "applyRolledBack": "发布已回滚",
         "applyFailed": "创建发布任务失败",
         "specDisabled": "Spec 已停用，Apply 下发后在 Agent 停用",
-        "specEnabled": "Spec 已启用，Apply 下发后在 Agent 启用"
+        "specEnabled": "Spec 已启用，Apply 下发后在 Agent 启用",
+        "bindSuccess": "绑定已保存，Apply 下发后在 Agent 生效",
+        "bindFailed": "绑定失败",
+        "unbindSuccess": "已解绑",
+        "unbindFailed": "解绑失败"
       },
       "allHosts": "全部主机",
       "applyDialog": {
@@ -1582,6 +1586,17 @@
         "empty": "暂无匹配值",
         "search": "输入关键字搜索预设匹配值…",
         "custom": "（添加为自定义值，回车确认）"
+      },
+      "bind": {
+        "title": "绑定主机",
+        "button": "绑定主机",
+        "buttonHint": "选择要下发该配置的 Agent；绑定后需 Apply 下发",
+        "description": "为配置 {{tag}} 选择下发目标 Agent（可多选/全选）",
+        "noHosts": "暂无可用 Agent",
+        "selectAll": "全选",
+        "clearAll": "全不选",
+        "selectedCount": "已选 {{selected}} / {{total}}",
+        "bound": "已绑定"
       }
     },
     "system": {
