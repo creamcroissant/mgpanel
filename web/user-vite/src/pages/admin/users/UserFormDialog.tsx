@@ -109,6 +109,7 @@ export default function UserFormDialog({
 }: UserFormDialogProps) {
   const { t } = useTranslation();
   const isEdit = mode === "edit";
+  const [form, setForm] = useState<UserFormValue>(() => initialState(initial));
   const [serverSearch, setServerSearch] = useState("");
 
   useEffect(() => {
@@ -121,7 +122,6 @@ export default function UserFormDialog({
   const set = <K extends keyof UserFormValue>(key: K, value: UserFormValue[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const [form, setForm] = useState<UserFormValue>(() => initialState(initial));
 
   const selectedServerNames = useMemo(() => {
     const byId = new Map(servers.map((s) => [s.id, s.name]));

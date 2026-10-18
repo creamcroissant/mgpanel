@@ -2,7 +2,8 @@ import { memo } from "react";
 import type { NodeProps } from "@xyflow/react";
 import { Lock, ShieldCheck } from "lucide-react";
 import type { FlowNodeData } from "./AgentNodeView";
-import { DisabledBadge, NODE_SHELL, disabledClass } from "./shared";
+import { DisabledBadge, NODE_SHELL } from "./shared";
+import { disabledClass } from "./sharedUtils";
 
 /** 入站节点本地扩展字段：协议/TLS/reality/端口结构化标记（缺省回退 summary 文本解析） */
 interface InboundNodeSpecifics {

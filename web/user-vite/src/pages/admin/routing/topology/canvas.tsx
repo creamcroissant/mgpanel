@@ -149,6 +149,7 @@ export function TopologyCanvas({
 
   // 拖拽实时跟随：React Flow 每帧下发 position change，applyNodeChanges 立即
   // 应用到 state —— 松手才瞬移的问题由此解决。
+  const [flowNodes, setFlowNodes] = useState<Node[]>([]);
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setFlowNodes((nds) => applyNodeChanges(changes, nds));
   }, []);
@@ -191,7 +192,6 @@ export function TopologyCanvas({
   // flowNodes 为受控 state：拖拽时 onNodesChange 经 applyNodeChanges 实时写回，
   // 节点跟随鼠标；仅当拓扑数据/筛选/选中变化时才整体重建布局（重建时以
   // dragRef 保存的手动位置为准，不打断拖拽）。
-  const [flowNodes, setFlowNodes] = useState<Node[]>([]);
 
   useEffect(() => {
     const laidOut = layoutTopology(

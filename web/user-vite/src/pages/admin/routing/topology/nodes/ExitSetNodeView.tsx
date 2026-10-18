@@ -7,9 +7,8 @@ import {
   IssueBadge,
   NODE_SHELL,
   WeightBar,
-  disabledClass,
-  nodeIssues,
 } from "./shared";
+import { disabledClass, nodeIssues } from "./sharedUtils";
 
 /** 出口集节点本地扩展字段：结构化成员（assembler 未迁移时回退 membersLine 文本） */
 interface SetNodeSpecifics {

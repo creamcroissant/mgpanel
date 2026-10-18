@@ -94,7 +94,7 @@ function NamingTabContent({ initialForm, onSave, isSaving }: NamingTabContentPro
             <div key={example} className="text-sm font-mono">
               {form.enabled === "1"
                 ? form.template
-                    .replace("{flag}", example.match(/[^\x00-\x7F]/)?.[0] ?? "🏳")
+                    .replace("{flag}", example.match(/\P{ASCII}/u)?.[0] ?? "🏳")
                     .replace("{region}", example.match(/[A-Z]{2}/)?.[0] ?? "XX")
                     .replace("{agent_name}", example.split("_")[1]?.split("-")[0] ?? "agent")
                     .replace("{serial}", example.includes("-02") ? "-02" : "")

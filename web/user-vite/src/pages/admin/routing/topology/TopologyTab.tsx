@@ -6,16 +6,11 @@ import { toPng } from "html-to-image";
 import { Plus, ShieldCheck, ImageDown } from "lucide-react";
 import { Button, EmptyState, ErrorBanner, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { fetchTopology, validateTopology, validateRelayPaths } from "@/lib/topology/api";
-import { useReorderCommit } from "./interactions";
+import { useReorderCommit } from "./interactionsUtils";
 import type { TopologyIssue, TopologyPolicy } from "@/lib/topology/types";
 import { assembleCanvasA, assembleCanvasB, assembleCanvasC } from "@/lib/topology/assemble";
-import {
-  CreateRuleDialog,
-  ConfirmDialog,
-  IssuesStrip,
-  ReorderLane,
-  groupIssuesByNode,
-} from "./interactions";
+import { CreateRuleDialog, ConfirmDialog, IssuesStrip, ReorderLane } from "./interactions";
+import { groupIssuesByNode } from "./interactionsUtils";
 import { Palette } from "./palette/Palette";
 import { CreateRelayPathDialog } from "./tools/CreateRelayPathDialog";
 import { CreateExitSetDialog, CreatePolicyDialog } from "./tools/CreateEntityDialogs";

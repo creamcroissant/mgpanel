@@ -6,10 +6,9 @@ import {
   DisabledBadge,
   IssueBadge,
   NODE_SHELL,
-  disabledClass,
-  nodeIssues,
   type IconType,
 } from "./shared";
+import { disabledClass, nodeIssues } from "./sharedUtils";
 
 /** 规则节点本地扩展字段：order=按数据顺序的序号（区别于原始 priority 数值） */
 interface RuleNodeSpecifics {

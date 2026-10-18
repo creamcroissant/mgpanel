@@ -3,7 +3,8 @@ import { Handle, Position } from "@xyflow/react";
 import { Server, Cpu } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import type { TopoNodeData } from "@/lib/topology/types";
-import { NODE_SHELL, disabledClass } from "./shared";
+import { NODE_SHELL } from "./shared";
+import { disabledClass } from "./sharedUtils";
 
 /** 画布节点组件共享的 props 数据类型（兄弟节点视图均从此处导入） */
 export type FlowNodeData = TopoNodeData;

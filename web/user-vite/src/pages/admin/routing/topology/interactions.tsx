@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowDown, ArrowUp, X } from "lucide-react";
-import { toast } from "sonner";
 import {
   Button,
   Dialog,
@@ -17,12 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { reorderPolicies } from "@/lib/topology/api";
+import { sortedPolicies } from "./interactionsUtils";
 import type {
   TopologyExitSet,
   TopologyIssue,
   TopologyPolicy,
-  TopologySnapshot,
 } from "@/lib/topology/types";
 
 /**
@@ -170,9 +167,6 @@ export function CreateRuleDialog({
 // ===== 优先级重排 =====
 
 /** 按 priority 升序的求值顺序（画布 eval-order 链同源） */
-export function sortedPolicies(policies: TopologyPolicy[]): TopologyPolicy[] {
-  return [...policies].sort((a, b) => a.priority - b.priority || a.id - b.id);
-}
 
 function reordered(list: TopologyPolicy[], from: number, to: number): TopologyPolicy[] {
   const next = [...list];
@@ -344,30 +338,7 @@ export function ReorderLane({
 // ===== 校验结果 =====
 
 /** 后端实体 → 画布节点 id 前缀映射 */
-export function issueNodeId(issue: TopologyIssue): string | null {
-  switch (issue.entity_type) {
-    case "policy":
-      return `rule-${issue.entity_id}`;
-    case "exit_set":
-    case "set":
-      return `set-${issue.entity_id}`;
-    case "spec":
-    case "inbound":
-      return `inbound-${issue.entity_id}`;
-    default:
-      return null;
-  }
-}
 
-export function groupIssuesByNode(issues: TopologyIssue[]): Record<string, TopologyIssue[]> {
-  const map: Record<string, TopologyIssue[]> = {};
-  for (const iss of issues) {
-    const nid = issueNodeId(iss);
-    if (!nid) continue;
-    (map[nid] ??= []).push(iss);
-  }
-  return map;
-}
 
 export interface IssuesStripProps {
   issues: TopologyIssue[];
@@ -426,22 +397,5 @@ function useTf() {
 }
 
 /** 防抖提交 reorder 的 mutation 包装（乐观更新由 ReorderLane 本地态承担） */
-export function useReorderCommit(coreType: string, onDone: () => void) {
-  return useMutation({
-    mutationFn: (orderedIds: number[]) => reorderPolicies(orderedIds),
-    onError: (e) => {
-      toast.error(`优先级保存失败：${e instanceof Error ? e.message : String(e)}`);
-    },
-    onSuccess: (n) => {
-      toast.success(`优先级已更新（${n} 条）`);
-      onDone();
-    },
-    // mutation key 绑定 core 便于调试观察
-    mutationKey: ["topology-reorder", coreType],
-  });
-}
 
 /** 快照中按 id 找策略名（确认弹窗摘要用） */
-export function policyName(snapshot: TopologySnapshot | undefined, id: number): string {
-  return snapshot?.policies.find((p) => p.id === id)?.name ?? `#${id}`;
-}

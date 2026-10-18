@@ -18,7 +18,7 @@ interface ServerCardProps {
 export function ServerCard({ server, className, onClick }: ServerCardProps) {
   const { t } = useTranslation();
   const flag = getCountryFlag(server.country, server.name);
-  const location = getCountryDisplayName(server.country, server.region, t);
+  const location = getCountryDisplayName(server.country, server.region);
   const status = getServerStatus(server);
 
   const statusConfig = {

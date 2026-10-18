@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, CardContent } from "@/components/ui";
+import { Card, CardContent, PageHeader } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 interface AdminPageShellProps {
@@ -22,13 +22,12 @@ export default function AdminPageShell({
   framed = false,
 }: AdminPageShellProps) {
   const head = (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
-        {description ? <div className="text-sm leading-6 text-muted-foreground">{description}</div> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-    </div>
+    <PageHeader
+      title={title}
+      description={description}
+      actions={actions}
+      className="lg:flex-row lg:items-center lg:justify-between"
+    />
   );
   return (
     <div className="space-y-5 lg:space-y-6">

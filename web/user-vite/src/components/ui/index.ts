@@ -79,7 +79,7 @@ export { default as ErrorBanner } from "./ErrorBanner";
 export { default as EmptyState } from "./EmptyState";
 export { ResponsiveGrid } from "./ResponsiveGrid";
 export { ResponsiveList, ResponsiveListItem, ResponsiveListField } from "./ResponsiveList";
-export { PageShell } from "./PageShell";
+export { PageShell, PageHeader } from "./PageShell";
 export { PageToolbar } from "./PageToolbar";
 export { ResourceCard } from "./ResourceCard";
 export { CopyField } from "./CopyField";

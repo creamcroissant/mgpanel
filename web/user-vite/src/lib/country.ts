@@ -111,11 +111,7 @@ export function getCountryFlag(countryCode?: string, name?: string): string {
 /**
  * Format Country and Region display text (e.g. "日本 · 东京" or "美国 · 洛杉矶").
  */
-export function getCountryDisplayName(
-  countryCode?: string,
-  region?: string,
-  _t?: (key: string) => string
-): string {
+export function getCountryDisplayName(countryCode?: string, region?: string): string {
   const code = countryCode?.trim().toUpperCase() || "";
   const countryName = COUNTRY_NAME_MAP_ZH[code] || code;
   const regionName = region?.trim() || "";

@@ -12,9 +12,6 @@ export const NODE_SHELL =
   "rounded-none border border-border bg-card px-3 py-2 text-card-foreground";
 
 /** 停用态：整节点半透明降饱和（配合 DisabledBadge 使用） */
-export function disabledClass(enabled?: boolean): string {
-  return enabled === false ? "opacity-55 saturate-50" : "";
-}
 
 /** 校验错误角标：validate issue 注入节点 data.issues 后由节点视图渲染 */
 export function IssueBadge({ count = 1 }: { count?: number }) {
@@ -30,10 +27,6 @@ export function IssueBadge({ count = 1 }: { count?: number }) {
 }
 
 /** 从通用节点载荷提取校验问题（canvas 层注入） */
-export function nodeIssues(d: Record<string, unknown>): { severity: string; message: string }[] {
-  const raw = d.issues;
-  return Array.isArray(raw) ? (raw as { severity: string; message: string }[]) : [];
-}
 
 /** 右上角“已停用”角标；父容器需 relative 定位 */
 export function DisabledBadge({ label = "已停用" }: { label?: string }) {

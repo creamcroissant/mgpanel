@@ -48,7 +48,7 @@ export default function MCPKeysPage() {
     try {
       const data = await fetchMCPKeys();
       setKeys(data);
-    } catch (err) {
+    } catch {
       console.error("Failed to load MCP keys", err);
     } finally {
       setLoading(false);
@@ -69,7 +69,7 @@ export default function MCPKeysPage() {
       }
       setCreateName("");
       await loadKeys();
-    } catch (err) {
+    } catch {
       toast.error(t("admin.mcpKeys.createError") || "Failed to create key");
     }
   };
@@ -79,7 +79,7 @@ export default function MCPKeysPage() {
       await revokeMCPKey(id);
       toast.success(t("admin.mcpKeys.revokeSuccess") || "Key revoked");
       await loadKeys();
-    } catch (err) {
+    } catch {
       toast.error(t("admin.mcpKeys.revokeError") || "Failed to revoke key");
     }
   };
@@ -90,7 +90,7 @@ export default function MCPKeysPage() {
       await deleteMCPKey(id);
       toast.success(t("admin.mcpKeys.deleteSuccess") || "Key deleted");
       await loadKeys();
-    } catch (err) {
+    } catch {
       toast.error(t("admin.mcpKeys.deleteError") || "Failed to delete key");
     }
   };

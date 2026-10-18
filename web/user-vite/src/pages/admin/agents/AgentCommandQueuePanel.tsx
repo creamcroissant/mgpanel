@@ -16,6 +16,7 @@ import {
   CardTitle,
   EmptyState,
   Loading,
+  StatCard,
 } from "@/components/ui";
 import type { AgentCommandQueueStats, AgentLifecycleOperation } from "@/types";
 
@@ -185,17 +186,18 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-none border border-border border-border p-3">
-            <div className="text-sm font-medium">{t("admin.cores.queueActiveOperations")}</div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums">{activeOperations.length}</div>
-          </div>
-          <div className="rounded-none border border-border border-border p-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              {t("admin.cores.queueRejections")}
-            </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums">{rejectionOperations.length}</div>
-          </div>
+          <StatCard
+            title={t("admin.cores.queueActiveOperations")}
+            value={activeOperations.length}
+            icon={<ListChecks className="h-4 w-4" />}
+            variant="primary"
+          />
+          <StatCard
+            title={t("admin.cores.queueRejections")}
+            value={rejectionOperations.length}
+            icon={<AlertTriangle className="h-4 w-4" />}
+            variant="warning"
+          />
         </div>
 
         {rejectionOperations.length === 0 ? (
