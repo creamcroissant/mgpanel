@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Input, Textarea } from "@/components/ui";
+import { Input, Textarea, TextButton} from "@/components/ui";
 
 interface InboundOptionsFieldsProps {
   protocol: string;

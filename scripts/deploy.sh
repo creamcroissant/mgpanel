@@ -19,7 +19,7 @@ AGENT_BIN_PATH="/opt/mgpanel/agent/agent"
 
 build_frontend() {
   step "build frontend dist"
-  (cd web/user-vite && npx tsc --noEmit && npx vite build)
+  (cd web/user-vite && npx tsc -b && npx vite build)
   tar czf "$STAGE/dist.tar.gz" -C "$PWD/web/user-vite/dist" .
 }
 

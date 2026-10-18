@@ -197,7 +197,7 @@ export default function TrafficStats() {
           icon={<Database className="h-5 w-5" />}
           title={t("traffic.total")}
           description={formatBytes(recentTotal)}
-          status={<StatusBadge tone="secondary" label={logs.length} />}
+          status={<StatusBadge tone="secondary" label={String(logs.length)} />}
         />
       </ResponsiveGrid>
 

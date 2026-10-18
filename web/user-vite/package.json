@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify": "tsc -b && eslint src && vite build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",

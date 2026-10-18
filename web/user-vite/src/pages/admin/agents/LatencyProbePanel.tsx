@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Gauge, Wifi } from "lucide-react";
 import { fetchProbeReport, type ProbeReportItem } from "@/api/admin/cdn";
-import { Loading, Card, CardContent, ResponsiveGrid, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, EmptyState } from "@/components/ui";
+import { Loading, Card, CardContent, ResponsiveGrid, Table, TableHeader, TableRow, TableHead, TableBody, TableCell, EmptyState, TextButton} from "@/components/ui";
 import {
   Dialog,
   DialogContent,

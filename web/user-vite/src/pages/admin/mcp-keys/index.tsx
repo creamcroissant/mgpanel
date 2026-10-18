@@ -48,7 +48,7 @@ export default function MCPKeysPage() {
     try {
       const data = await fetchMCPKeys();
       setKeys(data);
-    } catch {
+    } catch (err) {
       console.error("Failed to load MCP keys", err);
     } finally {
       setLoading(false);

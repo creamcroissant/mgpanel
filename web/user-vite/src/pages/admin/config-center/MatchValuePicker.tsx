@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge, Input } from "@/components/ui";
+import { Badge, Input, IconButton} from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { searchCandidates } from "./presets/matchValuePresets";
 import type { MatchFieldKind } from "./presets/matchValuePresets";

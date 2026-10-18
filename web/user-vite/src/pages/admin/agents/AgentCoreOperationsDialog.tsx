@@ -32,6 +32,7 @@ import {
 } from "@/components/ui";
 import type { AgentCoreOperation } from "@/types";
 import { AgentCommandQueuePanel } from "./AgentCommandQueuePanel";
+import { OperationLogTimeline } from "./OperationLogTimeline";
 import { buildOperationTarget, describeOperationPayload, FILTER_ALL } from "./agentCorePanelUtils";
 
 interface AgentCoreOperationsDialogProps {
