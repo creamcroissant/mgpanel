@@ -29,11 +29,9 @@ import {
   hasMeaningfulValue,
 } from "./configCenterPageUtils";
 import {
-  ensureObjectField,
   isRecord,
   parseJSONRecord,
   parseXHTTPJSONDraftState,
-  pickCoreSpecificScope,
   prettyJSON,
   prettyXHTTPJSONDraftState,
   safeParseJSON,
@@ -57,7 +55,6 @@ import {
 } from "./configCenterPageTypes";
 import { defaultXHTTPJSONDraftState } from "./xhttpDraft";
 import { ConfigCenterInboundEditor } from "./ConfigCenterInboundEditor";
-import type { ScopeObject } from "@/types/protocol-config";
 
 export interface SpecEditorDialogProps {
   open: boolean;

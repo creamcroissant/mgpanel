@@ -99,30 +99,12 @@ type staticBinaryVersionProvider struct {
 	versions map[string]string
 }
 
-func NewBinaryVersionService(versions repository.BinaryVersionStateRepository, hosts repository.AgentHostRepository, provider BinaryVersionRemoteProvider) BinaryVersionService {
-	return NewBinaryVersionServiceWithOptions(versions, hosts, provider, BinaryVersionServiceOptions{})
-}
-
 func NewBinaryVersionServiceWithOptions(versions repository.BinaryVersionStateRepository, hosts repository.AgentHostRepository, provider BinaryVersionRemoteProvider, opts BinaryVersionServiceOptions) BinaryVersionService {
 	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &binaryVersionService{versions: versions, hosts: hosts, provider: provider, coreOperations: opts.CoreOperations, now: now}
-}
-
-func NewStaticBinaryVersionProvider(versions map[string]string) BinaryVersionRemoteProvider {
-	copied := make(map[string]string, len(versions))
-	for component, version := range versions {
-		normalized, err := NormalizeBinaryVersionComponent(component)
-		if err != nil {
-			continue
-		}
-		if version = strings.TrimSpace(version); version != "" {
-			copied[normalized] = version
-		}
-	}
-	return &staticBinaryVersionProvider{versions: copied}
 }
 
 func (p *staticBinaryVersionProvider) LatestVersion(ctx context.Context, component string) (string, error) {

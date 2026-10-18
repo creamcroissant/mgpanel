@@ -296,18 +296,6 @@ func (f adminUserTableFilter) firstString() string {
 	return ""
 }
 
-func (f adminUserTableFilter) firstInt64() (int64, bool) {
-	value := strings.TrimSpace(f.firstString())
-	if value == "" {
-		return 0, false
-	}
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return parsed, true
-}
-
 func (f adminUserTableFilter) firstInt() (int, bool) {
 	value := strings.TrimSpace(f.firstString())
 	if value == "" {

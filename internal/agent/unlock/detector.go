@@ -65,11 +65,6 @@ func (d *Detector) ProbeAll(ctx context.Context, services []Service) []Result {
 	return results
 }
 
-// ProbeDefault 对默认的 6 个平台执行检测。
-func (d *Detector) ProbeDefault(ctx context.Context) []Result {
-	return d.ProbeAll(ctx, AllServices())
-}
-
 func (d *Detector) probeOne(ctx context.Context, svc Service) Result {
 	switch svc {
 	case ServiceNetflix:

@@ -361,13 +361,6 @@ func (h *CDNProbeHandler) ProberResults(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-//
-//	GET /api/v2/admin/cdn/probe/server?target=/video.mp4
-//	→ 302 Location: https://best-node.example.com/video.mp4
-func (h *CDNProbeHandler) ServerProbe(w http.ResponseWriter, r *http.Request) {
-	h.serverProbe(w, r)
-}
-
 // ProbeResult exposes the best edge result as JSON (for API consumers).
 //
 //	GET /api/admin/cdn/probe/json?target=/video.mp4

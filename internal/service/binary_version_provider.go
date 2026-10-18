@@ -32,16 +32,6 @@ type gitHubVersionProvider struct {
 	now       func() time.Time
 }
 
-// NewGitHubVersionProvider creates a BinaryVersionRemoteProvider that fetches
-// the latest release tag from GitHub Releases API for each component.
-func NewGitHubVersionProvider() BinaryVersionRemoteProvider {
-	return NewGitHubVersionProviderWithRepos(map[string]string{
-		BinaryVersionComponentAgent:   "creamcroissant/mgpanel",
-		BinaryVersionComponentSingBox: "SagerNet/sing-box",
-		BinaryVersionComponentXray:    "XTLS/Xray-core",
-	})
-}
-
 // NewGitHubVersionProviderWithRepos creates a provider with custom repos map.
 // The map key is the component name (agent/sing-box/xray), value is "owner/repo".
 func NewGitHubVersionProviderWithRepos(repos map[string]string) BinaryVersionRemoteProvider {

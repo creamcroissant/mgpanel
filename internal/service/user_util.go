@@ -83,7 +83,3 @@ func sanitizeRedirectPath(input string) string {
 	}
 	return ""
 }
-
-func SanitizeRedirectPath(input string) string {
-	return sanitizeRedirectPath(input)
-}

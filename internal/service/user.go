@@ -115,22 +115,6 @@ func parseUserID(raw string) (int64, error) {
 	return id, nil
 }
 
-// parseNumeric 将数值字段统一转换为 int64。
-func parseNumeric(val any) (int64, error) {
-	switch v := val.(type) {
-	case float64:
-		return int64(v), nil
-	case int:
-		return int64(v), nil
-	case int64:
-		return v, nil
-	case string:
-		return strconv.ParseInt(v, 10, 64)
-	default:
-		return 0, fmt.Errorf("unsupported numeric type %T / 不支持的数值类型 %T", val, val)
-	}
-}
-
 // ChangePassword 校验旧密码并更新为新密码。
 func (s *repoBackedUserService) ChangePassword(ctx context.Context, userID string, input ChangePasswordInput) error {
 	if s.hasher == nil {

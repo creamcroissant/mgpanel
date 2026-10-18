@@ -21,29 +21,6 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
-// Helper to respond with translated JSON
-func respondJSONTranslated(ctx context.Context, w http.ResponseWriter, status int, payload any, i18nMgr *i18n.Manager) {
-	lang := requestctx.GetLanguage(ctx)
-
-	// If payload is a map, try to translate values that look like keys?
-	// For now, let's just assume the payload structure is handled by the caller or we translate specific fields.
-	// A common pattern is to have a Message field.
-
-	if m, ok := payload.(map[string]any); ok {
-		if msg, ok := m["message"].(string); ok {
-			m["message"] = i18nMgr.Translate(lang, msg)
-		}
-		if msg, ok := m["error"].(string); ok {
-			// If error is a key, translate it.
-			// But usually error contains dynamic info.
-			// Let's assume for now we pass keys for static errors.
-			m["error"] = i18nMgr.Translate(lang, msg)
-		}
-	}
-
-	respondJSON(w, status, payload)
-}
-
 func respondNotImplemented(w http.ResponseWriter, namespace string, r *http.Request) {
 	respondNotImplementedI18n(r.Context(), w, namespace, r.Method, r.URL.Path, nil)
 }

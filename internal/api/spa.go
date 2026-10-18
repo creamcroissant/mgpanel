@@ -202,32 +202,6 @@ func (h *unifiedSPAHandler) serveAdminAtRoot(w http.ResponseWriter, r *http.Requ
 	h.admin.serveIndexAtRoot(w, r)
 }
 
-func registerAdminSPARoutes(root chi.Router, handler *adminSPAHandler) {
-	root.Group(func(public chi.Router) {
-		// Admin uses a secure path, so we don't serve it at root directly unless redirected.
-		// However, the original logic had redirectToSecurePath at root.
-		// Since we now have a User SPA, the root path "/" should probably be occupied by the User SPA.
-		// Admin is accessible via /{securePath}.
-		// If Admin SPA is enabled but User SPA is NOT, maybe we redirect root to admin?
-		// But usually User SPA is the main entry.
-		// We will let the caller decide routing registration order.
-		
-		// If both are enabled, User SPA takes "/" and Admin SPA takes "/{securePath}".
-		// The previous logic put redirectToSecurePath at "/". We should probably change that if User SPA is present.
-		// For now, let's keep the handler logic separate and let NewRouter decide mounting.
-		
-		public.Route("/{securePath}", func(admin chi.Router) {
-			admin.Get("/", handler.ServeHTTP)
-			admin.Get("/*", handler.ServeHTTP)
-		})
-	})
-}
-
-func registerUserSPARoutes(root chi.Router, handler *userSPAHandler) {
-	root.Get("/", handler.ServeHTTP)
-	root.Get("/*", handler.ServeHTTP)
-}
-
 func newAdminSPAHandler(logger *slog.Logger, paths service.AdminPathService, opts AdminUIOptions) (*adminSPAHandler, error) {
 	if !opts.Enabled {
 		return nil, errors.New("admin ui disabled / 管理端界面未启用")
@@ -295,18 +269,6 @@ func newUserSPAHandler(logger *slog.Logger, opts UserUIOptions) (*userSPAHandler
 		indexFile: index,
 		branding:  branding,
 	}, nil
-}
-
-func (h *adminSPAHandler) redirectToSecurePath(w http.ResponseWriter, r *http.Request) {
-	securePath, err := h.paths.SecurePath(r.Context())
-	if err != nil {
-		h.logger.Error("resolve secure path", "error", err)
-		http.Error(w, "unable to resolve admin path", http.StatusInternalServerError)
-		return
-	}
-	securePath = normalizeSecurePath(securePath)
-	target := "/" + securePath + "/"
-	http.Redirect(w, r, target, http.StatusTemporaryRedirect)
 }
 
 func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

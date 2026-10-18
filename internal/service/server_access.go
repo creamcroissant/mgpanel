@@ -51,16 +51,3 @@ func isServerAccessAllowed(user *repository.User) bool {
 	}
 	return user.ExpiredAt >= time.Now().Unix()
 }
-
-func queryServersForUser(ctx context.Context, repo repository.ServerRepository, user *repository.User) ([]*repository.Server, error) {
-	if repo == nil {
-		return nil, errors.New("server repository unavailable / 服务器仓储不可用")
-	}
-	if user == nil {
-		return []*repository.Server{}, nil
-	}
-	if user.GroupID > 0 {
-		return repo.FindByGroupIDs(ctx, []int64{user.GroupID})
-	}
-	return repo.FindAllVisible(ctx)
-}

@@ -2,11 +2,10 @@ package service
 
 import (
 	"context"
-	"log/slog"
-	"sync/atomic"
 	"encoding/json"
-	"fmt"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 
 	"github.com/creamcroissant/mgpanel/internal/protocol"
 	"github.com/creamcroissant/mgpanel/internal/repository"
@@ -104,12 +103,12 @@ type SubscriptionFilterReasonListResult struct {
 }
 
 type subscriptionFilterService struct {
-	servers         repository.ServerRepository
-	sources         repository.SubscriptionSourceRepository
-	reasons         repository.SubscriptionFilterReasonRepository
-	selection       UserServerSelectionService
-	telemetry       ServerTelemetryService
-	deny            UserServerDenyService
+	servers   repository.ServerRepository
+	sources   repository.SubscriptionSourceRepository
+	reasons   repository.SubscriptionFilterReasonRepository
+	selection UserServerSelectionService
+	telemetry ServerTelemetryService
+	deny      UserServerDenyService
 
 	persistReasons atomic.Bool // 低频持久化开关；默认关闭（热路径写放大优化）
 }
@@ -568,11 +567,4 @@ func serverTypeAllowed(server *repository.Server, allowed map[string]struct{}) b
 		}
 	}
 	return typeAllowed(server.Type, allowed)
-}
-
-func subscriptionFilterSummaryString(result *SubscriptionFilterResult) string {
-	if result == nil {
-		return ""
-	}
-	return fmt.Sprintf("available=%d filtered=%d total=%d", result.Available, result.Filtered, result.Total)
 }
