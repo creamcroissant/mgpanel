@@ -53,7 +53,7 @@ export function ConfigCenterInboundEditor({
   };
 
   return (
-    <div className="space-y-5" data-testid="config-center-inbound-editor">
+    <div className="space-y-4" data-testid="config-center-inbound-editor">
       {/* Protocol + Tag row */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="space-y-2">

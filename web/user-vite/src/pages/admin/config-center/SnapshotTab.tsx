@@ -130,7 +130,7 @@ export default function SnapshotTab({ selectedHostId, selectedCoreType }: Snapsh
           <CardTitle>{t("admin.configCenter.snapshot.title")}</CardTitle>
           <CardDescription>{t("admin.configCenter.snapshot.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {snapshotQuery.isLoading ? (
             <Loading />
           ) : snapshotQuery.error ? (

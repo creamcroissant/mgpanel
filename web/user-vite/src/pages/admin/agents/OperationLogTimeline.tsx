@@ -106,7 +106,7 @@ export function OperationLogTimeline({
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">{t("admin.cores.timelineTitle")}</CardTitle>
+            <CardTitle className="text-sm">{t("admin.cores.timelineTitle")}</CardTitle>
             <CardDescription>{t("admin.cores.timelineDescription")}</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">

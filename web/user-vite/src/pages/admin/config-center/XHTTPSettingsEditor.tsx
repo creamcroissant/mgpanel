@@ -64,7 +64,7 @@ export function XHTTPSettingsEditor({
   const { t } = useTranslation();
 
   return (
-    <div className="space-y-4 rounded-none border border-border bg-muted/20 p-4" data-testid="config-center-xhttp-editor">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="config-center-xhttp-editor">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">{t("admin.configCenter.xhttp.title")}</h3>
         <p className="text-xs text-muted-foreground">{t("admin.configCenter.xhttp.description")}</p>

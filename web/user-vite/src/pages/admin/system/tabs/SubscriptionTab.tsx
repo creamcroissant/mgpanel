@@ -736,7 +736,7 @@ function SubscriptionFilterDiagnosticsPanel() {
         <CardTitle>{t("admin.system.subscription.filterDiagnosticsTitle")}</CardTitle>
         <CardDescription>{t("admin.system.subscription.filterDiagnosticsDescription")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4">
         {summaryQuery.error ? (
           <ErrorBanner
             message={t("admin.system.subscription.filterSummaryLoadError")}

@@ -352,7 +352,7 @@ export function TopologyTab() {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* 工具条：画布切换 + Palette + 筛选 + 导出/校验 + core_type */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

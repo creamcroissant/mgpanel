@@ -57,7 +57,7 @@ export function CDNAccelerationEditor({
   }
 
   return (
-    <div className="space-y-4 rounded-none border border-border bg-muted/20 p-4" data-testid="config-center-cdn-editor">
+    <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4" data-testid="config-center-cdn-editor">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">CDN Acceleration</h3>

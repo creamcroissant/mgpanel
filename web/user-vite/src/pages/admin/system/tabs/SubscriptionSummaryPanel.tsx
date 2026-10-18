@@ -77,7 +77,7 @@ export default function SubscriptionSummaryPanel() {
           {t("admin.system.subscription.filterDiagnosticsDescription")}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4">
         {summaryQuery.error ? (
           <ErrorBanner
             message={t("admin.system.subscription.filterSummaryLoadError")}

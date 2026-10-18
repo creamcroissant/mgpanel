@@ -488,7 +488,7 @@ export function ApplyRunTab({
                       <div className="grid gap-4 lg:grid-cols-2">
                         <Card>
                           <CardHeader>
-                            <CardTitle className="text-base">
+                            <CardTitle className="text-sm">
                               {t(
                                 "admin.configCenter.applyRuns.semanticTitle"
                               )}
@@ -561,7 +561,7 @@ export function ApplyRunTab({
 
                         <Card>
                           <CardHeader>
-                            <CardTitle className="text-base">
+                            <CardTitle className="text-sm">
                               {t(
                                 "admin.configCenter.applyRuns.textTitle"
                               )}

@@ -511,7 +511,7 @@ export function SpecEditorDialog({
 
             {/* ---- Advanced JSON ---- */}
             <div
-              className="space-y-4 rounded-none border border-border bg-muted/20 p-4"
+              className="space-y-3 rounded-none border border-border bg-muted/20 p-4"
               data-testid="config-center-advanced-json"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

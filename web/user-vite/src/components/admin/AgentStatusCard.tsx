@@ -140,7 +140,7 @@ export default function AgentStatusCard({ agent, onClick, onEdit, onViewConfig }
           <ResourceGauge compact label={t("admin.agents.disk")} used={agent.disk_used} total={agent.disk_total} unit="bytes" />
         </div>
 
-        <div className="space-y-2 rounded-none border border-border bg-muted/20 p-2.5">
+        <div className="space-y-3 rounded-none border border-border bg-muted/20 p-4.5">
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs font-medium text-muted-foreground">{t("admin.agents.realtimeTraffic")}</span>
             <Badge variant={hasRealtime ? "success" : "outline"}>{realtimeLabel}</Badge>

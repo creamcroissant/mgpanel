@@ -107,7 +107,7 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">{t("admin.cores.versionStatusTitle")}</CardTitle>
+            <CardTitle className="text-sm">{t("admin.cores.versionStatusTitle")}</CardTitle>
             <CardDescription>{t("admin.cores.versionStatusDescription")}</CardDescription>
           </div>
           <Button
