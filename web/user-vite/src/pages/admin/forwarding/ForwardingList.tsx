@@ -14,7 +14,7 @@ import {
 } from "@/api/admin";
 import { getAgentHosts } from "@/api/admin/agentHost";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Dialog,
   DialogContent,
@@ -349,7 +349,7 @@ export default function ForwardingList() {
           </p>
         )}
         {agentHostId !== null && !rulesQuery.isLoading && !rulesQuery.error && (
-          <Badge variant="secondary">{t("admin.forwarding.version", { version: rulesVersion })}</Badge>
+          <StatusBadge tone="secondary" label={t("admin.forwarding.version", { version: rulesVersion })} />
         )}
         </div>
       }
@@ -409,7 +409,7 @@ export default function ForwardingList() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{rule.protocol.toUpperCase()}</Badge>
+                  <StatusBadge tone="secondary" label={rule.protocol.toUpperCase()} />
                 </TableCell>
                 <TableCell>
                   <span className="font-mono text-sm">{rule.listen_port}</span>
@@ -664,7 +664,7 @@ export default function ForwardingList() {
                         {formatLogTime(log.created_at)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{formatLogAction(log.action)}</Badge>
+                        <StatusBadge tone="secondary" label={formatLogAction(log.action)} />
                       </TableCell>
                       <TableCell>{log.operator_id ?? "-"}</TableCell>
                       <TableCell>{log.rule_id ?? "-"}</TableCell>

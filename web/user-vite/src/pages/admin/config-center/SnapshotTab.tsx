@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/format";
 import type { ConfigCenterAppliedSnapshot, ConfigCenterInboundIndex, ConfigCenterInventory } from "@/types";
 import {
   Badge,
+  StatusBadge,
   Card,
   CardContent,
   CardDescription,
@@ -44,7 +45,7 @@ function renderInventoryMobileList(items: ConfigCenterInventory[], t: (key: stri
           </div>
           <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.source")}>
-              <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
+              <StatusBadge tone="secondary" label={t(`admin.configCenter.source.${item.source}`)} />
             </ResponsiveListField>
             <ResponsiveListField label={t("admin.configCenter.fields.filename")}>
               <span className="break-all">{item.filename}</span>
@@ -69,11 +70,11 @@ function renderInboundMobileList(items: ConfigCenterInboundIndex[], t: (key: str
         <ResponsiveListItem key={item.id}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 break-all font-medium text-foreground">{item.tag}</div>
-            <Badge variant="secondary">{item.protocol || "-"}</Badge>
+            <StatusBadge tone="secondary" label={item.protocol || "-"} />
           </div>
           <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResponsiveListField label={t("admin.configCenter.fields.source")}>
-              <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
+              <StatusBadge tone="secondary" label={t(`admin.configCenter.source.${item.source}`)} />
             </ResponsiveListField>
             <ResponsiveListField label={t("admin.configCenter.fields.tag")}>
               <span className="break-all">{item.tag}</span>
@@ -164,7 +165,7 @@ export default function SnapshotTab({ selectedHostId, selectedCoreType }: Snapsh
                         {snapshotInventories.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell>
-                              <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
+                              <StatusBadge tone="secondary" label={t(`admin.configCenter.source.${item.source}`)} />
                             </TableCell>
                             <TableCell>{item.filename}</TableCell>
                             <TableCell>
@@ -210,7 +211,7 @@ export default function SnapshotTab({ selectedHostId, selectedCoreType }: Snapsh
                         {snapshotInboundIndexes.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell>
-                              <Badge variant="secondary">{t(`admin.configCenter.source.${item.source}`)}</Badge>
+                              <StatusBadge tone="secondary" label={t(`admin.configCenter.source.${item.source}`)} />
                             </TableCell>
                             <TableCell>{item.tag}</TableCell>
                             <TableCell>{item.protocol || "-"}</TableCell>

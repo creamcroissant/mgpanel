@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { History } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -32,7 +32,7 @@ import {
 } from "@/components/ui";
 import type { AgentCoreOperation } from "@/types";
 import { AgentCommandQueuePanel } from "./AgentCommandQueuePanel";
-import { buildOperationTarget, describeOperationPayload, FILTER_ALL, getStatusVariant } from "./agentCorePanelUtils";
+import { buildOperationTarget, describeOperationPayload, FILTER_ALL } from "./agentCorePanelUtils";
 
 interface AgentCoreOperationsDialogProps {
   open: boolean;
@@ -170,7 +170,7 @@ export function AgentCoreOperationsDialog({
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
+                              <StatusBadge status={operation.status} label={operation.status} />
                               <span className="text-sm font-medium">
                                 {t(`admin.cores.operationType.${operation.operation_type}`)}
                               </span>
@@ -227,7 +227,7 @@ export function AgentCoreOperationsDialog({
                       <TableCell>{t(`admin.cores.operationType.${operation.operation_type}`)}</TableCell>
                       <TableCell>{buildOperationTarget(operation)}</TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
+                        <StatusBadge status={operation.status} label={operation.status} />
                       </TableCell>
                       <TableCell>
                         <div className="max-w-[320px] truncate text-xs text-muted-foreground">

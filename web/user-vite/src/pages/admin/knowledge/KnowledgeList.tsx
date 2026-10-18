@@ -17,6 +17,7 @@ import type { AdminKnowledgeSaveRequest } from "@/types";
 import { AdminPageShell } from "@/components/admin";
 import {
   Badge,
+  StatusBadge,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -292,7 +293,7 @@ export default function KnowledgeList() {
                 </TableCell>
                 <TableCell>{item.language}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{item.category}</Badge>
+                  <StatusBadge tone="secondary" label={item.category} />
                 </TableCell>
                 <TableCell>{new Date(item.updated_at * 1000).toLocaleString()}</TableCell>
                 <TableCell>

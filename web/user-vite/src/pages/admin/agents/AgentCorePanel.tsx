@@ -32,6 +32,7 @@ import { TrafficPolicyForm } from "./TrafficPolicyForm";
 import { MeshStatusCard } from "./MeshStatusCard";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -114,25 +115,6 @@ function normalizeTemplateId(value: string): number | undefined {
 function formatPorts(ports: number[]): string {
   if (!ports || ports.length === 0) return "-";
   return ports.join(", ");
-}
-
-function getStatusVariant(status: string): "success" | "warning" | "danger" | "secondary" {
-  switch (status) {
-    case "running":
-    case "completed":
-      return "success";
-    case "pending":
-    case "claimed":
-    case "in_progress":
-      return "warning";
-    case "failed":
-    case "rolled_back":
-      return "danger";
-    case "stopped":
-      return "secondary";
-    default:
-      return "secondary";
-  }
 }
 
 function isOperationActive(status: string): boolean {
@@ -639,7 +621,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{coreType}</span>
-                      <Badge variant="secondary">{t("admin.cores.uninstalled")}</Badge>
+                      <StatusBadge tone="secondary" label={t("admin.cores.uninstalled")} />
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t("admin.cores.version")}: -
@@ -736,7 +718,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                     <TableCell className="font-medium">{instance.core_type}</TableCell>
                     <TableCell className="font-mono text-xs">{instance.instance_id}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(instance.status)}>{instance.status}</Badge>
+                      <StatusBadge status={instance.status} label={instance.status} />
                     </TableCell>
                     <TableCell>{instance.config_template_id ?? "-"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
@@ -994,7 +976,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
+                              <StatusBadge status={operation.status} label={operation.status} />
                               <span className="text-sm font-medium">
                                 {t(`admin.cores.operationType.${operation.operation_type}`)}
                               </span>
@@ -1051,7 +1033,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                       <TableCell>{t(`admin.cores.operationType.${operation.operation_type}`)}</TableCell>
                       <TableCell>{buildOperationTarget(operation)}</TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(operation.status)}>{operation.status}</Badge>
+                        <StatusBadge status={operation.status} label={operation.status} />
                       </TableCell>
                       <TableCell>
                         <div className="max-w-[320px] truncate text-xs text-muted-foreground">
@@ -1182,7 +1164,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
                         <div className="font-mono">{log.to_instance_id}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
+                        <StatusBadge status={log.status} label={log.status} />
                       </TableCell>
                       <TableCell>{log.operator_id ?? "-"}</TableCell>
                       <TableCell>
@@ -1228,3 +1210,4 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
     </div>
   );
 }
+

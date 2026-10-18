@@ -123,19 +123,6 @@ export function formatDriftVariant(driftType: string): "danger" | "warning" | "s
   }
 }
 
-export function formatApplyStatusVariant(
-  status: string,
-): "success" | "warning" | "danger" | "secondary" {
-  switch (status) {
-    case "success": return "success";
-    case "failed":
-    case "rolled_back": return "danger";
-    case "pending":
-    case "applying": return "warning";
-    default: return "secondary";
-  }
-}
-
 export function isApplyRunActive(status: ConfigCenterApplyRunStatus): boolean {
   return ACTIVE_APPLY_STATUSES.has(status);
 }

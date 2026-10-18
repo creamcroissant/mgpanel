@@ -5,6 +5,7 @@ import { formatDateTime } from "@/lib/format";
 import type { ConfigCenterCoreType, ConfigCenterSpec } from "@/types";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -223,7 +224,7 @@ export default function SpecsTab({
                         <span className="break-all">{spec.tag}</span>
                       </ResponsiveListField>
                       <ResponsiveListField label={t("admin.configCenter.fields.coreType")}>
-                        <Badge variant="secondary">{formatCoreType(spec.core_type)}</Badge>
+                        <StatusBadge tone="secondary" label={formatCoreType(spec.core_type)} />
                       </ResponsiveListField>
                       <ResponsiveListField label={t("admin.configCenter.inbound.protocol")}>
                         <span className="font-mono text-xs">{parseSpecProtocolAndPort(spec).protocol}</span>
@@ -276,7 +277,7 @@ export default function SpecsTab({
                       <TableRow key={spec.id}>
                         <TableCell className="font-medium">{spec.tag}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{formatCoreType(spec.core_type)}</Badge>
+                          <StatusBadge tone="secondary" label={formatCoreType(spec.core_type)} />
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {spec.agent_host_id == null ? (

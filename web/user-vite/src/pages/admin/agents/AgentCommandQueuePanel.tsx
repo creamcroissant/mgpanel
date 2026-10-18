@@ -7,6 +7,7 @@ import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -22,7 +23,6 @@ interface AgentCommandQueuePanelProps {
   agentHostId: number;
 }
 
-type BadgeTone = "success" | "warning" | "danger" | "secondary" | "outline";
 
 const ACTIVE_STATUSES = new Set(["pending", "claimed", "in_progress"]);
 const REJECTION_STATUSES = new Set(["queue_full", "unsupported_action", "timeout"]);
@@ -84,26 +84,6 @@ function findQueueStats(value: unknown, depth = 0): AgentCommandQueueStats | nul
     }
   }
   return null;
-}
-
-function getStatusVariant(status: string): BadgeTone {
-  switch (status) {
-    case "success":
-    case "completed":
-      return "success";
-    case "pending":
-    case "claimed":
-    case "in_progress":
-      return "warning";
-    case "failed":
-    case "timeout":
-    case "cancelled":
-    case "unsupported_action":
-    case "queue_full":
-      return "danger";
-    default:
-      return "secondary";
-  }
 }
 
 function isActiveOperation(operation: AgentLifecycleOperation): boolean {
@@ -229,9 +209,7 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
               <div key={operation.id} className="rounded-none border border-border border-border p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={getStatusVariant(operation.status)}>
-                      {t(`admin.cores.status.${operation.status}`, { defaultValue: operation.status })}
-                    </Badge>
+                    <StatusBadge status={operation.status} label={t(`admin.cores.status.${operation.status}`, { defaultValue: operation.status })} />
                     <span className="text-sm font-medium">
                       {t(`admin.cores.operationType.${operation.operation_type}`, { defaultValue: operation.operation_type })}
                     </span>

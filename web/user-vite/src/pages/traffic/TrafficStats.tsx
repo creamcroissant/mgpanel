@@ -19,6 +19,7 @@ import { QUERY_KEYS } from "@/lib/constants";
 import type { TrafficLog } from "@/types";
 import {
   Badge,
+  StatusBadge,
   Button,
   EmptyState,
   ErrorBanner,
@@ -196,7 +197,7 @@ export default function TrafficStats() {
           icon={<Database className="h-5 w-5" />}
           title={t("traffic.total")}
           description={formatBytes(recentTotal)}
-          status={<Badge variant="secondary">{logs.length}</Badge>}
+          status={<StatusBadge tone="secondary" label={logs.length} />}
         />
       </ResponsiveGrid>
 

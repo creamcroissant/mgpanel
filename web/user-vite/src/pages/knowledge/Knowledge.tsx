@@ -5,7 +5,7 @@ import { BookOpen, FileText, RefreshCw, Search } from "lucide-react";
 import { fetchKnowledgeArticles } from "@/api/knowledge";
 import type { KnowledgeArticle } from "@/types";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Dialog,
   DialogContent,
@@ -184,7 +184,7 @@ export default function Knowledge() {
                 icon={<FileText className="h-5 w-5" />}
                 title={article.title}
                 description={previewText(article.body) || t("knowledge.noBody")}
-                status={<Badge variant="secondary">{category}</Badge>}
+                status={<StatusBadge tone="secondary" label={category} />}
                 meta={
                   article.updated_at ? (
                     <span>{t("knowledge.updatedAt", { date: formatDate(article.updated_at) })}</span>

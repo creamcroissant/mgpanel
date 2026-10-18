@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "@/lib/format";
 import type { SubscriptionFilterReasonEntry } from "@/types/admin";
-import { Badge, TableCell, TableRow } from "@/components/ui";
+import {  StatusBadge, TableCell, TableRow } from "@/components/ui";
 
 function getFilterReasonLabel(reason: string, t: (key: string) => string): string {
   return t(`admin.system.subscription.filterReasonOptions.${reason}`);
@@ -20,7 +20,7 @@ export default function FilterReasonRow({
     <TableRow>
       <TableCell className="font-medium">{reason.node_name || "-"}</TableCell>
       <TableCell>
-        <Badge variant="warning">{getFilterReasonLabel(reason.reason, t)}</Badge>
+        <StatusBadge tone="warning" label={getFilterReasonLabel(reason.reason, t)} />
       </TableCell>
       <TableCell>
         <div className="space-y-1 text-sm">

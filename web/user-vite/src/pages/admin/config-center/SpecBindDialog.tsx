@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ConfigCenterSpec } from "@/types";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Checkbox,
   Dialog,
@@ -118,7 +118,7 @@ export default function SpecBindDialog({
                       <span className="truncate">{host.name}</span>
                     </span>
                     {wasBound ? (
-                      <Badge variant="secondary">{t("admin.configCenter.bind.bound")}</Badge>
+                      <StatusBadge tone="secondary" label={t("admin.configCenter.bind.bound")} />
                     ) : null}
                   </label>
                 );

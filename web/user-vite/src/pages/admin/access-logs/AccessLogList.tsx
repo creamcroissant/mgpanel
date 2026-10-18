@@ -10,7 +10,7 @@ import { formatDateTime } from "@/lib/format";
 import type { AccessLogEntry, AgentHost } from "@/types";
 import { AdminPageShell, formatBytes } from "@/components/admin";
 import {
-  Badge,
+  StatusBadge,
   Button,
   EmptyState,
   Input,
@@ -313,7 +313,7 @@ export default function AccessLogList() {
             </div>
             <div className="text-xs text-muted-foreground">{t("common.autoApplied")}</div>
             {statsQuery.isFetching && (
-              <Badge variant="secondary">{t("common.loading")}</Badge>
+              <StatusBadge tone="secondary" label={t("common.loading")} />
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -414,7 +414,7 @@ export default function AccessLogList() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{log.protocol || "-"}</Badge>
+                    <StatusBadge tone="secondary" label={log.protocol || "-"} />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col text-xs">

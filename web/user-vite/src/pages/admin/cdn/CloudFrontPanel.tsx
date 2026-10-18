@@ -11,7 +11,7 @@ import {
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -101,19 +101,6 @@ export default function CloudFrontPanel() {
     setCredMutation.mutate();
   }
 
-  function getDistStatusVariant(status: string) {
-    switch (status) {
-      case "Deployed":
-        return "success";
-      case "InProgress":
-        return "warning";
-      case "Failed":
-        return "danger";
-      default:
-        return "secondary";
-    }
-  }
-
   if (distLoading || credLoading) return <Loading />;
   if (distError || credError) {
     return (
@@ -143,17 +130,13 @@ export default function CloudFrontPanel() {
             <span className="text-sm font-medium">{t("admin.cdn.cloudfront.credentialStatus")}:</span>
             {hasCredentials ? (
               <>
-                <Badge variant="success" data-testid="cdn-cloudfront-credential-status-set">
-                  {t("admin.cdn.cloudfront.credentialSet")}
-                </Badge>
+                <StatusBadge tone="success" data-testid="cdn-cloudfront-credential-status-set" label={t("admin.cdn.cloudfront.credentialSet")} />
                 <span className="ml-2 font-mono text-xs text-muted-foreground" data-testid="cdn-cloudfront-credential-key-preview">
                   {maskedSecretDisplay}
                 </span>
               </>
             ) : (
-              <Badge variant="secondary" data-testid="cdn-cloudfront-credential-status-unset">
-                {t("admin.cdn.cloudfront.credentialNotSet")}
-              </Badge>
+              <StatusBadge tone="secondary" data-testid="cdn-cloudfront-credential-status-unset" label={t("admin.cdn.cloudfront.credentialNotSet")} />
             )}
           </div>
 
@@ -186,15 +169,13 @@ export default function CloudFrontPanel() {
                       <TableCell className="font-mono text-xs">{dist.domain}</TableCell>
                       <TableCell className="font-mono text-xs">{dist.origin_domain}</TableCell>
                       <TableCell>
-                        <Badge variant={getDistStatusVariant(dist.status)}>
-                          {dist.status}
-                        </Badge>
+                        <StatusBadge status={dist.status} label={dist.status} />
                       </TableCell>
                       <TableCell>
                         {dist.enabled ? (
-                          <Badge variant="success">{t("common.yes")}</Badge>
+                          <StatusBadge tone="success" label={t("common.yes")} />
                         ) : (
-                          <Badge variant="secondary">{t("common.no")}</Badge>
+                          <StatusBadge tone="secondary" label={t("common.no")} />
                         )}
                       </TableCell>
                       <TableCell>{formatDateTime(dist.created_at)}</TableCell>

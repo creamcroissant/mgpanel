@@ -15,6 +15,7 @@ import type {
 } from "@/types/configCenter";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -39,7 +40,6 @@ import {
   TableRow,
 } from "@/components/ui";
 import {
-  formatApplyStatusVariant,
   formatDriftVariant,
   formatQueryErrorMessage,
   isApplyRunActive,
@@ -196,7 +196,7 @@ export function ApplyRunTab({
   /* ---------- render helpers ---------- */
 
   const renderApplyRunStatusBadge = (status: ConfigCenterApplyRunStatus) => (
-    <Badge variant={formatApplyStatusVariant(status)}>{status}</Badge>
+    <StatusBadge status={status} label={status} />
   );
 
   const renderApplyRunActions = (run: ConfigCenterApplyRun, layout: "desktop" | "mobile") => (
@@ -429,11 +429,10 @@ export function ApplyRunTab({
               {selectedApplyRun ? (
                 <div className="space-y-4 rounded-none border border-border border-border p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant={formatApplyStatusVariant(selectedApplyRun.status)}
-                    >
-                      {selectedApplyRun.status}
-                    </Badge>
+                    <StatusBadge
+                      status={selectedApplyRun.status}
+                      label={selectedApplyRun.status}
+                    />
                     <span className="text-sm text-muted-foreground">
                       {selectedApplyRun.run_id}
                     </span>
@@ -475,9 +474,7 @@ export function ApplyRunTab({
                                 className="rounded-none border border-border border-warning/30 bg-warning/5 p-3"
                               >
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="warning">
-                                    {item.code}
-                                  </Badge>
+                                  <StatusBadge tone="warning" label={item.code} />
                                 </div>
                                 <p className="mt-2 text-sm text-muted-foreground">
                                   {item.message}
@@ -579,13 +576,9 @@ export function ApplyRunTab({
                             {applyDetail.text_diff ? (
                               <div className="space-y-3">
                                 <div className="flex flex-wrap gap-2">
-                                  <Badge variant="secondary">
-                                    {applyDetail.text_diff.filename ||
-                                      "-"}
-                                  </Badge>
-                                  <Badge variant="secondary">
-                                    {applyDetail.text_diff.tag || "-"}
-                                  </Badge>
+                                  <StatusBadge tone="secondary" label={applyDetail.text_diff.filename ||
+                                      "-"} />
+                                  <StatusBadge tone="secondary" label={applyDetail.text_diff.tag || "-"} />
                                 </div>
                                 <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-none border border-border border-border p-3 text-xs">
                                   {applyDetail.text_diff.unified_diff ||

@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/format";
 import type { ConfigCenterDriftState } from "@/types";
 import {
   Badge,
+  StatusBadge,
   Card,
   CardContent,
   CardDescription,
@@ -207,7 +208,7 @@ export default function DriftTab({ selectedHostId, selectedCoreType }: DriftTabP
                         <TableCell>{item.tag}</TableCell>
                         <TableCell>{item.filename}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{item.drift_type}</Badge>
+                          <StatusBadge tone="secondary" label={item.drift_type} />
                         </TableCell>
                         <TableCell>{formatDateTime(item.last_changed_at)}</TableCell>
                       </TableRow>

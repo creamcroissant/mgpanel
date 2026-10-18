@@ -6,6 +6,7 @@ import { CalendarDays, Eye, EyeOff, Key, RefreshCw, ShieldCheck, SlidersHorizont
 import { changePassword, fetchUserInfo, resetSubscribeToken } from "@/api/user";
 import {
   Badge,
+  StatusBadge,
   Button,
   CopyField,
   Dialog,
@@ -255,7 +256,7 @@ export default function Settings() {
               icon={<ShieldCheck className="h-5 w-5" />}
               title={t("settings.tokenStatus")}
               description={t("settings.tokenProtected")}
-              meta={<Badge variant="secondary">{maskToken(user.token)}</Badge>}
+              meta={<StatusBadge tone="secondary" label={maskToken(user.token)} />}
             />
             <ResourceCard
               icon={<Key className="h-5 w-5" />}
@@ -287,7 +288,7 @@ export default function Settings() {
             icon={<CalendarDays className="h-5 w-5" />}
             title={t("settings.renewalReminder")}
             description={t("settings.renewalReminderHint")}
-            status={<Badge variant="secondary">{user.expired_at ? formatDate(user.expired_at) : t("dashboard.never")}</Badge>}
+            status={<StatusBadge tone="secondary" label={user.expired_at ? formatDate(user.expired_at) : t("dashboard.never")} />}
           />
           <ResourceCard
             icon={<UserRound className="h-5 w-5" />}

@@ -6,7 +6,7 @@ import { listAgentBinaryVersions, refreshAgentBinaryVersion, installAgentCore, c
 import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -22,7 +22,7 @@ import {
   Loading,
 } from "@/components/ui";
 import { useState } from "react";
-import type { AgentCoreOperation, BinaryVersionComponent, BinaryVersionState, BinaryVersionStatus, AgentLifecycleOperation } from "@/types";
+import type { AgentCoreOperation, BinaryVersionComponent, BinaryVersionState, AgentLifecycleOperation } from "@/types";
 
 interface BinaryVersionStatusPanelProps {
   agentHostId: number;
@@ -30,20 +30,6 @@ interface BinaryVersionStatusPanelProps {
 }
 
 const COMPONENTS: BinaryVersionComponent[] = ["agent", "sing-box", "xray"];
-
-function getVersionStatusVariant(status: BinaryVersionStatus): "success" | "warning" | "danger" | "secondary" {
-  switch (status) {
-    case "up_to_date":
-    case "installed":
-      return "success";
-    case "outdated":
-      return "warning";
-    case "missing":
-      return "danger";
-    default:
-      return "secondary";
-  }
-}
 
 function normalizeVersion(value?: string): string {
   const trimmed = value?.trim();
@@ -165,9 +151,7 @@ export function BinaryVersionStatusPanel({ agentHostId, onCoreOperationSubmitted
                         {t("admin.cores.versionCheckedAt")}: {formatDateTime(state.last_checked_at ?? 0)}
                       </div>
                     </div>
-                    <Badge variant={getVersionStatusVariant(state.status)}>
-                      {t(`admin.cores.versionState.${state.status}`)}
-                    </Badge>
+                    <StatusBadge status={state.status} label={t(`admin.cores.versionState.${state.status}`)} />
                   </div>
                   <div className="mt-3 grid gap-2 text-sm">
                     <div className="flex justify-between gap-3">

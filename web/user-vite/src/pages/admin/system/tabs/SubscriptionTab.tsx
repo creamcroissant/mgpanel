@@ -22,6 +22,7 @@ import type {
 } from "@/types/admin";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -857,7 +858,7 @@ function FilterReasonRow({ reason }: { reason: SubscriptionFilterReasonEntry }) 
     <TableRow>
       <TableCell className="font-medium">{reason.node_name || "-"}</TableCell>
       <TableCell>
-        <Badge variant="warning">{getFilterReasonLabel(reason.reason, t)}</Badge>
+        <StatusBadge tone="warning" label={getFilterReasonLabel(reason.reason, t)} />
       </TableCell>
       <TableCell>
         <div className="space-y-1 text-sm">

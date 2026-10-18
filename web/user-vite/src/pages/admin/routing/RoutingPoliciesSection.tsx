@@ -14,6 +14,7 @@ import {
 import { listConfigCenterSpecs } from "@/api/admin/configCenter";
 import {
   Badge,
+  StatusBadge,
   Button,
   Dialog,
   DialogContent,
@@ -197,7 +198,7 @@ export function RoutingPoliciesSection() {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{matchTypeLabels[p.match_type] ?? p.match_type}</Badge>
+                    <StatusBadge tone="secondary" label={matchTypeLabels[p.match_type] ?? p.match_type} />
                     <span className="ml-2">{p.match_value}</span>
                   </TableCell>
                   <TableCell>

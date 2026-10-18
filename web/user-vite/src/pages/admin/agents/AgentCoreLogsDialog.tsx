@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { History } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import {
-  Badge,
+  StatusBadge,
   Button,
   Dialog,
   DialogContent,
@@ -150,7 +150,7 @@ export function AgentCoreLogsDialog({
                         <div className="font-mono">{log.to_instance_id}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(log.status)}>{log.status}</Badge>
+                        <StatusBadge status={log.status} label={log.status} />
                       </TableCell>
                       <TableCell>{log.operator_id ?? "-"}</TableCell>
                       <TableCell>
@@ -162,7 +162,7 @@ export function AgentCoreLogsDialog({
               </Table>
             )}
 
-            <Pagination page={logsPage} totalPages={totalPages} onPageChange={onPageChange} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>

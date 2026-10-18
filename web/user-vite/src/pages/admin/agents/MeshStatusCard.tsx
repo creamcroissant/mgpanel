@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Network, Wifi, WifiOff, ExternalLink } from "lucide-react";
 import { fetchAgentMeshStatus, fetchMeshStatus } from "@/api/admin/mesh";
-import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import {  StatusBadge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { Loading } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 
@@ -89,7 +89,7 @@ export function MeshStatusCard({ agentHostId }: MeshStatusCardProps) {
                 <Wifi className="h-4 w-4 text-success" />
                 <span className="text-sm font-medium">{t("admin.agents.mesh.joined")}</span>
               </div>
-              <Badge variant="success">{t("admin.agents.mesh.active")}</Badge>
+              <StatusBadge tone="success" label={t("admin.agents.mesh.active")} />
             </div>
 
             {/* WG IP */}

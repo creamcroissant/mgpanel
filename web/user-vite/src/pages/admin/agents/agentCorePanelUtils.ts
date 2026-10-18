@@ -16,25 +16,6 @@ export function formatPorts(ports: number[]): string {
   return ports.join(", ");
 }
 
-export function getStatusVariant(status: string): "success" | "warning" | "danger" | "secondary" {
-  switch (status) {
-    case "running":
-    case "completed":
-      return "success";
-    case "pending":
-    case "claimed":
-    case "in_progress":
-      return "warning";
-    case "failed":
-    case "rolled_back":
-      return "danger";
-    case "stopped":
-      return "secondary";
-    default:
-      return "secondary";
-  }
-}
-
 export function isOperationActive(status: string): boolean {
   return ACTIVE_OPERATION_STATUSES.has(status);
 }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AdminPageShell } from "@/components/admin";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -119,9 +120,9 @@ export default function CDNSiteList() {
 
   const renderEnabledBadge = (site: CDNSite) =>
     site.enabled ? (
-      <Badge variant="success">{t("admin.cdn.enabled")}</Badge>
+      <StatusBadge tone="success" label={t("admin.cdn.enabled")} />
     ) : (
-      <Badge variant="secondary">{t("admin.cdn.disabled")}</Badge>
+      <StatusBadge tone="secondary" label={t("admin.cdn.disabled")} />
     );
 
   const renderSiteActions = (site: CDNSite, layout: "desktop" | "mobile") => (

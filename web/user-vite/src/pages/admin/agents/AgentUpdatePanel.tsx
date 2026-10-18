@@ -12,6 +12,7 @@ import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -29,7 +30,6 @@ interface AgentUpdatePanelProps {
   agentHostId: number;
 }
 
-type BadgeTone = "success" | "warning" | "danger" | "secondary" | "outline";
 
 type UpdateForm = {
   target_version: string;
@@ -59,26 +59,6 @@ function getNumber(record: Record<string, unknown>, key: string): number | undef
 
 function getBoolean(record: Record<string, unknown>, key: string): boolean {
   return record[key] === true;
-}
-
-function getStatusVariant(status: string): BadgeTone {
-  switch (status) {
-    case "success":
-    case "completed":
-      return "success";
-    case "pending":
-    case "claimed":
-    case "in_progress":
-      return "warning";
-    case "failed":
-    case "timeout":
-    case "cancelled":
-    case "unsupported_action":
-    case "queue_full":
-      return "danger";
-    default:
-      return "secondary";
-  }
 }
 
 function isActiveOperation(operation: AgentLifecycleOperation): boolean {
@@ -240,7 +220,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
               <Badge variant={upToDate ? "success" : "warning"}>
                 {formatBoolean(upToDate, t("admin.cores.updateUpToDate"), t("admin.cores.updateCanUpgrade"))}
               </Badge>
-              {locked && <Badge variant="danger">{t("admin.cores.updateLocked")}</Badge>}
+              {locked && <StatusBadge tone="danger" label={t("admin.cores.updateLocked")} />}
             </div>
           </div>
 
@@ -263,7 +243,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
               <Badge variant={rollbackAvailable ? "warning" : "secondary"}>
                 {rollbackAvailable ? t("admin.cores.updateRollbackAvailable") : t("admin.cores.updateRollbackUnavailable")}
               </Badge>
-              {rolledBack && <Badge variant="danger">{t("admin.cores.updateRolledBack")}</Badge>}
+              {rolledBack && <StatusBadge tone="danger" label={t("admin.cores.updateRolledBack")} />}
             </div>
           </div>
 
@@ -275,7 +255,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
             <div className="mt-2 space-y-1 text-sm text-muted-foreground">
               <div>{t("admin.cores.updateCrashCount", { count: crashCount })}</div>
               {lockedBadVersion ? (
-                <Badge variant="danger">{t("admin.cores.updateLockedBadVersion", { version: lockedBadVersion })}</Badge>
+                <StatusBadge tone="danger" label={t("admin.cores.updateLockedBadVersion", { version: lockedBadVersion })} />
               ) : (
                 <span>{t("admin.cores.updateNoLockedBadVersion")}</span>
               )}
@@ -334,9 +314,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
                 onClick={() => setSelectedOperationId(operation.id)}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={getStatusVariant(operation.status)}>
-                    {t(`admin.cores.status.${operation.status}`, { defaultValue: operation.status })}
-                  </Badge>
+                  <StatusBadge status={operation.status} label={t(`admin.cores.status.${operation.status}`, { defaultValue: operation.status })} />
                   <span className="text-sm font-medium">
                     {t(`admin.cores.operationType.${operation.operation_type}`, { defaultValue: operation.operation_type })}
                   </span>

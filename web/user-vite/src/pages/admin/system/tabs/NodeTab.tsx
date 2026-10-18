@@ -14,6 +14,7 @@ import { QUERY_KEYS } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
 import {
   Badge,
+  StatusBadge,
   Button,
   Card,
   CardContent,
@@ -161,7 +162,7 @@ function NodeTabContent({ initialForm }: NodeTabContentProps) {
                 ? t("admin.system.settings.keyState.masked")
                 : t("admin.system.settings.keyState.revealed")}
             </Badge>
-            {!form.hasValue && <Badge variant="danger">{t("admin.system.settings.keyState.empty")}</Badge>}
+            {!form.hasValue && <StatusBadge tone="danger" label={t("admin.system.settings.keyState.empty")} />}
           </div>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
             <div className="relative min-w-0">

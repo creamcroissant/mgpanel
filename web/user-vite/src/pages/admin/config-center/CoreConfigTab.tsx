@@ -8,7 +8,8 @@ import {
   listCoreConfigItems,
   updateCoreConfigItem,
 } from "@/api/admin";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, EmptyState, Input, Loading, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from "@/components/ui";
+import { Badge,
+  StatusBadge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, EmptyState, Input, Loading, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from "@/components/ui";
 import { QUERY_KEYS } from "@/lib/constants";
 import type { ConfigCenterCoreType, CoreConfigItem, CoreConfigType, UpsertCoreConfigItemRequest } from "@/types";
 import { OutboundEditor } from "./OutboundEditor";
@@ -233,7 +234,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.tag}</TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <Badge variant="secondary">{item.core_type}</Badge>
+                    <StatusBadge tone="secondary" label={item.core_type} />
                   </TableCell>
                   <TableCell>
                     <Badge variant={item.enabled ? "success" : "secondary"}>
