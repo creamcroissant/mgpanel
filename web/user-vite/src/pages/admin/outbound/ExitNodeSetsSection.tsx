@@ -211,13 +211,14 @@ export function ExitNodeSetsSection() {
                         <Badge key={m.id} variant="outline">
                           {host}
                           {m.weight > 1 ? ` x${m.weight}` : ""}
-                          <button
-                            className="ml-1 text-muted-foreground hover:text-destructive"
+                          <TextButton
+                            variant="danger"
+                            className="ml-1"
                             onClick={() => removeMemberMut.mutate({ id: d.set.id, agentHostId: m.agent_host_id })}
                             title={t("admin.exitNodeSets.removeMember")}
                           >
                             ×
-                          </button>
+                          </TextButton>
                         </Badge>
                       );
                     })}

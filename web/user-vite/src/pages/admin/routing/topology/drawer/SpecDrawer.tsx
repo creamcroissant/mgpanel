@@ -76,9 +76,10 @@ export function SpecDrawer({ spec, agents, exitSets, relayPaths, saving, onClose
     <div className="space-y-3 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{tf("admin.topology.relay.bind_title", "出口绑定")}</h3>
-        <button type="button" onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground">
+        <TextButton
+          type="button" onClick={onClose}>
           ✕
-        </button>
+        </TextButton>
       </div>
 
       {/* spec 摘要 */}

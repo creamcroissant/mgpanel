@@ -158,8 +158,8 @@ export function RoutingRuleEditor({ value, onChange }: RoutingRuleEditorProps) {
             {rules.map((rule, idx) => (
               <div key={idx} className="flex items-center gap-2 rounded-none border border-border border-border p-2 hover:bg-muted/20">
                 <div className="flex flex-col gap-0.5">
-                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => moveRule(idx, "up")} disabled={idx === 0}>↑</button>
-                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => moveRule(idx, "down")} disabled={idx >= rules.length - 1}>↓</button>
+                  <TextButton onClick={() => moveRule(idx, "up")} disabled={idx === 0}>↑</TextButton>
+                  <TextButton onClick={() => moveRule(idx, "down")} disabled={idx >= rules.length - 1}>↓</TextButton>
                 </div>
                 <Switch
                   checked={rule.enabled !== false}

@@ -182,9 +182,9 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
                     <span className="min-w-0 truncate text-sm font-mono text-foreground" title={status.state.boot_id}>
                       {status.state.boot_id}
                     </span>
-                    <button
+                    <TextButton
                       type="button"
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      className="shrink-0"
                       aria-label={t("common.copy")}
                       onClick={async () => {
                         const copied = await copyText(status.state!.boot_id);
@@ -192,7 +192,7 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
                       }}
                     >
                       <Copy className="h-3.5 w-3.5" />
-                    </button>
+                    </TextButton>
                   </div>
                 ) : (
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{t("admin.cores.trafficUnknown")}</div>

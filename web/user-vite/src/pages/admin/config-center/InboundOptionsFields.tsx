@@ -94,15 +94,15 @@ export function InboundOptionsFields({
       </div>
 
       {/* Toggle for all key-value editor */}
-      <button
+      <TextButton
+        variant="underline"
         type="button"
-        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
         onClick={() => setShowAllOptions(!showAllOptions)}
       >
         {showAllOptions
           ? t("admin.configCenter.inbound.hideAllOptions", "收起全部选项")
           : t("admin.configCenter.inbound.showAllOptions", "显示全部选项")}
-      </button>
+      </TextButton>
 
       {showAllOptions && (
         <div className="space-y-2 border-l-2 border-border pl-3">

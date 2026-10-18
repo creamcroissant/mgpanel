@@ -89,3 +89,5 @@ export { SectionCard } from "./SectionCard";
 export { default as Toaster } from "./sonner";
 export { default as StatCard } from "./StatCard";
 export { default as StatusBadge } from "./StatusBadge";
+export { IconButton } from "./IconButton";
+export { TextButton } from "./TextButton";

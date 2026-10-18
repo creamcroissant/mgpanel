@@ -106,9 +106,10 @@ export function InboundTransportFields({ value, onChange, readOnly }: InboundTra
           )}
 
           {/* Advanced toggle */}
-          <button type="button" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2" onClick={() => setShowAdvanced(!showAdvanced)}>
+          <TextButton
+            variant="underline" type="button" onClick={() => setShowAdvanced(!showAdvanced)}>
             {showAdvanced ? t("admin.configCenter.inbound.hideAdvancedTransport") : t("admin.configCenter.inbound.showAdvancedTransport")}
-          </button>
+          </TextButton>
 
           {showAdvanced && (
             <div className="space-y-3 border-l-2 border-border pl-3">

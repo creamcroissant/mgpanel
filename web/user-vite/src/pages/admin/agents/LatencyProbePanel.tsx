@@ -85,12 +85,12 @@ export default function LatencyProbePanel({ open, onOpenChange }: LatencyProbePa
         {error && (
           <div className="flex flex-col items-center gap-3 py-10 text-sm text-destructive">
             <p>{t("admin.probe.loadError")}</p>
-            <button
-              className="text-sm underline underline-offset-2 hover:text-destructive/80"
+            <TextButton
+              variant="danger" size="sm"
               onClick={() => refetch()}
             >
               {t("common.retry")}
-            </button>
+            </TextButton>
           </div>
         )}
 

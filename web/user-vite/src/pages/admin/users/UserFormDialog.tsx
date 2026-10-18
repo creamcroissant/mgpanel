@@ -293,14 +293,14 @@ export default function UserFormDialog({
                   {selectedServerNames.map(({ id, name }) => (
                     <Badge key={id} variant="secondary" className="gap-1 pr-1">
                       {name}
-                      <button
+                      <IconButton
+                        tone="subtle"
                         type="button"
-                        className="rounded-none p-0.5 hover:bg-muted-foreground/20"
                         onClick={() => removeBannedServer(id)}
                         aria-label={t("common.remove")}
                       >
                         <X className="h-3 w-3" />
-                      </button>
+                      </IconButton>
                     </Badge>
                   ))}
                 </div>

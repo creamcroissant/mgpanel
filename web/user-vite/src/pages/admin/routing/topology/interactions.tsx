@@ -303,10 +303,10 @@ export function ReorderLane({
             </span>
             {!disabled && (
               <span className="ml-auto hidden shrink-0 flex-col group-hover:flex">
-                <button
+                <IconButton
+                  size="sm"
                   type="button"
                   aria-label="上移"
-                  className="rounded-none px-0.5 hover:bg-muted disabled:opacity-30"
                   disabled={i === 0}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -314,11 +314,11 @@ export function ReorderLane({
                   }}
                 >
                   <ArrowUp className="h-3 w-3" />
-                </button>
-                <button
+                </IconButton>
+                <IconButton
+                  size="sm"
                   type="button"
                   aria-label="下移"
-                  className="rounded-none px-0.5 hover:bg-muted disabled:opacity-30"
                   disabled={i === order.length - 1}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -326,7 +326,7 @@ export function ReorderLane({
                   }}
                 >
                   <ArrowDown className="h-3 w-3" />
-                </button>
+                </IconButton>
               </span>
             )}
           </li>
@@ -395,25 +395,25 @@ export function IssuesStrip({ issues, onClose, onSelectEntity }: IssuesStripProp
         <ul className="space-y-0.5">
           {issues.map((iss, idx) => (
             <li key={`${iss.entity_type}-${iss.entity_id}-${idx}`}>
-              <button
+              <TextButton
+                variant="underline"
                 type="button"
-                className="text-left underline-offset-2 hover:underline"
+                className="text-left"
                 onClick={() => onSelectEntity(iss.entity_type, iss.entity_id)}
               >
                 [{iss.code}] {iss.message}
-              </button>
+              </TextButton>
             </li>
           ))}
         </ul>
       </div>
-      <button
+      <IconButton
         type="button"
         aria-label={tf(t, "admin.topology.validate.dismiss", "关闭")}
         onClick={onClose}
-        className="shrink-0 rounded-none p-0.5 hover:bg-muted"
       >
         <X className="h-3.5 w-3.5" />
-      </button>
+      </IconButton>
     </div>
   );
 }

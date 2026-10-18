@@ -81,14 +81,15 @@ export function MatchValueSearch({ matchType, value, onChange, placeholder }: Ma
         {parts.map((v) => (
           <Badge key={v} variant="secondary" className="gap-1 pr-1">
             <span className="max-w-[200px] truncate font-mono">{v}</span>
-            <button
+            <IconButton
+              size="sm"
               type="button"
-              className="ml-0.5 rounded-none px-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="ml-0.5"
               onClick={() => removeValue(v)}
               aria-label={t("common.delete")}
             >
               ×
-            </button>
+            </IconButton>
           </Badge>
         ))}
       </div>
