@@ -15,6 +15,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/async"
 	"github.com/creamcroissant/mgpanel/internal/cache"
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 // ServerTelemetryService tracks node heartbeats, online counts, and load metrics.
@@ -148,7 +149,7 @@ func (s *serverTelemetryService) RecordAlive(ctx context.Context, server *reposi
 		}
 		snapshot.prune(now)
 		snapshot.Nodes[nodeKey] = aliveNode{
-			AliveIPs: uniqueStrings(ips),
+			AliveIPs: stringutil.UniqueStrings(ips),
 			Updated:  now,
 		}
 		snapshot.AliveIP = snapshot.count(mode)
@@ -421,26 +422,6 @@ func (a *aliveCache) count(mode int) int {
 	}
 }
 
-func uniqueStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	return result
-}
-
 func uniqueInt64(values []int64) []int64 {
 	if len(values) == 0 {
 		return nil
@@ -496,4 +477,3 @@ func (a *aliveCache) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
-

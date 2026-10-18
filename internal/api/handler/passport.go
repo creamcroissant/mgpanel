@@ -13,6 +13,7 @@ import (
 
 	"github.com/creamcroissant/mgpanel/internal/service"
 	"github.com/creamcroissant/mgpanel/internal/support/i18n"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 // PassportHandler handles auth endpoints.
@@ -101,7 +102,7 @@ func (h *PassportHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.bad_request", h.i18n)
 		return
 	}
-	identifier := firstNonEmpty(strings.TrimSpace(payload.Email), strings.TrimSpace(payload.Username), strings.TrimSpace(payload.Account), strings.TrimSpace(payload.Identifier))
+	identifier := stringutil.FirstNonEmpty(strings.TrimSpace(payload.Email), strings.TrimSpace(payload.Username), strings.TrimSpace(payload.Account), strings.TrimSpace(payload.Identifier))
 	if identifier == "" || strings.TrimSpace(payload.Password) == "" {
 		RespondErrorI18n(r.Context(), w, http.StatusBadRequest, "error.missing_credentials", h.i18n)
 		return
@@ -387,15 +388,6 @@ func passportActionPath(fullPath string) string {
 		return "/"
 	}
 	return sub
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 func clientIP(r *http.Request) string {

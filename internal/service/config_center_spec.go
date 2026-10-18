@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 // InboundSpecService manages inbound spec lifecycle and conflict checks.
@@ -340,7 +341,7 @@ func (s *inboundSpecService) createSpec(ctx context.Context, req UpsertInboundSp
 		SpecID:     spec.ID,
 		Revision:   spec.DesiredRevision,
 		Snapshot:   snapshot,
-		ChangeNote: firstNonEmpty(req.ChangeNote, "create"),
+		ChangeNote: stringutil.FirstNonEmpty(req.ChangeNote, "create"),
 		OperatorID: req.OperatorID,
 	}
 	if err := s.revisions.Create(ctx, revision); err != nil {
@@ -502,7 +503,7 @@ func (s *inboundSpecService) updateSpec(ctx context.Context, req UpsertInboundSp
 		SpecID:     existing.ID,
 		Revision:   nextRevision,
 		Snapshot:   snapshot,
-		ChangeNote: firstNonEmpty(req.ChangeNote, "update"),
+		ChangeNote: stringutil.FirstNonEmpty(req.ChangeNote, "update"),
 		OperatorID: req.OperatorID,
 	}
 	if err := s.revisions.Create(ctx, revision); err != nil {
@@ -802,7 +803,7 @@ func (s *inboundSpecService) BumpRevisionsForHost(ctx context.Context, agentHost
 		return 0, fmt.Errorf("bump revisions: list specs: %w", err)
 	}
 	coreFilter := strings.ToLower(strings.TrimSpace(coreType))
-	note = firstNonEmpty(strings.TrimSpace(note), "auto: rendered output changed")
+	note = stringutil.FirstNonEmpty(strings.TrimSpace(note), "auto: rendered output changed")
 	bumped := int64(0)
 	for _, spec := range specs {
 		if spec == nil || !spec.Enabled {

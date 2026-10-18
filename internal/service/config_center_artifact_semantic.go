@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	"github.com/creamcroissant/mgpanel/internal/template"
 )
 
@@ -20,7 +21,7 @@ func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec, 
 	}
 
 	inbound := template.UnifiedInbound{
-		Tag:      normalizeTag(firstNonEmpty(tag, semantic.Tag)),
+		Tag:      normalizeTag(stringutil.FirstNonEmpty(tag, semantic.Tag)),
 		Protocol: strings.TrimSpace(semantic.Protocol),
 		Listen:   normalizeListen(semantic.Listen),
 		Port:     semantic.Port,
@@ -235,7 +236,7 @@ func artifactBuildUnifiedUsers(semanticObject map[string]any) []template.Unified
 			continue
 		}
 		user := template.UnifiedUser{
-			UUID:     firstNonEmpty(artifactStringByKeys(userMap, "uuid", "id"), ""),
+			UUID:     stringutil.FirstNonEmpty(artifactStringByKeys(userMap, "uuid", "id"), ""),
 			Email:    artifactStringByKeys(userMap, "email", "name"),
 			Password: artifactStringByKeys(userMap, "password", "pass"),
 			Flow:     artifactStringByKeys(userMap, "flow"),

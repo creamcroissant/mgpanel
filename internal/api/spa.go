@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/creamcroissant/mgpanel/internal/service"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -224,9 +225,9 @@ func newAdminSPAHandler(logger *slog.Logger, paths service.AdminPathService, opt
 	}
 	branding := adminBranding{
 		baseURL:         strings.TrimRight(opts.BaseURL, "/"),
-		title:           fallback(opts.Title, "MGPanel"),
-		version:         fallback(opts.Version, "go-dev"),
-		logo:            fallback(opts.Logo, ""),
+		title:           stringutil.Fallback(opts.Title, "MGPanel"),
+		version:         stringutil.Fallback(opts.Version, "go-dev"),
+		logo:            stringutil.Fallback(opts.Logo, ""),
 		deployScriptURL: strings.TrimSpace(opts.DeployScriptURL),
 	}
 	return &adminSPAHandler{
@@ -261,7 +262,7 @@ func newUserSPAHandler(logger *slog.Logger, opts UserUIOptions) (*userSPAHandler
 	}
 	branding := userBranding{
 		baseURL: strings.TrimRight(opts.BaseURL, "/"),
-		title:   fallback(opts.Title, "MGPanel"),
+		title:   stringutil.Fallback(opts.Title, "MGPanel"),
 	}
 	return &userSPAHandler{
 		logger:    logger,
@@ -288,7 +289,7 @@ func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, "securePath")
 	// If accessed via a mounted route, URLParam might be empty if the router stripped the prefix
 	// But here we are mounting at /{securePath}, so it should be there.
-	
+
 	if param == "" {
 		// Fallback check
 		param = strings.TrimPrefix(r.URL.Path, "/")
@@ -296,7 +297,7 @@ func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			param = param[:idx]
 		}
 	}
-	
+
 	// Double check we are on the correct path
 	if param != securePath {
 		// If param is empty (e.g. strict slash issue), or different
@@ -307,7 +308,7 @@ func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Calculate relative path inside the SPA
 	// r.URL.Path includes the securePath prefix.
 	// We need to strip it.
-	
+
 	// Using chi's RouteContext would be better but simple string manipulation works if we are careful.
 	prefix := "/" + securePath
 	if !strings.HasPrefix(r.URL.Path, prefix) {
@@ -315,10 +316,10 @@ func (h *adminSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	
+
 	relative := strings.TrimPrefix(r.URL.Path, prefix)
 	relative = strings.TrimPrefix(relative, "/")
-	
+
 	if relative == "" {
 		h.serveIndex(w, r)
 		return
@@ -410,7 +411,7 @@ func (h *userSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// User SPA is typically at root "/"
 	// So r.URL.Path is the relative path (except leading slash)
 	relative := strings.TrimPrefix(r.URL.Path, "/")
-	
+
 	if relative == "" {
 		h.serveIndex(w, r)
 		return
@@ -429,7 +430,7 @@ func (h *userSPAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	
+
 	filePath := filepath.Join(h.root, filepath.FromSlash(clean))
 	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
 		http.ServeFile(w, r, filePath)
@@ -664,13 +665,6 @@ func (h *adminSPAHandler) indexBytes() ([]byte, error) {
 func (h *userSPAHandler) indexBytes() ([]byte, error) {
 	path := filepath.Join(h.root, h.indexFile)
 	return os.ReadFile(path)
-}
-
-func fallback(value, def string) string {
-	if strings.TrimSpace(value) == "" {
-		return def
-	}
-	return value
 }
 
 func normalizeSecurePath(value string) string {

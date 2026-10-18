@@ -13,6 +13,7 @@ import (
 
 	protocolparser "github.com/creamcroissant/mgpanel/internal/agent/protocol/parser"
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	"github.com/pmezard/go-difflib/difflib"
 )
 
@@ -1080,7 +1081,7 @@ func (s *driftAndDiffService) buildDesiredSemanticByTag(artifacts []*repository.
 		}
 
 		for _, detail := range details {
-			tag := normalizeTag(firstNonEmpty(detail.Tag, artifact.SourceTag))
+			tag := normalizeTag(stringutil.FirstNonEmpty(detail.Tag, artifact.SourceTag))
 			if tag == "" {
 				continue
 			}

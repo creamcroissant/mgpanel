@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 // ServerNodeService exposes node configuration and user listings consumed by agents.
@@ -160,7 +161,7 @@ func buildServerConfigPayload(server *repository.Server, settings map[string]any
 	}
 	switch nodeType {
 	case "shadowsocks":
-		cipher := firstNonEmpty(asString(settings["cipher"]), server.Cipher)
+		cipher := stringutil.FirstNonEmpty(asString(settings["cipher"]), server.Cipher)
 		config["cipher"] = cipher
 		config["plugin"] = asString(settings["plugin"])
 		config["plugin_opts"] = asString(settings["plugin_opts"])
@@ -287,16 +288,6 @@ func cloneOptionalInt64(value *int64) *int64 {
 	}
 	v := *value
 	return &v
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func asMap(value any) map[string]any {

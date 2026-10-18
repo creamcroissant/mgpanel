@@ -12,6 +12,7 @@ import (
 
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
 	"github.com/creamcroissant/mgpanel/internal/agent/proxy"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	agentv1 "github.com/creamcroissant/mgpanel/pkg/pb/agent/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -231,7 +232,7 @@ func (h *Handler) writeConfig(switchID string, content []byte) (string, error) {
 
 	name := "core-switch"
 	if switchID != "" {
-		if safe := sanitizeToken(switchID); safe != "" {
+		if safe := stringutil.SanitizeToken(switchID); safe != "" {
 			name = name + "-" + safe
 		}
 	}
@@ -247,27 +248,6 @@ func (h *Handler) writeConfig(switchID string, content []byte) (string, error) {
 		return "", fmt.Errorf("write config: %w", err)
 	}
 	return path, nil
-}
-
-func sanitizeToken(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	return strings.Map(func(r rune) rune {
-		switch {
-		case r >= 'a' && r <= 'z':
-			return r
-		case r >= 'A' && r <= 'Z':
-			return r
-		case r >= '0' && r <= '9':
-			return r
-		case r == '-', r == '_':
-			return r
-		default:
-			return '-'
-		}
-	}, value)
 }
 
 func buildCoreInfos(infos []*core.CoreInfo) []*agentv1.CoreInfo {

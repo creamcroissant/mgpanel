@@ -182,14 +182,14 @@ func (a *Agent) executeInstallCore(ctx context.Context, operation *agentv1.CoreO
 		return "failed", nil, err.Error()
 	}
 	installer := core.NewInstaller(core.InstallerConfig{
-			ScriptPath: a.cfg.Core.InstallScriptPath,
-			SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath,
-			XrayBinaryPath: a.cfg.Core.XrayBinaryPath,
-			ServiceName: a.cfg.Protocol.ServiceName,
-			SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
-			XrayReleaseRepo: a.cfg.Core.XrayReleaseRepo,
-			ReleaseBaseURL: a.cfg.Core.ReleaseBaseURL,
-			CoreInstallDir: a.cfg.Core.CoreInstallDir,
+		ScriptPath:         a.cfg.Core.InstallScriptPath,
+		SingBoxBinaryPath:  a.cfg.Core.SingBoxBinaryPath,
+		XrayBinaryPath:     a.cfg.Core.XrayBinaryPath,
+		ServiceName:        a.cfg.Protocol.ServiceName,
+		SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
+		XrayReleaseRepo:    a.cfg.Core.XrayReleaseRepo,
+		ReleaseBaseURL:     a.cfg.Core.ReleaseBaseURL,
+		CoreInstallDir:     a.cfg.Core.CoreInstallDir,
 	}, nil, nil)
 	resp, err := installer.InstallCore(ctx, &agentv1.InstallCoreRequest{CoreType: operation.GetCoreType(), Action: payload.Action, Version: payload.Version, Channel: payload.Channel, Flavor: payload.Flavor, Activate: payload.Activate, RequestId: payload.RequestId})
 	a.invalidateCapabilitiesCache()
@@ -259,14 +259,14 @@ func (a *Agent) executeEnsureCore(ctx context.Context, operation *agentv1.CoreOp
 		return "failed", nil, err.Error()
 	}
 	installer := core.NewInstaller(core.InstallerConfig{
-			ScriptPath: a.cfg.Core.InstallScriptPath,
-			SingBoxBinaryPath: a.cfg.Core.SingBoxBinaryPath,
-			XrayBinaryPath: a.cfg.Core.XrayBinaryPath,
-			ServiceName: a.cfg.Protocol.ServiceName,
-			SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
-			XrayReleaseRepo: a.cfg.Core.XrayReleaseRepo,
-			ReleaseBaseURL: a.cfg.Core.ReleaseBaseURL,
-			CoreInstallDir: a.cfg.Core.CoreInstallDir,
+		ScriptPath:         a.cfg.Core.InstallScriptPath,
+		SingBoxBinaryPath:  a.cfg.Core.SingBoxBinaryPath,
+		XrayBinaryPath:     a.cfg.Core.XrayBinaryPath,
+		ServiceName:        a.cfg.Protocol.ServiceName,
+		SingBoxReleaseRepo: a.cfg.Core.SingBoxReleaseRepo,
+		XrayReleaseRepo:    a.cfg.Core.XrayReleaseRepo,
+		ReleaseBaseURL:     a.cfg.Core.ReleaseBaseURL,
+		CoreInstallDir:     a.cfg.Core.CoreInstallDir,
 	}, nil, nil)
 	resp, err := installer.InstallCore(ctx, &agentv1.InstallCoreRequest{CoreType: operation.GetCoreType(), Action: "ensure", Version: payload.Version, Channel: payload.Channel, Flavor: payload.Flavor})
 	a.invalidateCapabilitiesCache()
@@ -314,7 +314,7 @@ func (a *Agent) reportCoreOperationEvent(ctx context.Context, operation *agentv1
 	if targetID == "" {
 		return
 	}
-	eventPayload := encodeOperationEventPayload(payload)
+	eventPayload := protocol.EncodeOperationEventPayload(payload)
 	resp, err := a.operationEvents.ReportOperationEvent(ctx, []*agentv1.OperationEvent{{
 		Scope:       operationEventScopeCoreOperation,
 		TargetId:    targetID,
@@ -331,17 +331,6 @@ func (a *Agent) reportCoreOperationEvent(ctx context.Context, operation *agentv1
 	if resp != nil && !resp.GetSuccess() {
 		slog.Warn("panel rejected core operation event", "operation_id", targetID, "phase", phase, "message", resp.GetMessage())
 	}
-}
-
-func encodeOperationEventPayload(payload map[string]any) []byte {
-	if len(payload) == 0 {
-		return []byte(`{}`)
-	}
-	data, err := json.Marshal(payload)
-	if err != nil || !json.Valid(data) {
-		return []byte(`{}`)
-	}
-	return data
 }
 
 func (a *Agent) resolveOperationConfigPath(coreType, instanceID, fallbackPrefix string) (string, error) {

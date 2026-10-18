@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -100,4 +101,17 @@ func splitCommand(command string) (string, []string, error) {
 		return "", nil, fmt.Errorf("command is required")
 	}
 	return parts[0], parts[1:], nil
+}
+
+// EncodeOperationEventPayload 把 operation event 的附加载荷编码成 JSON；
+// 空载荷或编码失败时返回空对象（调用方无需再判空）。
+func EncodeOperationEventPayload(payload map[string]any) []byte {
+	if len(payload) == 0 {
+		return []byte(`{}`)
+	}
+	data, err := json.Marshal(payload)
+	if err != nil || !json.Valid(data) {
+		return []byte(`{}`)
+	}
+	return data
 }

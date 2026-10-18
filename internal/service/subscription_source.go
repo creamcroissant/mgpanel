@@ -16,6 +16,7 @@ import (
 	agentsubscribe "github.com/creamcroissant/mgpanel/internal/agent/protocol/subscribe"
 	"github.com/creamcroissant/mgpanel/internal/protocol"
 	"github.com/creamcroissant/mgpanel/internal/repository"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 const (
@@ -440,17 +441,17 @@ func subscriptionClientConfigToNode(cfg agentsubscribe.ClientConfig) (protocol.N
 }
 
 func customSubscriptionNodeToProtocolNode(item customSubscriptionNode) (protocol.Node, bool) {
-	nodeType := normalizeSubscriptionProtocolType(firstNonEmpty(item.Type, item.Protocol))
-	host := firstNonEmpty(item.CustomHost, item.RelayHost, item.Host, item.Server)
+	nodeType := normalizeSubscriptionProtocolType(stringutil.FirstNonEmpty(item.Type, item.Protocol))
+	host := stringutil.FirstNonEmpty(item.CustomHost, item.RelayHost, item.Host, item.Server)
 	if nodeType == "" || host == "" || item.Port <= 0 {
 		return protocol.Node{}, false
 	}
 	settings := cloneSettingsMap(item.Settings)
 	mergeClientConfigLikeSettings(settings, nodeType, item.Cipher, item.Network, item.Path, item.ServiceName, item.TLS, item.SNI, item.ALPN, item.Fingerprint, item.Insecure, item.Flow, 0, 0, "")
 	mergeXHTTPSubscriptionSettings(settings, item.Network, item.XHTTPHost, item.Mode, item.Headers, item.Extra, item.XMux, item.DownloadSettings)
-	password := firstNonEmpty(item.Password, item.UUID)
+	password := stringutil.FirstNonEmpty(item.Password, item.UUID)
 	if nodeType == "vless" || nodeType == "vmess" || nodeType == "tuic" {
-		password = firstNonEmpty(item.UUID, item.Password)
+		password = stringutil.FirstNonEmpty(item.UUID, item.Password)
 	}
 	if password == "" {
 		return protocol.Node{}, false
@@ -619,9 +620,9 @@ func subscriptionClientConfigSecret(cfg agentsubscribe.ClientConfig) string {
 	nodeType := normalizeSubscriptionProtocolType(cfg.Protocol)
 	switch nodeType {
 	case "vless", "vmess", "tuic":
-		return strings.TrimSpace(firstNonEmpty(cfg.UUID, cfg.Password))
+		return strings.TrimSpace(stringutil.FirstNonEmpty(cfg.UUID, cfg.Password))
 	default:
-		return strings.TrimSpace(firstNonEmpty(cfg.Password, cfg.UUID))
+		return strings.TrimSpace(stringutil.FirstNonEmpty(cfg.Password, cfg.UUID))
 	}
 }
 

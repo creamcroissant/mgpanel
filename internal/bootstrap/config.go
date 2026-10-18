@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	"github.com/spf13/viper"
 )
 
@@ -84,88 +85,88 @@ func LoadConfig() (*Config, error) {
 
 	cfg := &Config{}
 
-	cfg.HTTP.Addr = fallback(v.GetString("HTTP_ADDR"), "0.0.0.0:8080")
-	cfg.HTTP.ShutdownTimeout = parseDuration(fallback(v.GetString("SHUTDOWN_TIMEOUT"), "15s"), 15*time.Second)
+	cfg.HTTP.Addr = stringutil.Fallback(v.GetString("HTTP_ADDR"), "0.0.0.0:8080")
+	cfg.HTTP.ShutdownTimeout = parseDuration(stringutil.Fallback(v.GetString("SHUTDOWN_TIMEOUT"), "15s"), 15*time.Second)
 
-	cfg.Log.Level = parseLogLevel(fallback(firstNonEmpty(
+	cfg.Log.Level = parseLogLevel(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("LOG_LEVEL"),
 		os.Getenv("LOG_LEVEL"),
 	), "info"))
-	cfg.Log.Format = strings.ToLower(fallback(firstNonEmpty(
+	cfg.Log.Format = strings.ToLower(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("LOG_FORMAT"),
 		os.Getenv("LOG_FORMAT"),
 	), "json"))
 	cfg.Log.AddSource = v.GetBool("LOG_ADD_SOURCE")
-	cfg.Log.Environment = fallback(firstNonEmpty(
+	cfg.Log.Environment = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ENV"),
 		os.Getenv("APP_ENV"),
 	), "development")
 
-	defaultDBPath := filepath.Clean(fallback(v.GetString("DB_PATH"), filepath.Join("data", "mgpanel.db")))
-	cfg.DB.SQLitePath = fallback(firstNonEmpty(
+	defaultDBPath := filepath.Clean(stringutil.Fallback(v.GetString("DB_PATH"), filepath.Join("data", "mgpanel.db")))
+	cfg.DB.SQLitePath = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("DB_PATH"),
 		os.Getenv("MGPANEL_DB_PATH"),
 	), defaultDBPath)
 
-	cfg.Auth.SigningKey = fallback(firstNonEmpty(
+	cfg.Auth.SigningKey = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("AUTH_SIGNING_KEY"),
 		os.Getenv("MGPANEL_AUTH_SIGNING_KEY"),
 		os.Getenv("APP_KEY"),
 	), "change-me")
-	cfg.Auth.TokenTTL = parseDuration(fallback(firstNonEmpty(
+	cfg.Auth.TokenTTL = parseDuration(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("AUTH_TOKEN_TTL"),
 		os.Getenv("MGPANEL_AUTH_TOKEN_TTL"),
 	), "24h"), 24*time.Hour)
-	cfg.Auth.Issuer = fallback(firstNonEmpty(
+	cfg.Auth.Issuer = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("AUTH_ISSUER"),
 		os.Getenv("MGPANEL_AUTH_ISSUER"),
 	), "mgpanel")
-	cfg.Auth.Audience = fallback(firstNonEmpty(
+	cfg.Auth.Audience = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("AUTH_AUDIENCE"),
 		os.Getenv("MGPANEL_AUTH_AUDIENCE"),
 	), "mgpanel-client")
-	cfg.Auth.Leeway = parseDuration(fallback(firstNonEmpty(
+	cfg.Auth.Leeway = parseDuration(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("AUTH_LEEWAY"),
 		os.Getenv("MGPANEL_AUTH_LEEWAY"),
 	), "30s"), 30*time.Second)
 	cfg.Auth.BcryptCost = parseBcryptCost(v)
 
-	adminEnabledRaw := firstNonEmpty(
+	adminEnabledRaw := stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_ENABLED"),
 		os.Getenv("MGPANEL_ADMIN_UI_ENABLED"),
 	)
 	cfg.UI.Admin.Enabled = parseBool(adminEnabledRaw, true)
-	cfg.UI.Admin.Dir = fallback(firstNonEmpty(
+	cfg.UI.Admin.Dir = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_DIR"),
 		os.Getenv("MGPANEL_ADMIN_UI_DIR"),
 	), filepath.Join("web", "user-vite", "dist"))
-	cfg.UI.Admin.Title = fallback(firstNonEmpty(
+	cfg.UI.Admin.Title = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_TITLE"),
 		os.Getenv("MGPANEL_ADMIN_UI_TITLE"),
 	), "MGPanel Admin")
-	cfg.UI.Admin.Version = fallback(firstNonEmpty(
+	cfg.UI.Admin.Version = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_VERSION"),
 		os.Getenv("MGPANEL_ADMIN_UI_VERSION"),
 	), "go-dev")
-	cfg.UI.Admin.Logo = fallback(firstNonEmpty(
+	cfg.UI.Admin.Logo = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_LOGO"),
 		os.Getenv("MGPANEL_ADMIN_UI_LOGO"),
 	), "")
-	cfg.UI.Admin.BaseURL = strings.TrimRight(fallback(firstNonEmpty(
+	cfg.UI.Admin.BaseURL = strings.TrimRight(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_BASE_URL"),
 		os.Getenv("MGPANEL_ADMIN_UI_BASE_URL"),
 	), ""), "/")
-	cfg.UI.Admin.HiddenModules = parseCSVList(fallback(firstNonEmpty(
+	cfg.UI.Admin.HiddenModules = parseCSVList(stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("ADMIN_UI_HIDDEN_MODULES"),
 		os.Getenv("MGPANEL_ADMIN_UI_HIDDEN_MODULES"),
 	), ""), defaultHiddenAdminModules)
 
-	installEnabledRaw := firstNonEmpty(
+	installEnabledRaw := stringutil.FirstNonEmpty(
 		v.GetString("INSTALL_UI_ENABLED"),
 		os.Getenv("MGPANEL_INSTALL_UI_ENABLED"),
 	)
 	cfg.UI.Install.Enabled = parseBool(installEnabledRaw, true)
-	cfg.UI.Install.Dir = fallback(firstNonEmpty(
+	cfg.UI.Install.Dir = stringutil.Fallback(stringutil.FirstNonEmpty(
 		v.GetString("INSTALL_UI_DIR"),
 		os.Getenv("MGPANEL_INSTALL_UI_DIR"),
 	), filepath.Join("web", "install"))
@@ -234,22 +235,6 @@ func parseLogLevel(raw string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-func fallback(value, def string) string {
-	if value == "" {
-		return def
-	}
-	return value
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 func parseBool(raw string, def bool) bool {

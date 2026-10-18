@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 )
 
 const (
@@ -210,7 +212,7 @@ func (u *Updater) Check(ctx context.Context, req CheckRequest) (*CheckResult, er
 
 	u.mu.Lock()
 	locked := sameVersion(source.TargetVersion, u.state.LockedBadVersion)
-	current := firstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
+	current := stringutil.FirstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
 	upToDate := source.TargetVersion != "" && sameVersion(source.TargetVersion, current)
 	result := &CheckResult{
 		CurrentVersion: current,
@@ -324,7 +326,7 @@ func (u *Updater) MarkHealthy() error {
 		return nil
 	}
 	backupPath := u.state.BackupPath
-	u.state.CurrentVersion = firstNonEmpty(u.state.TargetVersion, u.state.CurrentVersion, u.cfg.CurrentVersion)
+	u.state.CurrentVersion = stringutil.FirstNonEmpty(u.state.TargetVersion, u.state.CurrentVersion, u.cfg.CurrentVersion)
 	u.state.TargetVersion = ""
 	u.state.PreviousVersion = ""
 	u.state.Status.Status = StatusHealthy
@@ -476,7 +478,7 @@ func (u *Updater) beginUpdate(source releaseSource) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	now := u.now().Unix()
-	u.state.CurrentVersion = firstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
+	u.state.CurrentVersion = stringutil.FirstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
 	u.state.TargetVersion = source.TargetVersion
 	u.state.Status.Status = StatusInProgress
 	u.state.Phase = PhaseDownloading
@@ -502,7 +504,7 @@ func (u *Updater) markPendingHealth(source releaseSource, backupPath string) (*U
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	now := u.now()
-	previous := firstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
+	previous := stringutil.FirstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)
 	deadline := now.Add(u.cfg.HealthTimeout).Unix()
 	u.state.PreviousVersion = previous
 	u.state.TargetVersion = source.TargetVersion
@@ -528,7 +530,7 @@ func (u *Updater) rollbackLocked(lockBad bool, message string) error {
 	if _, err := os.Stat(u.state.BackupPath); err != nil {
 		return fmt.Errorf("rollback backup missing: %w", err)
 	}
-	binaryPath := firstNonEmpty(u.state.BinaryPath, u.cfg.BinaryPath)
+	binaryPath := stringutil.FirstNonEmpty(u.state.BinaryPath, u.cfg.BinaryPath)
 	if err := copyToPathAtomically(u.state.BackupPath, binaryPath); err != nil {
 		u.state.Status.Status = StatusFailed
 		u.state.Phase = PhaseRollback
@@ -540,7 +542,7 @@ func (u *Updater) rollbackLocked(lockBad bool, message string) error {
 	if lockBad && u.state.TargetVersion != "" {
 		u.state.LockedBadVersion = u.state.TargetVersion
 	}
-	u.state.CurrentVersion = firstNonEmpty(u.state.PreviousVersion, u.cfg.CurrentVersion)
+	u.state.CurrentVersion = stringutil.FirstNonEmpty(u.state.PreviousVersion, u.cfg.CurrentVersion)
 	u.state.TargetVersion = ""
 	u.state.Status.Status = StatusRolledBack
 	u.state.Phase = PhaseRollback
@@ -554,10 +556,10 @@ func (u *Updater) rollbackLocked(lockBad bool, message string) error {
 }
 
 func (u *Updater) resolveSource(req CheckRequest) (releaseSource, error) {
-	base := firstNonEmpty(req.ReleaseBaseURL, u.cfg.ReleaseBaseURL)
-	repo := strings.Trim(firstNonEmpty(req.ReleaseRepo, u.cfg.ReleaseRepo), "/")
-	tag := firstNonEmpty(req.ReleaseTag, u.cfg.ReleaseTag)
-	assetName := firstNonEmpty(req.AssetName, buildAssetName(u.cfg.OS, u.cfg.Arch))
+	base := stringutil.FirstNonEmpty(req.ReleaseBaseURL, u.cfg.ReleaseBaseURL)
+	repo := strings.Trim(stringutil.FirstNonEmpty(req.ReleaseRepo, u.cfg.ReleaseRepo), "/")
+	tag := stringutil.FirstNonEmpty(req.ReleaseTag, u.cfg.ReleaseTag)
+	assetName := stringutil.FirstNonEmpty(req.AssetName, buildAssetName(u.cfg.OS, u.cfg.Arch))
 	if base == "" || repo == "" || tag == "" || assetName == "" {
 		return releaseSource{}, fmt.Errorf("%w: release source is incomplete", ErrInvalidRequest)
 	}
@@ -572,7 +574,7 @@ func (u *Updater) resolveSource(req CheckRequest) (releaseSource, error) {
 	if err := validateTrustedURL(checksumURL, base); err != nil {
 		return releaseSource{}, err
 	}
-	target := firstNonEmpty(req.TargetVersion, tag)
+	target := stringutil.FirstNonEmpty(req.TargetVersion, tag)
 	return releaseSource{TargetVersion: target, ReleaseTag: tag, AssetName: assetName, AssetURL: assetURL, ChecksumURL: checksumURL, SHA256: normalizeChecksum(req.SHA256)}, nil
 }
 
@@ -674,7 +676,7 @@ func (u *Updater) backupCurrentBinary() (string, error) {
 	if err := os.MkdirAll(u.cfg.BackupDir, 0o700); err != nil {
 		return "", fmt.Errorf("create updater backup dir: %w", err)
 	}
-	name := fmt.Sprintf("agent-%s-%d.bak", sanitizeVersion(firstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)), u.now().UnixNano())
+	name := fmt.Sprintf("agent-%s-%d.bak", sanitizeVersion(stringutil.FirstNonEmpty(u.state.CurrentVersion, u.cfg.CurrentVersion)), u.now().UnixNano())
 	backupPath := filepath.Join(u.cfg.BackupDir, name)
 	if err := copyFile(u.cfg.BinaryPath, backupPath, info.Mode().Perm()); err != nil {
 		return "", err
@@ -714,11 +716,11 @@ func normalizeConfig(cfg Config) (Config, error) {
 	}
 	cfg.StatePath = filepath.Clean(cfg.StatePath)
 	cfg.BackupDir = filepath.Clean(cfg.BackupDir)
-	cfg.ReleaseBaseURL = firstNonEmpty(cfg.ReleaseBaseURL, DefaultReleaseBaseURL)
-	cfg.ReleaseRepo = firstNonEmpty(cfg.ReleaseRepo, DefaultReleaseRepo)
-	cfg.ReleaseTag = firstNonEmpty(cfg.ReleaseTag, DefaultReleaseTag)
-	cfg.OS = firstNonEmpty(cfg.OS, runtime.GOOS)
-	cfg.Arch = firstNonEmpty(cfg.Arch, runtime.GOARCH)
+	cfg.ReleaseBaseURL = stringutil.FirstNonEmpty(cfg.ReleaseBaseURL, DefaultReleaseBaseURL)
+	cfg.ReleaseRepo = stringutil.FirstNonEmpty(cfg.ReleaseRepo, DefaultReleaseRepo)
+	cfg.ReleaseTag = stringutil.FirstNonEmpty(cfg.ReleaseTag, DefaultReleaseTag)
+	cfg.OS = stringutil.FirstNonEmpty(cfg.OS, runtime.GOOS)
+	cfg.Arch = stringutil.FirstNonEmpty(cfg.Arch, runtime.GOARCH)
 	if cfg.HealthTimeout <= 0 {
 		cfg.HealthTimeout = defaultHealthTimeout
 	}
@@ -973,13 +975,4 @@ func sanitizeVersion(version string) string {
 		return "unknown"
 	}
 	return b.String()
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

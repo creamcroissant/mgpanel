@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
 	"github.com/creamcroissant/mgpanel/internal/template"
 	"gopkg.in/yaml.v3"
 )
@@ -120,9 +121,9 @@ func (b *ClashBuilder) mergeProxyGroups(config map[string]any, proxies []string,
 			}
 		}
 		if replaced {
-			group["proxies"] = uniqueStrings(merged)
+			group["proxies"] = stringutil.UniqueStrings(merged)
 		} else {
-			group["proxies"] = uniqueStrings(append(merged, proxies...))
+			group["proxies"] = stringutil.UniqueStrings(append(merged, proxies...))
 		}
 	}
 	filtered := make([]map[string]any, 0, len(groups))
@@ -212,23 +213,6 @@ func toStringSlice(value any) []string {
 		}
 	case string:
 		result = append(result, v)
-	}
-	return result
-}
-
-func uniqueStrings(items []string) []string {
-	seen := make(map[string]struct{})
-	var result []string
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
 	}
 	return result
 }

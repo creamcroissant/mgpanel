@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/creamcroissant/mgpanel/internal/agent/core"
+	"github.com/creamcroissant/mgpanel/internal/support/stringutil"
+)
 
-	)
 // NewSwitcher creates a Switcher with default dependencies where omitted.
 func NewSwitcher(opts SwitcherOptions) (*Switcher, error) {
 	if opts.CoreManager == nil {
@@ -234,7 +235,7 @@ func (s *Switcher) writeConfig(prefix string, content []byte) (string, error) {
 		return "", fmt.Errorf("create config dir: %w", err)
 	}
 
-	name := "core-switch-" + sanitizeToken(prefix)
+	name := "core-switch-" + stringutil.SanitizeToken(prefix)
 	if name == "core-switch-" {
 		name = fmt.Sprintf("core-switch-%d", time.Now().UnixNano())
 	}
@@ -303,4 +304,3 @@ func (s *Switcher) buildRules(ctx context.Context, overrides map[int]int) ([]*DN
 	}
 	return rules, nil
 }
-

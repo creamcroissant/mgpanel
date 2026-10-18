@@ -287,7 +287,7 @@ func (a *AgentBatchApplier) reportApplyEvent(ctx context.Context, runID, phase, 
 	if runID == "" {
 		return
 	}
-	payloadBytes := encodeOperationEventPayload(payload)
+	payloadBytes := protocol.EncodeOperationEventPayload(payload)
 	resp, err := a.client.ReportOperationEvent(ctx, []*agentv1.OperationEvent{{
 		Scope:       operationEventScopeApplyRun,
 		TargetId:    runID,
@@ -309,17 +309,6 @@ func (a *AgentBatchApplier) reportApplyEvent(ctx context.Context, runID, phase, 
 	if resp != nil && !resp.GetSuccess() {
 		a.logger.Warn("panel rejected apply operation event", "run_id", runID, "phase", phase, "message", resp.GetMessage())
 	}
-}
-
-func encodeOperationEventPayload(payload map[string]any) []byte {
-	if len(payload) == 0 {
-		return []byte(`{}`)
-	}
-	data, err := json.Marshal(payload)
-	if err != nil || !json.Valid(data) {
-		return []byte(`{}`)
-	}
-	return data
 }
 
 const (
