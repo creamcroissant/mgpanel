@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/rand"
@@ -19,6 +20,11 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/repository"
 	"github.com/creamcroissant/mgpanel/internal/template"
 )
+
+// heartbeatWriteInterval 是节点心跳落库的最小间隔：agent 每次上报都会带全部节点，
+// 若每次都写库会形成「节点数 × 上报频率」的写放大（sqlite 单写锁下尤其明显）。
+// 节点离线判定阈值是 5 分钟，这里节流到 1 分钟仍足够新鲜。
+const heartbeatWriteInterval = 60 * time.Second
 
 // AgentHostService manages agent host operations.
 type AgentHostService interface {
@@ -596,23 +602,35 @@ func (s *agentHostService) UpdateProtocols(ctx context.Context, token string, pr
 			srv, exists = serverMap[p.Name]
 		}
 		if exists {
+			// 只在内容真正变化（或心跳过期）时写库：agent 每次上报都带全量节点，
+			// 无条件 UPDATE 会把「节点数 × 上报频率」放大成写压力。
+			changed := false
 			// Backfill Code for servers that were created before naming support
 			if srv.Code == "" {
 				srv.Code = p.Name
+				changed = true
 			}
-			if p.Running {
+			if p.Running && now-srv.LastHeartbeatAt >= int64(heartbeatWriteInterval.Seconds()) {
 				srv.LastHeartbeatAt = now
+				changed = true
 			}
-			if p.Type != "" {
+			if p.Type != "" && srv.Type != p.Type {
 				srv.Type = p.Type
+				changed = true
 			}
 			// Update settings with protocol details
-			srv.Settings = settingsJSON
-			if port > 0 {
-				srv.Port = port
+			if !bytes.Equal(srv.Settings, settingsJSON) {
+				srv.Settings = settingsJSON
+				changed = true
 			}
-			if err := s.servers.Update(ctx, srv); err != nil {
-				return fmt.Errorf("update server %s: %v / 更新节点失败: %w", p.Name, err, err)
+			if port > 0 && srv.Port != port {
+				srv.Port = port
+				changed = true
+			}
+			if changed {
+				if err := s.servers.Update(ctx, srv); err != nil {
+					return fmt.Errorf("update server %s: %v / 更新节点失败: %w", p.Name, err, err)
+				}
 			}
 			// Apply auto-naming to existing server
 			if s.namer != nil && s.namer.ShouldRename(srv, p.Name) {

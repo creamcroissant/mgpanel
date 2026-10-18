@@ -5,6 +5,7 @@ package sqlite
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"github.com/creamcroissant/mgpanel/internal/repository"
 )
@@ -79,4 +80,12 @@ func ensureRowsAffected(result sql.Result) error {
 		return repository.ErrNotFound
 	}
 	return nil
+}
+
+// ptrInt64 renders a *int64 as a stable string for cache keys.
+func ptrInt64(v *int64) string {
+	if v == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("%d", *v)
 }

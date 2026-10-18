@@ -38,7 +38,9 @@ func OpenSQLite(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create sqlite dir: %w", err)
 	}
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_busy_timeout=30000&_journal_mode=WAL", resolvedPath)
+	// synchronous=NORMAL：WAL 下不必每次 commit 都 fsync，写延迟显著下降（断电最多丢最近事务）；
+	// cache_size=-20000：约 20MB 页缓存，减少读放大。
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-20000)", resolvedPath)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
