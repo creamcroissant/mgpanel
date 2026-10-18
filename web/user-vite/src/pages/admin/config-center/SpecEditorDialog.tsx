@@ -25,8 +25,6 @@ import type { InboundSemanticSpec } from "@/types/configCenterInbound";
 import { parseSemanticSpec, serializeSemanticSpec } from "@/types/configCenterInbound";
 import {
   generateCompactUUID,
-  generateHexString,
-  generateRealityKeyPair,
   normalizeXrayTransport,
   hasMeaningfulValue,
 } from "./configCenterPageUtils";
@@ -237,46 +235,6 @@ export function SpecEditorDialog({
       }
     }
 
-    // Auto-generate Reality keys/short ID when Reality is first enabled
-    if (next.tls?.reality?.enabled) {
-      const cs = parseJSONRecord(specForm.core_specific) ?? {};
-      const scope = pickCoreSpecificScope(cs, specForm.core_type);
-      const keys = scope as Record<string, unknown>;
-      const streamSettings = keys?.streamSettings as Record<string, unknown> | undefined;
-      const realitySettings = streamSettings?.realitySettings as Record<string, unknown> | undefined;
-      const hasKeys =
-        specForm.core_type === "xray"
-          ? !!(realitySettings?.privateKey || realitySettings?.publicKey)
-          : !!(
-              (keys as ScopeObject)?.tls?.reality?.private_key ||
-              (keys as ScopeObject)?.tls?.reality?.public_key
-            );
-      if (!hasKeys) {
-        const keyPair = await generateRealityKeyPair();
-        const shortId = generateHexString(8);
-        if (specForm.core_type === "xray") {
-          const streamSettings = ensureObjectField(
-            keys,
-            "streamSettings",
-          );
-          const realitySettings = ensureObjectField(
-            streamSettings,
-            "realitySettings",
-          );
-          realitySettings.privateKey = keyPair.privateKey;
-          realitySettings.publicKey = keyPair.publicKey;
-          realitySettings.shortIds = [shortId];
-        } else {
-          const tls = ensureObjectField(keys, "tls");
-          const reality = ensureObjectField(tls, "reality");
-          reality.private_key = keyPair.privateKey;
-          reality.public_key = keyPair.publicKey;
-          reality.short_id = shortId;
-        }
-        formUpdate.core_specific = prettyJSON(cs);
-      }
-    }
-
     onSpecFormChange(formUpdate);
     setSpecJSONError("semantic_spec");
     setSpecJSONError("core_specific");
@@ -319,119 +277,12 @@ export function SpecEditorDialog({
     toast.success(t("admin.configCenter.generator.messages.uuidGenerated"));
   };
 
-  const handleGenerateShortID = (skipOverwriteConfirm = false) => {
-    const coreSpecific = tryParseSpecJSON("core_specific");
-    if (!coreSpecific) {
-      return;
-    }
-
-    const scope = pickCoreSpecificScope(coreSpecific, specForm.core_type);
-
-    if (specForm.core_type === "xray") {
-      const streamSettings = ensureObjectField(scope, "streamSettings");
-      const realitySettings = ensureObjectField(
-        streamSettings,
-        "realitySettings",
-      );
-      const existing = realitySettings.shortIds;
-      const hasExistingShortID =
-        (Array.isArray(existing) && existing.length > 0) ||
-        (typeof existing === "string" && existing.trim().length > 0);
-
-      if (hasExistingShortID && !skipOverwriteConfirm) {
-        requestGeneratorOverwrite("shortId");
-        return;
-      }
-
-      realitySettings.shortIds = [generateHexString(8)];
-    } else {
-      const tls = ensureObjectField(scope, "tls");
-      const reality = ensureObjectField(tls, "reality");
-      if (hasMeaningfulValue(reality.short_id) && !skipOverwriteConfirm) {
-        requestGeneratorOverwrite("shortId");
-        return;
-      }
-      reality.short_id = generateHexString(8);
-    }
-
-    updateSpecJSONField("core_specific", coreSpecific);
-    toast.success(t("admin.configCenter.generator.messages.shortIdGenerated"));
-  };
-
-  const handleGenerateRealityKeyPair = async (
-    skipOverwriteConfirm = false,
-  ) => {
-    const coreSpecific = tryParseSpecJSON("core_specific");
-    if (!coreSpecific) {
-      return;
-    }
-
-    const scope = pickCoreSpecificScope(coreSpecific, specForm.core_type);
-
-    if (specForm.core_type === "xray") {
-      const streamSettings = ensureObjectField(scope, "streamSettings");
-      const realitySettings = ensureObjectField(
-        streamSettings,
-        "realitySettings",
-      );
-      const hasExistingKey =
-        hasMeaningfulValue(realitySettings.privateKey) ||
-        hasMeaningfulValue(realitySettings.publicKey);
-      if (hasExistingKey && !skipOverwriteConfirm) {
-        requestGeneratorOverwrite("realityKey");
-        return;
-      }
-    } else {
-      const tls = ensureObjectField(scope, "tls");
-      const reality = ensureObjectField(tls, "reality");
-      const hasExistingKey =
-        hasMeaningfulValue(reality.private_key) ||
-        hasMeaningfulValue(reality.public_key);
-      if (hasExistingKey && !skipOverwriteConfirm) {
-        requestGeneratorOverwrite("realityKey");
-        return;
-      }
-    }
-
-    try {
-      const generated = await generateRealityKeyPair();
-
-      if (specForm.core_type === "xray") {
-        const streamSettings = ensureObjectField(scope, "streamSettings");
-        const realitySettings = ensureObjectField(
-          streamSettings,
-          "realitySettings",
-        );
-        realitySettings.privateKey = generated.privateKey;
-        realitySettings.publicKey = generated.publicKey;
-      } else {
-        const tls = ensureObjectField(scope, "tls");
-        const reality = ensureObjectField(tls, "reality");
-        reality.private_key = generated.privateKey;
-        reality.public_key = generated.publicKey;
-      }
-
-      updateSpecJSONField("core_specific", coreSpecific);
-      toast.success(
-        t("admin.configCenter.generator.messages.realityKeyGenerated"),
-      );
-    } catch {
-      toast.error(
-        t("admin.configCenter.generator.messages.webCryptoUnsupported"),
-      );
-    }
-  };
-
   const handleConfirmGeneratorOverwrite = () => {
     const action = pendingGeneratorOverwriteAction;
     setPendingGeneratorOverwriteAction(null);
 
     if (action === "uuid") {
       handleGenerateUUID(true);
-    } else if (action === "realityKey") {
-      void handleGenerateRealityKeyPair(true);
-    } else if (action === "shortId") {
-      handleGenerateShortID(true);
     }
   };
 
@@ -742,30 +593,9 @@ export function SpecEditorDialog({
                     >
                       {t("admin.configCenter.fields.coreSpecific")}
                     </label>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void handleGenerateRealityKeyPair()}
-                        data-testid="config-center-generate-reality-key"
-                      >
-                        {t(
-                          "admin.configCenter.generator.actions.generateRealityKey",
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleGenerateShortID()}
-                        data-testid="config-center-generate-short-id"
-                      >
-                        {t(
-                          "admin.configCenter.generator.actions.generateShortId",
-                        )}
-                      </Button>
-                    </div>
+                    <p className="max-w-[22rem] text-xs text-muted-foreground">
+                      {t("admin.configCenter.generator.realityKeysManagedByAgent")}
+                    </p>
                   </div>
                   {specJSONErrors.core_specific && (
                     <p role="alert" className="text-xs text-destructive">

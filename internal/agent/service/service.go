@@ -41,6 +41,7 @@ import (
 	"github.com/creamcroissant/mgpanel/internal/agent/protocol/subscribe"
 	"github.com/creamcroissant/mgpanel/internal/agent/proxy"
 	"github.com/creamcroissant/mgpanel/internal/agent/relayroute"
+	"github.com/creamcroissant/mgpanel/internal/agent/secrets"
 	"github.com/creamcroissant/mgpanel/internal/agent/server"
 	"github.com/creamcroissant/mgpanel/internal/agent/syncer"
 	"github.com/creamcroissant/mgpanel/internal/agent/traffic"
@@ -199,6 +200,15 @@ func New(cfg *config.Config) (*Agent, error) {
 		PostHook:         cfg.Protocol.PostHook,
 	}
 	protoMgr := protocol.NewManager(protoCfg, initSys)
+
+	// 本机 Reality 密钥：按配置（inbound tag）独立生成并持久化到本地文件，
+	// 下发配置写盘前注入。私钥永不出机器，也不在机器/配置间复用。
+	secretMgr := secrets.NewManager(cfg.Protocol.SecretsFile)
+	if err := secretMgr.LoadOrCreate(); err != nil {
+		slog.Error("failed to load or create agent secrets", "path", cfg.Protocol.SecretsFile, "error", err)
+	} else {
+		protoMgr.SetSecrets(secretMgr)
+	}
 
 	// Initialize WireGuard mesh manager
 	var meshMgr *mesh.Manager

@@ -18,6 +18,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/curve25519"
@@ -47,6 +48,56 @@ func GenerateX25519KeyPair() (privateKey, publicKey string, err error) {
 
 	return base64.StdEncoding.EncodeToString(private[:]),
 		base64.StdEncoding.EncodeToString(public), nil
+}
+
+// GenerateRealityKeyPair generates an X25519 key pair in Reality's wire format:
+// base64url without padding, as consumed by both xray (privateKey/publicKey) and
+// sing-box (tls.reality.private_key). Distinct from GenerateX25519KeyPair, which
+// emits standard base64 for the WireGuard mesh.
+func GenerateRealityKeyPair() (privateKey, publicKey string, err error) {
+	var private [32]byte
+	if _, err := rand.Read(private[:]); err != nil {
+		return "", "", fmt.Errorf("failed to generate private key: %w", err)
+	}
+	public, err := curve25519.X25519(private[:], curve25519.Basepoint)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to derive public key: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(private[:]),
+		base64.RawURLEncoding.EncodeToString(public), nil
+}
+
+// DeriveRealityPublicKey derives the Reality public key from a private key
+// string. It accepts both base64url (Reality's own format) and standard base64
+// (WireGuard mesh format) so mixed-format configs can still be reported.
+func DeriveRealityPublicKey(privateKey string) (string, error) {
+	raw, err := decodeRealityKey(privateKey)
+	if err != nil {
+		return "", err
+	}
+	public, err := curve25519.X25519(raw, curve25519.Basepoint)
+	if err != nil {
+		return "", fmt.Errorf("failed to derive public key: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(public), nil
+}
+
+// decodeRealityKey decodes a 32-byte X25519 key in base64url or standard base64.
+func decodeRealityKey(encoded string) ([]byte, error) {
+	trimmed := strings.TrimSpace(encoded)
+	if trimmed == "" {
+		return nil, fmt.Errorf("key is empty")
+	}
+	if raw, err := base64.RawURLEncoding.DecodeString(trimmed); err == nil && len(raw) == 32 {
+		return raw, nil
+	}
+	if raw, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(raw) == 32 {
+		return raw, nil
+	}
+	if raw, err := base64.RawStdEncoding.DecodeString(trimmed); err == nil && len(raw) == 32 {
+		return raw, nil
+	}
+	return nil, fmt.Errorf("key is not a 32-byte base64 X25519 key")
 }
 
 // GenerateShortID generates a random hex string of exactly n characters

@@ -1166,7 +1166,8 @@
           "realityKeyGenerated": "Reality Key 已生成",
           "shortIdGenerated": "Short ID 已生成",
           "webCryptoUnsupported": "当前浏览器不支持 Reality Key 生成"
-        }
+        },
+        "realityKeysManagedByAgent": "Reality 密钥（私钥/公钥/短 ID）由每台 Agent 为每个配置独立生成，此处无需填写"
       },
       "tabs": {
         "specs": "Spec 管理",

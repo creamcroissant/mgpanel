@@ -1,10 +1,9 @@
-// Package secrets manages the agent's node-level cryptographic secrets
-// (Reality X25519 keypair, short ID, self-signed TLS certificate).
+// Package secrets manages the agent's node-local cryptographic secrets.
 //
-// Rationale (see docs/plans/20260828-inbound-v2rayapi.md): node-level secrets
-// must never be stored in the config-center spec — they are generated on the
-// agent side, persisted to a local secrets file with restrictive permissions,
-// and injected into the rendered core config at apply time.
+// 设计（2026-10-03 收紧）：Reality 密钥不再由面板 spec 下发、也不在机器间复用，
+// 而是由 agent 按「配置（inbound tag）」在本地独立生成并持久化（0600），
+// 下发配置写盘前注入。私钥永不出机器；面板通过 agent 上报拿到对应公钥生成订阅。
+// 这样一台机器的一个配置泄露，不会影响其它机器、其它配置。
 package secrets
 
 import (
@@ -12,20 +11,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/creamcroissant/mgpanel/internal/support/keygen"
 )
 
-// SecretsData holds the node-level secrets for a single agent host.
-// PublicKey is derivable from PrivateKey but stored for convenience so the
-// agent can report it to the panel without re-deriving.
+// RealitySecret is one inbound's Reality credentials (X25519 keypair + short id).
+type RealitySecret struct {
+	PrivateKey string `json:"private_key"`
+	PublicKey  string `json:"public_key"`
+	ShortID    string `json:"short_id"`
+}
+
+// SecretsData holds the agent-local secrets for a single machine.
 type SecretsData struct {
-	RealityPrivateKey string `json:"reality_private_key"`
-	RealityPublicKey  string `json:"reality_public_key"`
-	RealityShortID    string `json:"reality_short_id"`
-	TLSCertPEM        string `json:"tls_cert_pem"`
-	TLSKeyPEM         string `json:"tls_key_pem"`
+	TLSCertPEM string `json:"tls_cert_pem"`
+	TLSKeyPEM  string `json:"tls_key_pem"`
+	// Inbounds 按 inbound tag 索引：每个配置一套独立 Reality 密钥，互不复用。
+	Inbounds map[string]RealitySecret `json:"inbounds,omitempty"`
 }
 
 // DefaultShortIDLength is the number of hex characters for a Reality short ID.
@@ -97,7 +101,54 @@ func (m *Manager) Get() SecretsData {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.data
+	return cloneSecrets(m.data)
+}
+
+// RealityFor returns the Reality credentials for one inbound tag, generating and
+// persisting a fresh keypair on first use. Same tag always returns the same
+// keypair (so client public keys stay stable); different tags never share keys.
+func (m *Manager) RealityFor(tag string) (RealitySecret, error) {
+	if m == nil {
+		return RealitySecret{}, fmt.Errorf("secrets manager is nil")
+	}
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return RealitySecret{}, fmt.Errorf("inbound tag is empty")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.data.Inbounds[tag]; ok && existing.PrivateKey != "" {
+		return existing, nil
+	}
+
+	secret, err := GenerateRealitySecret()
+	if err != nil {
+		return RealitySecret{}, err
+	}
+	if m.data.Inbounds == nil {
+		m.data.Inbounds = make(map[string]RealitySecret)
+	}
+	m.data.Inbounds[tag] = secret
+	if err := m.save(m.data); err != nil {
+		delete(m.data.Inbounds, tag)
+		return RealitySecret{}, err
+	}
+	return secret, nil
+}
+
+// cloneSecrets deep-copies the secrets so callers cannot mutate manager state.
+func cloneSecrets(data SecretsData) SecretsData {
+	out := data
+	if len(data.Inbounds) == 0 {
+		return out
+	}
+	out.Inbounds = make(map[string]RealitySecret, len(data.Inbounds))
+	for tag, secret := range data.Inbounds {
+		out.Inbounds[tag] = secret
+	}
+	return out
 }
 
 // save writes the given secrets to disk with 0600 permissions, creating the
@@ -116,45 +167,47 @@ func (m *Manager) save(data SecretsData) error {
 	return nil
 }
 
-// Generate produces a fresh, complete set of node-level secrets.
+// Generate produces a fresh set of machine-level secrets (TLS certificate).
+// Reality keypairs are generated lazily per inbound tag via RealityFor.
 func Generate() (SecretsData, error) {
-	priv, pub, err := keygen.GenerateX25519KeyPair()
-	if err != nil {
-		return SecretsData{}, fmt.Errorf("failed to generate reality keypair: %w", err)
-	}
-	shortID, err := keygen.GenerateShortID(DefaultShortIDLength)
-	if err != nil {
-		return SecretsData{}, fmt.Errorf("failed to generate reality short id: %w", err)
-	}
 	certPEM, keyPEM, err := keygen.GenerateSelfSignedCert("mgpanel-agent", []string{"localhost"}, 825) // 825 days ~ 2.25 years
 	if err != nil {
 		return SecretsData{}, fmt.Errorf("failed to generate self-signed tls cert: %w", err)
 	}
 	return SecretsData{
-		RealityPrivateKey: priv,
-		RealityPublicKey:  pub,
-		RealityShortID:    shortID,
-		TLSCertPEM:        certPEM,
-		TLSKeyPEM:         keyPEM,
+		TLSCertPEM: certPEM,
+		TLSKeyPEM:  keyPEM,
+		Inbounds:   map[string]RealitySecret{},
 	}, nil
+}
+
+// GenerateRealitySecret produces one independent Reality keypair + short id.
+// The keypair uses Reality's own wire format (base64url, no padding), which both
+// xray (privateKey) and sing-box (tls.reality.private_key) accept verbatim.
+func GenerateRealitySecret() (RealitySecret, error) {
+	priv, pub, err := keygen.GenerateRealityKeyPair()
+	if err != nil {
+		return RealitySecret{}, fmt.Errorf("failed to generate reality keypair: %w", err)
+	}
+	shortID, err := keygen.GenerateShortID(DefaultShortIDLength)
+	if err != nil {
+		return RealitySecret{}, fmt.Errorf("failed to generate reality short id: %w", err)
+	}
+	return RealitySecret{PrivateKey: priv, PublicKey: pub, ShortID: shortID}, nil
 }
 
 // validateSecrets ensures a loaded secrets set is complete enough to be usable.
 func validateSecrets(d *SecretsData) error {
-	if d.RealityPrivateKey == "" {
-		return fmt.Errorf("reality_private_key is empty")
-	}
-	if d.RealityPublicKey == "" {
-		return fmt.Errorf("reality_public_key is empty")
-	}
-	if d.RealityShortID == "" {
-		return fmt.Errorf("reality_short_id is empty")
-	}
 	if d.TLSCertPEM == "" {
 		return fmt.Errorf("tls_cert_pem is empty")
 	}
 	if d.TLSKeyPEM == "" {
 		return fmt.Errorf("tls_key_pem is empty")
+	}
+	for tag, secret := range d.Inbounds {
+		if strings.TrimSpace(tag) == "" || secret.PrivateKey == "" || secret.PublicKey == "" || secret.ShortID == "" {
+			return fmt.Errorf("inbound secret %q is incomplete", tag)
+		}
 	}
 	return nil
 }

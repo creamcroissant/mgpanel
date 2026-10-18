@@ -114,12 +114,18 @@ func (m *Manager) ExecuteStagedApply(ctx context.Context, req StagedApplyRequest
 		if err != nil {
 			return result, err
 		}
+		if err := m.injectSecretsIntoFiles(files); err != nil {
+			return result, err
+		}
 		if err := writeStagedFiles(stageDir, files); err != nil {
 			return result, err
 		}
 	case StagedApplyModePatch:
 		ops, err := normalizePatchOperations(req.PatchOperations)
 		if err != nil {
+			return result, err
+		}
+		if err := m.injectSecretsIntoOps(ops); err != nil {
 			return result, err
 		}
 		if err := preparePatchStage(stageDir, activeDir, ops); err != nil {

@@ -121,6 +121,7 @@ type xrayTLSSettings struct {
 
 type xrayRealitySettings struct {
 	PublicKey   string   `json:"publicKey"`
+	PrivateKey  string   `json:"privateKey"`
 	ShortIds    []string `json:"shortIds"`
 	ServerNames []string `json:"serverNames"`
 	Fingerprint string   `json:"fingerprint"`
@@ -285,11 +286,18 @@ func (p *XrayParser) parseTLS(ss *xrayStreamSettings) *TLSConfig {
 	}
 
 	if ss.Security == "reality" && ss.RealitySettings != nil {
+		// 服务端配置只带 privateKey（客户端才用 publicKey）：面板订阅需要的 pbk
+		// 由私钥推导，否则面板拿不到每机独立的公钥。
+		publicKey := ss.RealitySettings.PublicKey
+		if publicKey == "" {
+			publicKey = deriveX25519PublicKey(ss.RealitySettings.PrivateKey)
+		}
 		config.Reality = &RealityConfig{
 			Enabled:     true,
 			ShortIDs:    ss.RealitySettings.ShortIds,
 			Fingerprint: ss.RealitySettings.Fingerprint,
-			PublicKey:   ss.RealitySettings.PublicKey,
+			PublicKey:   publicKey,
+			PrivateKey:  ss.RealitySettings.PrivateKey,
 		}
 		if len(ss.RealitySettings.ServerNames) > 0 {
 			config.Reality.ServerName = ss.RealitySettings.ServerNames[0]

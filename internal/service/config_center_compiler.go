@@ -1597,6 +1597,15 @@ func buildUnifiedInboundFromSemantic(tag string, semantic *inboundSemanticSpec, 
 		}
 	}
 
+	// Reality 密钥不下发：私钥/公钥/short_id 由每台 agent 按「配置」本地独立生成并注入
+	// （见 internal/agent/secrets），面板只下发 reality 开关与伪装域名等公共参数。
+	// 这样同一 spec 绑定多台机器时不会共用同一套密钥。
+	if inbound.TLS != nil && inbound.TLS.Reality != nil {
+		inbound.TLS.Reality.PrivateKey = ""
+		inbound.TLS.Reality.PublicKey = ""
+		inbound.TLS.Reality.ShortIDs = nil
+	}
+
 	return inbound, nil
 }
 

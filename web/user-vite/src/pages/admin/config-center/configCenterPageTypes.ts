@@ -24,7 +24,7 @@ export type SpecFormState = {
 
 export type SpecJSONField = "semantic_spec" | "core_specific";
 export type SpecJSONErrors = Partial<Record<SpecJSONField, string>>;
-export type GeneratorOverwriteAction = "uuid" | "realityKey" | "shortId";
+export type GeneratorOverwriteAction = "uuid";
 
 export type ImportFormState = {
   source: "legacy" | "managed" | "merged";
@@ -48,8 +48,6 @@ export const XRAY_TRANSPORT_OPTIONS: ConfigCenterXrayTransport[] = ["tcp", "ws",
 export const ACTIVE_APPLY_STATUSES = new Set<ConfigCenterApplyRunStatus>(["pending", "applying"]);
 export const GENERATOR_OVERWRITE_MESSAGE_KEYS: Record<GeneratorOverwriteAction, string> = {
   uuid: "admin.configCenter.generator.confirm.uuid",
-  realityKey: "admin.configCenter.generator.confirm.realityKey",
-  shortId: "admin.configCenter.generator.confirm.shortId",
 };
 
 export const defaultSpecFormState: SpecFormState = {

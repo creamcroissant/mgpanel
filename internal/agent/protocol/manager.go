@@ -83,6 +83,16 @@ type Manager struct {
 	init     initsys.InitSystem
 	registry *parser.Registry
 	applyMu  sync.Mutex
+	// secrets 提供本机按配置独立生成的 Reality 密钥，写盘前注入。
+	secrets realitySecretProvider
+}
+
+// SetSecrets 注入本机密钥提供者（Reality 私钥永不出机器，由 agent 本地生成）。
+func (m *Manager) SetSecrets(provider realitySecretProvider) {
+	if m == nil {
+		return
+	}
+	m.secrets = provider
 }
 
 // NewManager 创建协议管理器实例。

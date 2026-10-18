@@ -1166,7 +1166,8 @@
           "realityKeyGenerated": "Reality keys generated",
           "shortIdGenerated": "Short ID generated",
           "webCryptoUnsupported": "Reality key generation is not supported in this browser"
-        }
+        },
+        "realityKeysManagedByAgent": "Reality keys (private/public key, short ID) are generated independently by each Agent per config; nothing to fill in here"
       },
       "tabs": {
         "specs": "Specs",
