@@ -202,7 +202,7 @@ export default function Knowledge() {
       )}
 
       <Dialog open={!!selectedArticle} onOpenChange={(open) => !open && setSelectedArticle(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl">
           {selectedArticle && (
             <>
               <DialogHeader>

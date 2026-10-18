@@ -17,6 +17,7 @@ import {
   EmptyState,
   Loading,
   StatCard,
+  ResponsiveGrid,
 } from "@/components/ui";
 import type { AgentCommandQueueStats, AgentLifecycleOperation } from "@/types";
 
@@ -152,13 +153,13 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
           <Loading />
         ) : queueStats ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <ResponsiveGrid minColWidth={180} gap={12}>
               <MetricTile label={t("admin.cores.queueCapacity")} value={queueStats.capacity} />
               <MetricTile label={t("admin.cores.queueQueued")} value={queueStats.queued} />
               <MetricTile label={t("admin.cores.queueInflight")} value={queueStats.inflight} />
               <MetricTile label={t("admin.cores.queueWorkers")} value={queueStats.workers} />
               <MetricTile label={t("admin.cores.queueAvailable")} value={queueStats.available} />
-            </div>
+            </ResponsiveGrid>
             <div className="rounded-none border border-border border-border p-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-2 text-foreground">
                 <Activity className="h-4 w-4 text-primary" />
@@ -185,7 +186,7 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
           />
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <ResponsiveGrid minColWidth={220} gap={12}>
           <StatCard
             title={t("admin.cores.queueActiveOperations")}
             value={activeOperations.length}
@@ -198,7 +199,7 @@ export function AgentCommandQueuePanel({ agentHostId }: AgentCommandQueuePanelPr
             icon={<AlertTriangle className="h-4 w-4" />}
             variant="warning"
           />
-        </div>
+        </ResponsiveGrid>
 
         {rejectionOperations.length === 0 ? (
           <div className="rounded-none border border-border border-border bg-muted/20 p-3 text-sm text-muted-foreground">

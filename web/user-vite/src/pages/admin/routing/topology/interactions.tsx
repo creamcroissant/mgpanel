@@ -62,7 +62,7 @@ export function ConfirmDialog({
   const t = useTf();
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && (
@@ -123,7 +123,7 @@ export function CreateRuleDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{tf(t, "admin.topology.createRule.title", "新建分流规则")}</DialogTitle>
           <DialogDescription>

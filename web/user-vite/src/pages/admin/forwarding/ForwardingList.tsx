@@ -592,7 +592,7 @@ export default function ForwardingList() {
       </Dialog>
 
       <Dialog open={isLogsOpen} onOpenChange={handleLogsDialogChange}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>
               {t("admin.forwarding.logsTitle")} {logsTarget ? `- ${logsTarget.name}` : ""}

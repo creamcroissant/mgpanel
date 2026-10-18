@@ -766,7 +766,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
           <AgentUpdatePanel agentHostId={agentHostId} />
 
       <Dialog open={isCreateOpen} onOpenChange={handleCreateDialogChange}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("admin.cores.createTitle")}</DialogTitle>
           </DialogHeader>
@@ -819,7 +819,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
       </Dialog>
 
       <Dialog open={isSwitchOpen} onOpenChange={handleSwitchDialogChange}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("admin.cores.switchTitle")}</DialogTitle>
           </DialogHeader>
@@ -882,7 +882,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
       </Dialog>
 
       <Dialog open={isOperationsOpen} onOpenChange={handleOperationsDialogChange}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("admin.cores.operationsTitle")}</DialogTitle>
           </DialogHeader>
@@ -1076,7 +1076,7 @@ export default function AgentCorePanel({ agentHostId, agentName }: AgentCorePane
       </Dialog>
 
       <Dialog open={isLogsOpen} onOpenChange={handleLogsDialogChange}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("admin.cores.logsTitle")}</DialogTitle>
           </DialogHeader>

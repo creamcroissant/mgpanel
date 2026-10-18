@@ -517,7 +517,7 @@ export default function AgentBatchManagePanel({
 
       {/* ---- Core action confirmation dialog ---- */}
       <Dialog open={isCoreDialogOpen} onOpenChange={setIsCoreDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {activeCoreDialog?.action === "install" && t("admin.agents.batch.confirmInstall")}

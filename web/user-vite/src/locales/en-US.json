@@ -1597,7 +1597,8 @@
         "clearAll": "Clear all",
         "selectedCount": "{{selected}} / {{total}} selected",
         "bound": "Bound"
-      }
+      },
+      "description": "Manage inbound config specs, rollout and drift for every agent"
     },
     "system": {
       "title": "System Settings",

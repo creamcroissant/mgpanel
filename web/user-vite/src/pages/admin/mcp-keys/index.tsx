@@ -148,7 +148,7 @@ export default function MCPKeysPage() {
 
       {/* New key reveal dialog */}
       <Dialog open={!!newKeyValue && newKeyValue.length > 0} onOpenChange={(open) => { if (!open) { setNewKeyValue(null); setCopied(false); } }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("admin.mcpKeys.keyCreated")}</DialogTitle>
             <DialogDescription>{t("admin.mcpKeys.keyCreatedDescription")}</DialogDescription>

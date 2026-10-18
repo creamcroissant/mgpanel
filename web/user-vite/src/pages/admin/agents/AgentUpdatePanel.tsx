@@ -22,6 +22,7 @@ import {
   EmptyState,
   Input,
   Loading,
+  ResponsiveGrid,
 } from "@/components/ui";
 import type { AgentLifecycleOperation, AgentLifecycleUpdateRequest } from "@/types";
 import { OperationLogTimeline } from "./OperationLogTimeline";
@@ -199,12 +200,12 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
             size="sm"
           />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <ResponsiveGrid minColWidth={200} gap={12}>
             <DetailItem label={t("admin.cores.updateCurrentVersion")} value={currentVersion} />
             <DetailItem label={t("admin.cores.updateTargetVersion")} value={targetVersion} />
             <DetailItem label={t("admin.cores.updatePreviousVersion")} value={previousVersion} />
             <DetailItem label={t("admin.cores.updateReleaseTag")} value={releaseTag} />
-          </div>
+          </ResponsiveGrid>
         )}
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -264,7 +265,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
         </div>
 
         <div className="rounded-none border border-border border-border p-3">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <ResponsiveGrid minColWidth={220} gap={12}>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("admin.cores.updateTargetVersion")}</label>
               <Input
@@ -281,7 +282,7 @@ export function AgentUpdatePanel({ agentHostId }: AgentUpdatePanelProps) {
                 placeholder={t("admin.cores.updateReleasePlaceholder")}
               />
             </div>
-          </div>
+          </ResponsiveGrid>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               size="sm"

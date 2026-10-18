@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   Loading,
+  ResponsiveGrid,
 } from "@/components/ui";
 import type { AgentTrafficPolicyStatus, AgentTrafficResetResult } from "@/types";
 
@@ -167,7 +168,7 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <ResponsiveGrid minColWidth={200} gap={12}>
               <MetricTile label={t("admin.cores.trafficUsage")} value={formatTrustedBytes(status.usage_bytes, trusted, t)} />
               <MetricTile label={t("admin.cores.trafficThresholdBytes")} value={formatBytes(status.threshold_bytes)} />
               <MetricTile label={t("admin.cores.trafficCycleUpload")} value={formatTrustedBytes(status.cycle_upload_bytes, trusted, t)} />
@@ -198,7 +199,7 @@ export function TrafficCycleStatusCard({ agentHostId }: TrafficCycleStatusCardPr
                   <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{t("admin.cores.trafficUnknown")}</div>
                 )}
               </div>
-            </div>
+            </ResponsiveGrid>
           </>
         ) : null}
 

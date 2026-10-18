@@ -58,6 +58,7 @@ import {
   writeConfigCenterSearchParams,
   formatCoreType,
 } from "./configCenterPageUtils";
+import { AdminPageShell } from "@/components/admin";
 import SpecsTab from "./SpecsTab";
 import { ApplyRunTab } from "./ApplyRunTab";
 import DiffTab from "./DiffTab";
@@ -404,13 +405,11 @@ export default function ConfigCenterPage() {
   );
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("admin.configCenter.title")}</h1>
-      </div>
-
-      {renderFilterBar()}
-
+    <AdminPageShell
+      title={t("admin.configCenter.title")}
+      description={t("admin.configCenter.description")}
+      toolbar={renderFilterBar()}
+    >
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
@@ -548,7 +547,7 @@ export default function ConfigCenterPage() {
 
       {/* Delete Confirm Dialog */}
       <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("admin.configCenter.specs.deleteTitle")}</DialogTitle>
           </DialogHeader>
@@ -567,7 +566,7 @@ export default function ConfigCenterPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPageShell>
   );
 }
 

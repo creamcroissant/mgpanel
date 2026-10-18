@@ -61,7 +61,7 @@ export function CreateRelayPathDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>新建服务器中继链路</DialogTitle>
           <DialogDescription>

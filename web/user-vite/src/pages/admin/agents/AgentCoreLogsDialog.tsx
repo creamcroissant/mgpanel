@@ -62,7 +62,7 @@ export function AgentCoreLogsDialog({
   const { t } = useTranslation();
   return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-5xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t("admin.cores.logsTitle")}</DialogTitle>
           </DialogHeader>

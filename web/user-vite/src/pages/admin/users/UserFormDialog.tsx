@@ -185,7 +185,7 @@ export default function UserFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? t("admin.users.editTitle") : t("admin.users.addTitle")}

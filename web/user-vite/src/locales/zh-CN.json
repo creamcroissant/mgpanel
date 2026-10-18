@@ -1597,7 +1597,8 @@
         "clearAll": "全不选",
         "selectedCount": "已选 {{selected}} / {{total}}",
         "bound": "已绑定"
-      }
+      },
+      "description": "集中管理各 Agent 的入站配置模板、下发与差异对比"
     },
     "system": {
       "title": "系统设置",

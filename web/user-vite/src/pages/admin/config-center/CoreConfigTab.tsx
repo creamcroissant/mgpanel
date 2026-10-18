@@ -260,7 +260,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {editingItem
@@ -367,7 +367,7 @@ export function CoreConfigTab({ configType, selectedHostId, selectedCoreType }: 
       </Dialog>
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("admin.configCenter.specs.deleteTitle")}</DialogTitle>
           </DialogHeader>

@@ -472,7 +472,7 @@ export default function AgentList() {
       </Dialog>
 
       <Dialog open={isDeployDialogOpen} onOpenChange={handleDeployDialogChange}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("admin.agents.deploy.title")}</DialogTitle>
             <DialogDescription>{t("admin.agents.deploy.description")}</DialogDescription>

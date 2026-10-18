@@ -53,7 +53,7 @@ export function CreateExitSetDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>新建出口集</DialogTitle>
           <DialogDescription>创建后可在画布中向集合添加成员服务器</DialogDescription>
@@ -148,7 +148,7 @@ export function CreatePolicyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>新建分流规则</DialogTitle>
           <DialogDescription>命中的流量将转发到所选出口集</DialogDescription>
